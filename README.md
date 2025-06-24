@@ -1,4 +1,4 @@
-# Dominion Wars（ドミニオン・ウォーズ）
+# Dominion Wars（ドミニオン・ウォーズ）*未完成
 
 ## 📌概要
 
