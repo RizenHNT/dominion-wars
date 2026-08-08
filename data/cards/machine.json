@@ -1,0 +1,424 @@
+[
+ {
+  "id": "machine_leader",
+  "name": "上古咒文·赋值机身",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "统领"
+  ],
+  "punish": 0,
+  "leader": true,
+  "chant": 2,
+  "chantEffects": [
+   {
+    "action": "SUMMON_LEADER",
+    "param": "machine_alpha"
+   }
+  ],
+  "leaderDef": {
+   "winCondition": "NONE",
+   "winText": "吟唱2回合后召唤【上古极神Alpha】取代本卡成为统领",
+   "punishEffects": [
+    {
+     "action": "ADD_OPP_PUNISH_TURN",
+     "amount": 3
+    },
+    {
+     "action": "SKIP_RESHUFFLE",
+     "amount": 1
+    }
+   ],
+   "durability": 8
+  },
+  "text": "耐久8。登场后吟唱2回合：召唤【上古极神Alpha】取代本卡成为你的统领。【惩罚】对方本回合所有卡牌惩罚值+3，且你获得1次洗牌免计数。",
+  "flavor": "规则书示例卡。古老的代码正在自我编译。"
+ },
+ {
+  "id": "machine_alpha",
+  "name": "上古极神Alpha",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "极神"
+  ],
+  "punish": 0,
+  "leader": true,
+  "attack": 10,
+  "health": 12,
+  "keywords": [
+   "圣盾",
+   "扰魔"
+  ],
+  "leaderDef": {
+   "winCondition": "OPP_PUNISH_DRAW_TURN_GE",
+   "winParam": 15,
+   "winText": "对方在单个回合内因惩罚抽牌≥15张",
+   "punishEffects": [
+    {
+     "action": "ADD_OPP_PUNISH_TURN",
+     "amount": 3
+    }
+   ]
+  },
+  "text": "胜利：对方在单个回合内因惩罚抽牌≥15张。（由赋值机身吟唱召唤，不可编入卡组）",
+  "guard": true
+ },
+ {
+  "id": "machine_drone",
+  "name": "侦察机偶",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "机偶"
+  ],
+  "punish": 0,
+  "attack": 1,
+  "health": 1,
+  "onPlayEffects": [
+   {
+    "action": "DRAW",
+    "amount": 1
+   }
+  ],
+  "text": "登场：你抽1张牌。"
+ },
+ {
+  "id": "machine_golem",
+  "name": "锈蚀魔像",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "魔像"
+  ],
+  "punish": 2,
+  "attack": 3,
+  "health": 4
+ },
+ {
+  "id": "machine_wall",
+  "name": "装甲壁垒",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "守卫"
+  ],
+  "punish": 2,
+  "attack": 0,
+  "health": 8,
+  "keywords": [
+   "嘲讽"
+  ],
+  "text": ""
+ },
+ {
+  "id": "machine_blaster",
+  "name": "聚能炮台",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "炮台"
+  ],
+  "punish": 2,
+  "attack": 2,
+  "health": 3,
+  "attacksPerTurn": 2,
+  "text": "每回合可攻击2次。"
+ },
+ {
+  "id": "machine_overload",
+  "name": "过载冲击",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "破坏"
+  ],
+  "punish": 3,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_MINION",
+    "amount": 4
+   }
+  ],
+  "text": "对一个敌方随从造成4点伤害。"
+ },
+ {
+  "id": "machine_recharge",
+  "name": "紧急充能",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "充能"
+  ],
+  "punish": 1,
+  "onPlayEffects": [
+   {
+    "action": "RESTORE_ATTACKS",
+    "target": "FRIENDLY_MINION"
+   }
+  ],
+  "text": "恢复一个友方随从的攻击机会。"
+ },
+ {
+  "id": "machine_factory",
+  "name": "量产协议",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "协议"
+  ],
+  "punish": 3,
+  "chant": 2,
+  "chantEffects": [
+   {
+    "action": "SUMMON",
+    "amount": 3,
+    "param": "machine_drone"
+   }
+  ],
+  "text": "召唤三个侦察机偶。"
+ },
+ {
+  "id": "machine_virus",
+  "name": "逻辑病毒",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "干扰"
+  ],
+  "punish": 2,
+  "onPlayEffects": [
+   {
+    "action": "ADD_OPP_PUNISH_TURN",
+    "amount": 1
+   }
+  ],
+  "text": "对方下个回合结束前，其所有卡牌惩罚值+1。"
+ },
+ {
+  "id": "machine_shield_gen",
+  "name": "护盾发生器",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "守护"
+  ],
+  "punish": 2,
+  "onPlayEffects": [
+   {
+    "action": "GRANT_KEYWORD",
+    "target": "FRIENDLY_MINION",
+    "param": "圣盾"
+   }
+  ],
+  "text": "使一个友方随从获得【圣盾】。"
+ },
+ {
+  "id": "machine_trap",
+  "name": "电磁陷阱",
+  "faction": "机械遗迹",
+  "type": "AMBUSH",
+  "tags": [
+   "陷阱"
+  ],
+  "punish": 1,
+  "ambushKind": "NORMAL",
+  "ambushTrigger": "OPPONENT_SUMMONS",
+  "ambushEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_MINION",
+    "amount": 3
+   }
+  ],
+  "text": "伏击·普通：对方召唤随从时，对一个敌方随从造成3点伤害。"
+ },
+ {
+  "id": "machine_null",
+  "name": "协议屏障",
+  "faction": "机械遗迹",
+  "type": "AMBUSH",
+  "tags": [
+   "反制"
+  ],
+  "punish": 2,
+  "ambushKind": "FOCUS",
+  "ambushTrigger": "OPPONENT_PLAYS_SPELL",
+  "ambushEffects": [
+   {
+    "action": "NEGATE"
+   }
+  ],
+  "text": "伏击·专注：反制对方发动的咒文。"
+ },
+ {
+  "id": "machine_punish_core",
+  "name": "核心反击程序",
+  "faction": "机械遗迹",
+  "type": "PUNISH",
+  "tags": [
+   "程序"
+  ],
+  "punish": 5,
+  "punishActivatable": true,
+  "punishCost": 1,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ALL_ENEMY_MINIONS",
+    "amount": 3
+   },
+   {
+    "action": "DRAW",
+    "amount": 1
+   }
+  ],
+  "text": "惩罚牌：无法主动使用。【惩罚】以惩罚1对所有敌方随从造成3点伤害，并抽1张牌。"
+ },
+ {
+  "id": "machine_titan",
+  "name": "残响泰坦",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "泰坦"
+  ],
+  "punish": 5,
+  "attack": 6,
+  "health": 6,
+  "keywords": [
+   "嘲讽"
+  ],
+  "text": ""
+ },
+ {
+  "id": "machine_spark",
+  "name": "火花机蜂",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "蜂群"
+  ],
+  "punish": 1,
+  "attack": 2,
+  "health": 1,
+  "keywords": [
+   "突袭"
+  ],
+  "text": ""
+ },
+ {
+  "id": "machine_assembler",
+  "name": "自我组装体",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "组装"
+  ],
+  "punish": 2,
+  "attack": 3,
+  "health": 3,
+  "punishActivatable": true,
+  "punishCost": 0,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [],
+  "text": "【惩罚】以惩罚0直接登场。"
+ },
+ {
+  "id": "machine_scan",
+  "name": "全域扫描",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "侦测"
+  ],
+  "punish": 1,
+  "onPlayEffects": [
+   {
+    "action": "DRAW",
+    "amount": 2
+   }
+  ],
+  "text": "你抽2张牌。"
+ },
+ {
+  "id": "machine_emp",
+  "name": "EMP脉冲",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "风暴"
+  ],
+  "punish": 4,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ALL_ENEMY_MINIONS",
+    "amount": 2
+   }
+  ],
+  "text": "对所有敌方随从造成2点伤害。"
+ },
+ {
+  "id": "machine_repair",
+  "name": "纳米修复",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "恢复"
+  ],
+  "punish": 1,
+  "onPlayEffects": [
+   {
+    "action": "HEAL",
+    "target": "ALL_FRIENDLY_MINIONS",
+    "amount": 2
+   }
+  ],
+  "text": "所有友方随从恢复2点生命。"
+ },
+ {
+  "id": "machine_cannon",
+  "name": "轨道炮",
+  "faction": "机械遗迹",
+  "type": "SPELL",
+  "tags": [
+   "轰击"
+  ],
+  "punish": 3,
+  "chant": 1,
+  "chantEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_TARGET",
+    "amount": 7
+   }
+  ],
+  "text": "对一个敌方目标造成7点伤害。",
+  "kingSlayer": true
+ },
+ {
+  "id": "machine_recycler",
+  "name": "回收单元",
+  "faction": "机械遗迹",
+  "type": "MINION",
+  "tags": [
+   "回收"
+  ],
+  "punish": 2,
+  "attack": 2,
+  "health": 5,
+  "punishActivatable": true,
+  "punishCost": 1,
+  "punishCondition": "HAND_GE_3",
+  "punishEffects": [
+   {
+    "action": "DRAW",
+    "amount": 1
+   }
+  ],
+  "text": "惩罚(手牌≥3)：登场并抽1张。"
+ }
+]

@@ -1,0 +1,17 @@
+{
+  "openingHand": 5,
+  "drawPerTurn": 1,
+  "secondPlayerBonusDraw": 1,
+  "handLimit": 8,
+  "reshuffleLoseAt": 10,
+  "reshuffleIncludesHand": false,
+  "chainLimit": 20,
+  "deckMin": 60,
+  "deckMax": 80,
+  "pioneerOpponentPunishBonus": 1,
+  "pioneerSelfPunishDiscount": 0,
+  "pioneerHandLimitBonus": 2,
+  "royalCastleEnabled": true,
+  "royalCastleMaxHp": 75,
+  "royalCastleBreakVictoryCount": 9
+}

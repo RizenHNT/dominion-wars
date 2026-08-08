@@ -1,0 +1,125 @@
+[
+ {
+  "id": "shadow_of_fate",
+  "name": "命运之影",
+  "faction": "无阵营",
+  "type": "MINION",
+  "tags": [
+   "统领"
+  ],
+  "punish": 0,
+  "leader": true,
+  "attack": 1,
+  "health": 3,
+  "keywords": [
+   "扰魔"
+  ],
+  "leaderDef": {
+   "winCondition": "NONE",
+   "winText": "击败对方统领即获胜",
+   "persistentEffects": [
+    {
+     "action": "DISABLE_ENEMY_LEADER"
+    }
+   ],
+   "punishEffects": [
+    {
+     "action": "NEGATE_ENEMY_EFFECTS_TURN"
+    }
+   ]
+  },
+  "text": "永续：对方统领的效果与特殊胜利条件被禁用。【惩罚】对方场上所有卡牌的效果在本回合被变更为无效。",
+  "flavor": "规则书示例卡。它只是站在那里，命运便沉默了。",
+  "guard": true
+ },
+ {
+  "id": "gate_of_fate",
+  "name": "命运之门",
+  "faction": "无阵营",
+  "type": "AMBUSH",
+  "tags": [
+   "统领"
+  ],
+  "punish": 0,
+  "leader": true,
+  "ambushKind": "FOCUS",
+  "ambushTrigger": "OPPONENT_PLAYS_CARD",
+  "ambushEffects": [
+   {
+    "action": "WIN_GAME",
+    "param": "命运之门开启"
+   }
+  ],
+  "leaderDef": {
+   "winCondition": "AMBUSH_TRIGGER_WIN",
+   "winText": "本伏击触发即获胜（若双方统领未齐则失败，本卡以自身之力洗回卡组）"
+  },
+  "text": "伏击统领：登场即盖放。对方使用卡牌时触发——若胜利之门已开（双方统领均已登场过且在场）则你立即获胜；否则本卡洗回你的卡组。",
+  "flavor": "门后没有奖赏，门后只有结局。"
+ },
+ {
+  "id": "neutral_mercenary",
+  "name": "雇佣剑士",
+  "faction": "无阵营",
+  "type": "MINION",
+  "tags": [
+   "佣兵"
+  ],
+  "punish": 2,
+  "attack": 3,
+  "health": 3
+ },
+ {
+  "id": "neutral_mage",
+  "name": "流浪法师",
+  "faction": "无阵营",
+  "type": "MINION",
+  "tags": [
+   "法师"
+  ],
+  "punish": 1,
+  "attack": 2,
+  "health": 2,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_FACE",
+    "amount": 1
+   }
+  ],
+  "text": "登场：对敌方统领造成1点伤害。"
+ },
+ {
+  "id": "neutral_supply",
+  "name": "补给车队",
+  "faction": "无阵营",
+  "type": "SPELL",
+  "tags": [
+   "补给"
+  ],
+  "punish": 1,
+  "onPlayEffects": [
+   {
+    "action": "DRAW",
+    "amount": 1
+   }
+  ],
+  "text": "你抽1张牌。"
+ },
+ {
+  "id": "neutral_watcher",
+  "name": "沉默观察者",
+  "faction": "无阵营",
+  "type": "MINION",
+  "tags": [
+   "观察"
+  ],
+  "punish": 3,
+  "attack": 3,
+  "health": 5,
+  "keywords": [
+   "扰魔"
+  ],
+  "text": ""
+ }
+]

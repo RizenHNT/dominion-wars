@@ -1,0 +1,5 @@
+{
+ "_说明": "界面节奏参数（服务端）。aiStepMs=AI每个动作的间隔毫秒；aiEndPauseMs=AI回合衔接停顿。",
+ "aiStepMs": 620,
+ "aiEndPauseMs": 250
+}

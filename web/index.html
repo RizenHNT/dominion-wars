@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>统御战纪</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== 开始界面 ===== -->
+<div id="lobby">
+  <div class="lobby-frame">
+    <h1 class="title">统御战纪</h1>
+    <p class="subtitle" data-i18n="subtitle">以惩罚为代价的对决 —— 击败对方统领者胜</p>
+    <div class="lobby-row"><label data-i18n="yourDeck">你的卡组</label><select id="deckA"></select></div>
+    <div class="lobby-row"><label data-i18n="aiDeck">AI 卡组</label><select id="deckB"></select></div>
+    <div class="lobby-buttons">
+      <button id="btnStart" class="gold" data-i18n="startPvE">开始对战</button>
+      <button id="btnWatch" data-i18n="watch">AI 观战</button>
+      <button id="btnTutorial" data-i18n="tutorial">新手教程</button>
+    </div>
+    <div class="lobby-row lang-row">
+      <label data-i18n="language">界面语言</label>
+      <select id="lang"><option value="zh">中文</option><option value="ja">日本語</option><option value="en">English</option></select>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 对局界面 ===== -->
+<div id="board" class="hidden">
+  <div id="topbar">
+    <div id="phaseInfo"></div>
+    <div id="castle">
+      <div id="castleIcon"></div>
+      <div id="castleBar"><div id="castleFill"></div><span id="castleText"></span></div>
+    </div>
+    <div class="top-actions">
+      <button id="btnHelp" title="教程">?</button>
+      <button id="btnQuit" data-i18n="backLobby">返回</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="table">
+      <div id="oppBar" class="plate"></div>
+
+      <div id="battle">
+        <div class="lane">
+          <div id="oppLeaderZone" class="leaderzone"></div>
+          <div id="oppRow" class="cardrow"></div>
+          <div id="oppPiles" class="piles"></div>
+        </div>
+        <div id="midline">
+          <div id="phaseTrack"></div>
+          <button id="btnEndTurn"><span data-i18n="endTurn">结束回合</span></button>
+        </div>
+        <div class="lane">
+          <div id="myLeaderZone" class="leaderzone"></div>
+          <div id="myRow" class="cardrow"></div>
+          <div id="myPiles" class="piles"></div>
+        </div>
+      </div>
+
+      <div id="myBar" class="plate"></div>
+      <div id="handWrap">
+        <button id="btnSkipAmbush" data-i18n="skipAmbush">跳过伏击阶段</button>
+        <div id="hand"></div>
+      </div>
+    </div>
+    <div id="logPanel">
+      <div id="logTitle" data-i18n="log">对战日志</div>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <svg id="arrowLayer"></svg>
+  <div id="banner" class="hidden"></div>
+  <div id="turnBanner" class="hidden"></div>
+  <div id="dragGhost" class="hidden"></div>
+</div>
+
+<!-- ===== 决策弹窗 ===== -->
+<div id="modal" class="hidden">
+  <div id="modalBox" class="dialog">
+    <div id="modalPrompt"></div>
+    <div id="modalOptions"></div>
+    <div id="modalActions"><button id="modalSkip" data-i18n="skip">放弃</button></div>
+  </div>
+</div>
+
+<!-- ===== 结算 ===== -->
+<div id="gameover" class="hidden">
+  <div id="gameoverBox" class="dialog">
+    <div id="gameoverTitle"></div>
+    <div id="gameoverReason"></div>
+    <button id="btnAgain" class="gold" data-i18n="again">再来一局</button>
+    <button id="btnLobby" data-i18n="backLobby">返回</button>
+  </div>
+</div>
+
+<!-- ===== 教程遮罩 ===== -->
+<div id="tut" class="hidden">
+  <div id="tutHole"></div>
+  <div id="tutBox" class="dialog">
+    <div id="tutText"></div>
+    <div id="tutNav">
+      <span id="tutStep"></span>
+      <button id="tutSkip" data-i18n="skipTut">跳过</button>
+      <button id="tutNext" class="gold" data-i18n="next">下一步</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

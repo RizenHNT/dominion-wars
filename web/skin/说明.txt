@@ -1,0 +1,32 @@
+皮肤图片文件夹
+==============
+把素材图放进本文件夹，然后在 web/config.js 的 cssVars 里填上对应插槽即可换图，例如：
+
+  "--img-card-frame": "url('skin/card-frame.png')",
+  "--img-endturn": "url('skin/end-turn.png')",
+
+保存后刷新浏览器生效。图片为 none 时使用内置绘制样式，所以可以一张一张逐步替换。
+
+全部插槽（推荐尺寸按 2x 出图）：
+  --img-page-bg            整页背景          1920x1080+
+  --img-lobby-bg           大厅卡片背景       900x700
+  --img-battle-bg          战场大板背景       1600x700
+  --img-card-frame         普通卡牌底框       256x356（含边框装饰，留出上半卡图窗）
+  --img-card-frame-leader  统领卡底框         256x356
+  --img-card-back          卡背              256x356
+  --img-plate-bg           玩家信息条         1200x76
+  --img-leaderbox-bg       统领立牌           264x336
+  --img-pile-deck          牌库堆叠面         112x152
+  --img-pile-grave         墓地堆叠面         112x152
+  --img-endturn            结束回合按钮       236x88
+  --img-button             普通按钮九宫格      240x80
+  --img-banner-bg          行动播报横幅       800x100
+  --img-turnbanner-bg      回合过场横幅       1000x140
+  --img-castle-bar         王城血条槽         840x44
+  --img-dialog-bg          弹窗背景           800x600
+  --img-punish-badge       惩罚徽章（六边形内） 60x60
+  --img-gem-atk / --img-gem-hp / --img-gem-dur   宝石 64x64
+  --img-hand-bg            手牌区背景         1600x220
+  --img-log-bg             日志栏背景         540x1000
+
+卡牌插画另见 data/art/（按"卡牌ID.png"命名，编辑器可一键导入）。

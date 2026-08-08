@@ -1,0 +1,394 @@
+[
+ {
+  "id": "sea_leader",
+  "name": "深渊主宰·涛冥",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "统领"
+  ],
+  "punish": 0,
+  "leader": true,
+  "leaderDef": {
+   "grantLife": 25,
+   "winCondition": "OPP_DISCARD_TOTAL_GE",
+   "winParam": 18,
+   "winText": "对方累计弃牌达到18张（弃牌阶段的强制弃牌不计入）",
+   "enterEffects": [
+    {
+     "action": "DRAW",
+     "amount": 2
+    }
+   ],
+   "punishEffects": [
+    {
+     "action": "CONVERT_PUNISH_TO_DISCARD"
+    }
+   ]
+  },
+  "text": "登场：赋予你25点生命（归零落败），抽2张牌。胜利：对方累计弃牌≥18张（效果与惩罚转化弃牌才计入）。【惩罚】对方当回合的惩罚值不再使你抽牌，而是转化为弃置其自己的手牌。",
+  "flavor": "深渊不索取，深渊只是收回。"
+ },
+ {
+  "id": "sea_crab",
+  "name": "铁甲蟹",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "甲壳"
+  ],
+  "punish": 1,
+  "attack": 1,
+  "health": 4,
+  "keywords": [
+   "嘲讽"
+  ],
+  "text": ""
+ },
+ {
+  "id": "sea_siren",
+  "name": "暗礁海妖",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "海妖"
+  ],
+  "punish": 2,
+  "attack": 2,
+  "health": 3,
+  "onPlayEffects": [
+   {
+    "action": "DISCARD_OPP_RANDOM",
+    "amount": 1
+   }
+  ],
+  "text": "登场：对方随机弃置1张手牌。对方每因效果弃置1张牌，本随从获得+1/+1。",
+  "onOpponentDiscardEffects": [
+   {
+    "action": "BUFF",
+    "target": "SELF",
+    "amount": 1,
+    "param": "both"
+   }
+  ]
+ },
+ {
+  "id": "sea_leviathan_young",
+  "name": "幼年利维坦",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "巨兽"
+  ],
+  "punish": 3,
+  "attack": 5,
+  "health": 6
+ },
+ {
+  "id": "sea_mistwalker",
+  "name": "迷雾行者",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "幽影"
+  ],
+  "punish": 2,
+  "attack": 3,
+  "health": 3,
+  "keywords": [
+   "扰魔"
+  ],
+  "text": "不能成为指定型效果的目标。"
+ },
+ {
+  "id": "sea_tide",
+  "name": "退潮",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "弃牌"
+  ],
+  "punish": 1,
+  "onPlayEffects": [
+   {
+    "action": "DISCARD_OPP_RANDOM",
+    "amount": 2
+   }
+  ],
+  "text": "对方随机弃置2张手牌。"
+ },
+ {
+  "id": "sea_whirl",
+  "name": "灭顶漩涡",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "风暴"
+  ],
+  "punish": 3,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ALL_ENEMY_MINIONS",
+    "amount": 2
+   }
+  ],
+  "text": "对所有敌方随从造成2点伤害。"
+ },
+ {
+  "id": "sea_devour",
+  "name": "深渊吞噬",
+  "faction": "深海联盟",
+  "type": "AMBUSH",
+  "tags": [
+   "弃牌"
+  ],
+  "punish": 4,
+  "ambushKind": "FOCUS",
+  "ambushTrigger": "OPPONENT_DRAWS",
+  "ambushEffects": [
+   {
+    "action": "DISCARD_DRAWN"
+   }
+  ],
+  "text": "伏击·专注：对方抽牌时，弃掉其刚抽到的所有牌。",
+  "flavor": "规则书示例卡。"
+ },
+ {
+  "id": "sea_current",
+  "name": "海流加速",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "抽牌"
+  ],
+  "punish": 1,
+  "onPlayEffects": [
+   {
+    "action": "DRAW",
+    "amount": 2
+   }
+  ],
+  "text": "你抽2张牌。"
+ },
+ {
+  "id": "sea_pressure",
+  "name": "深压猛击",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "破坏"
+  ],
+  "punish": 2,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_TARGET",
+    "amount": 3
+   }
+  ],
+  "text": "对一个敌方目标造成3点伤害。",
+  "kingSlayer": true
+ },
+ {
+  "id": "sea_ink",
+  "name": "墨幕",
+  "faction": "深海联盟",
+  "type": "AMBUSH",
+  "tags": [
+   "反制"
+  ],
+  "punish": 1,
+  "ambushKind": "NORMAL",
+  "ambushTrigger": "OPPONENT_ATTACKS",
+  "ambushEffects": [
+   {
+    "action": "NEGATE"
+   }
+  ],
+  "text": "伏击·普通：反制对方的一次攻击。"
+ },
+ {
+  "id": "sea_kraken",
+  "name": "克拉肯触手",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "巨兽"
+  ],
+  "punish": 2,
+  "attack": 4,
+  "health": 2,
+  "punishActivatable": true,
+  "punishCost": 0,
+  "punishCondition": "ENEMY_MINIONS_GE_2",
+  "punishEffects": [],
+  "text": "【惩罚·敌方场上至少2个随从】以惩罚0直接登场。"
+ },
+ {
+  "id": "sea_abyss_call",
+  "name": "深渊召令",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "召唤"
+  ],
+  "punish": 3,
+  "onPlayEffects": [
+   {
+    "action": "SUMMON",
+    "amount": 2,
+    "param": "sea_tentacle"
+   }
+  ],
+  "text": "召唤两个深渊之触。"
+ },
+ {
+  "id": "sea_tentacle",
+  "name": "深渊之触",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "触手"
+  ],
+  "punish": 1,
+  "attack": 2,
+  "health": 2,
+  "keywords": [
+   "嘲讽"
+  ],
+  "text": ""
+ },
+ {
+  "id": "sea_sink",
+  "name": "沉没",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "湮灭"
+  ],
+  "punish": 4,
+  "onPlayEffects": [
+   {
+    "action": "DESTROY",
+    "target": "ENEMY_MINION"
+   }
+  ],
+  "text": "破坏一个敌方随从（统领免疫）。"
+ },
+ {
+  "id": "sea_punish_tsunami",
+  "name": "灭世海啸",
+  "faction": "深海联盟",
+  "type": "PUNISH",
+  "tags": [
+   "天灾"
+  ],
+  "punish": 6,
+  "punishActivatable": true,
+  "punishCost": 2,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ALL_ENEMY_MINIONS",
+    "amount": 5
+   }
+  ],
+  "text": "惩罚牌：无法主动使用。【惩罚】以惩罚2对所有敌方随从造成5点伤害。"
+ },
+ {
+  "id": "sea_priest",
+  "name": "潮汐祭司",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "祭司"
+  ],
+  "punish": 2,
+  "attack": 2,
+  "health": 4,
+  "onPlayEffects": [
+   {
+    "action": "HEAL",
+    "target": "FRIENDLY_MINION",
+    "amount": 3
+   }
+  ],
+  "text": "登场：恢复一个友方随从3点生命。"
+ },
+ {
+  "id": "sea_barrier",
+  "name": "水盾结界",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "守护"
+  ],
+  "punish": 2,
+  "onPlayEffects": [
+   {
+    "action": "GRANT_KEYWORD",
+    "target": "FRIENDLY_MINION",
+    "param": "圣盾"
+   }
+  ],
+  "text": "使一个友方随从获得【圣盾】。"
+ },
+ {
+  "id": "sea_eel",
+  "name": "电鳗游袭",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "速攻"
+  ],
+  "punish": 1,
+  "attack": 3,
+  "health": 1,
+  "keywords": [
+   "突袭"
+  ],
+  "text": ""
+ },
+ {
+  "id": "sea_depths",
+  "name": "海渊凝视",
+  "faction": "深海联盟",
+  "type": "SPELL",
+  "tags": [
+   "仪式"
+  ],
+  "punish": 2,
+  "chant": 1,
+  "chantEffects": [
+   {
+    "action": "DISCARD_OPP_RANDOM",
+    "amount": 3
+   }
+  ],
+  "text": "对方随机弃置3张手牌。"
+ },
+ {
+  "id": "sea_warden",
+  "name": "深海狱卒",
+  "faction": "深海联盟",
+  "type": "MINION",
+  "tags": [
+   "守卫"
+  ],
+  "punish": 3,
+  "attack": 4,
+  "health": 5,
+  "keywords": [
+   "嘲讽"
+  ],
+  "text": "对方每因效果弃置1张牌，对共享王城造成1点伤害。",
+  "onOpponentDiscardEffects": [
+   {
+    "action": "DAMAGE_CASTLE",
+    "amount": 1
+   }
+  ]
+ }
+]

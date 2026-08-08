@@ -1,0 +1,30 @@
+# Java build output
+/build/
+*.class
+
+# Local runtimes and packaged releases
+/jre/
+/releases/
+*.exe
+*.jar
+
+# Python / DeepSeek local tooling
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated QA artifacts
+/artifacts/
+codex-ui-*.png
+web.backup-*/
+

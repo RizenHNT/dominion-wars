@@ -1,0 +1,401 @@
+[
+ {
+  "id": "flame_leader",
+  "name": "烈焰皇·焚天",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "统领"
+  ],
+  "punish": 0,
+  "attack": 8,
+  "health": 10,
+  "keywords": [
+   "圣盾"
+  ],
+  "leader": true,
+  "leaderDef": {
+   "winCondition": "ROYAL_CASTLE_BREAK",
+   "winText": "击破王城即获胜",
+   "enterEffects": [
+    {
+     "action": "DAMAGE",
+     "target": "ALL_ENEMY_MINIONS",
+     "amount": 2
+    }
+   ],
+   "punishEffects": [
+    {
+     "action": "END_TURN"
+    },
+    {
+     "action": "DAMAGE",
+     "target": "ALL_ENEMY_MINIONS",
+     "amount": 2
+    }
+   ]
+  },
+  "text": "登场：对所有敌方随从造成2点伤害。【惩罚】立即结束对方回合，并对所有敌方随从造成2点伤害。",
+  "flavor": "焚尽八荒，唯朕独尊。",
+  "guard": true
+ },
+ {
+  "id": "flame_recruit",
+  "name": "烈焰新兵",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "士兵"
+  ],
+  "punish": 1,
+  "attack": 2,
+  "health": 1,
+  "text": "",
+  "flavor": "帝国的火种，从不熄灭。"
+ },
+ {
+  "id": "flame_imp",
+  "name": "火舌小鬼",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "恶魔"
+  ],
+  "punish": 0,
+  "attack": 1,
+  "health": 2,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_FACE",
+    "amount": 1
+   }
+  ],
+  "text": "登场：对敌方统领造成1点伤害。"
+ },
+ {
+  "id": "flame_charger",
+  "name": "冲锋骑兵",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "骑兵"
+  ],
+  "punish": 2,
+  "attack": 3,
+  "health": 2,
+  "keywords": [
+   "突袭"
+  ],
+  "text": "召唤当回合即可攻击。"
+ },
+ {
+  "id": "flame_guard",
+  "name": "熔岩护卫",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "守卫"
+  ],
+  "punish": 2,
+  "attack": 2,
+  "health": 6,
+  "keywords": [
+   "嘲讽"
+  ],
+  "text": "敌方必须优先攻击本随从。"
+ },
+ {
+  "id": "flame_berserker",
+  "name": "狂热战士",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "狂战"
+  ],
+  "punish": 3,
+  "attack": 5,
+  "health": 3,
+  "punishActivatable": true,
+  "punishCost": 1,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_FACE",
+    "amount": 2
+   }
+  ],
+  "text": "【惩罚】以惩罚1登场，并对敌方统领造成2点伤害。"
+ },
+ {
+  "id": "flame_strike",
+  "name": "火焰冲击",
+  "faction": "烈焰帝国",
+  "type": "SPELL",
+  "tags": [
+   "破坏"
+  ],
+  "punish": 3,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_TARGET",
+    "amount": 5
+   }
+  ],
+  "text": "对一个敌方目标造成5点伤害。",
+  "flavor": "规则书示例卡。",
+  "kingSlayer": true
+ },
+ {
+  "id": "flame_rain",
+  "name": "烈焰风暴",
+  "faction": "烈焰帝国",
+  "type": "SPELL",
+  "tags": [
+   "风暴"
+  ],
+  "punish": 4,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ALL_ENEMY_MINIONS",
+    "amount": 3
+   }
+  ],
+  "text": "对所有敌方随从造成3点伤害。"
+ },
+ {
+  "id": "flame_bolt",
+  "name": "飞火流星",
+  "faction": "烈焰帝国",
+  "type": "SPELL",
+  "tags": [
+   "速攻"
+  ],
+  "punish": 1,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_FACE",
+    "amount": 3
+   }
+  ],
+  "text": "对敌方统领造成3点伤害。"
+ },
+ {
+  "id": "flame_warcry",
+  "name": "帝国战吼",
+  "faction": "烈焰帝国",
+  "type": "SPELL",
+  "tags": [
+   "增强"
+  ],
+  "punish": 2,
+  "onPlayEffects": [
+   {
+    "action": "BUFF",
+    "target": "ALL_FRIENDLY_MINIONS",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
+  "text": "所有友方随从获得+1/+1。"
+ },
+ {
+  "id": "flame_double",
+  "name": "二连斩令",
+  "faction": "烈焰帝国",
+  "type": "SPELL",
+  "tags": [
+   "军令"
+  ],
+  "punish": 2,
+  "onPlayEffects": [
+   {
+    "action": "RESTORE_ATTACKS",
+    "target": "FRIENDLY_MINION"
+   }
+  ],
+  "text": "恢复一个友方随从的攻击机会。"
+ },
+ {
+  "id": "flame_ambush_counter",
+  "name": "烈火反噬",
+  "faction": "烈焰帝国",
+  "type": "AMBUSH",
+  "tags": [
+   "反击"
+  ],
+  "punish": 1,
+  "ambushKind": "NORMAL",
+  "ambushTrigger": "OPPONENT_ATTACKS",
+  "ambushEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_MINION",
+    "amount": 2
+   }
+  ],
+  "text": "伏击·普通：对方攻击时，对一个敌方随从造成2点伤害。"
+ },
+ {
+  "id": "flame_ambush_seal",
+  "name": "燃尽封咒",
+  "faction": "烈焰帝国",
+  "type": "AMBUSH",
+  "tags": [
+   "反制"
+  ],
+  "punish": 2,
+  "ambushKind": "FOCUS",
+  "ambushTrigger": "OPPONENT_PLAYS_SPELL",
+  "ambushEffects": [
+   {
+    "action": "NEGATE"
+   }
+  ],
+  "text": "伏击·专注：反制对方发动的咒文。触发回合内你的其他伏击被压制。"
+ },
+ {
+  "id": "flame_punish_wrath",
+  "name": "焚天之怒",
+  "faction": "烈焰帝国",
+  "type": "PUNISH",
+  "tags": [
+   "天罚"
+  ],
+  "punish": 5,
+  "punishActivatable": true,
+  "punishCost": 1,
+  "punishCondition": "ENEMY_MINIONS_GE_1",
+  "punishEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ALL_ENEMY_MINIONS",
+    "amount": 4
+   }
+  ],
+  "text": "惩罚牌：无法主动使用。【惩罚·敌方场上至少1个随从】以惩罚1对所有敌方随从造成4点伤害。"
+ },
+ {
+  "id": "flame_drake",
+  "name": "赤焰幼龙",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "龙"
+  ],
+  "punish": 3,
+  "attack": 4,
+  "health": 4
+ },
+ {
+  "id": "flame_giant",
+  "name": "熔核巨人",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "巨人"
+  ],
+  "punish": 5,
+  "attack": 7,
+  "health": 7,
+  "keywords": [
+   "嘲讽"
+  ],
+  "text": ""
+ },
+ {
+  "id": "flame_assassin",
+  "name": "灰烬刺客",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "刺客"
+  ],
+  "punish": 2,
+  "attack": 4,
+  "health": 2,
+  "keywords": [
+   "突袭"
+  ],
+  "punishActivatable": true,
+  "punishCost": 0,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [],
+  "text": "【惩罚】以惩罚0直接登场。"
+ },
+ {
+  "id": "flame_forge",
+  "name": "锻火祭坛",
+  "faction": "烈焰帝国",
+  "type": "SPELL",
+  "tags": [
+   "仪式"
+  ],
+  "punish": 2,
+  "chant": 2,
+  "chantEffects": [
+   {
+    "action": "SUMMON",
+    "amount": 2,
+    "param": "flame_elemental"
+   }
+  ],
+  "text": "召唤两个火元素。"
+ },
+ {
+  "id": "flame_elemental",
+  "name": "火元素",
+  "faction": "烈焰帝国",
+  "type": "MINION",
+  "tags": [
+   "元素"
+  ],
+  "punish": 2,
+  "attack": 3,
+  "health": 3,
+  "keywords": [
+   "突袭"
+  ],
+  "text": ""
+ },
+ {
+  "id": "flame_sacrifice",
+  "name": "献祭烈阵",
+  "faction": "烈焰帝国",
+  "type": "SPELL",
+  "tags": [
+   "牺牲"
+  ],
+  "punish": 1,
+  "onPlayEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ALL_MINIONS",
+    "amount": 1
+   }
+  ],
+  "text": "对所有随从（含友方）造成1点伤害。"
+ },
+ {
+  "id": "flame_banner",
+  "name": "帝国军旗",
+  "faction": "烈焰帝国",
+  "type": "SPELL",
+  "tags": [
+   "军势"
+  ],
+  "punish": 3,
+  "onPlayEffects": [
+   {
+    "action": "SUMMON",
+    "amount": 2,
+    "param": "flame_recruit"
+   }
+  ],
+  "text": "召唤两个烈焰新兵。"
+ }
+]
