@@ -1,0 +1,93 @@
+{
+  "version": "1.30",
+  "reference": {
+    "width": 1440,
+    "height": 900
+  },
+  "units": "normalized",
+  "zones": {
+    "opponentArchive": {
+      "x": 0.03,
+      "y": 0.02,
+      "w": 0.78,
+      "h": 0.1,
+      "anchor": "top-left"
+    },
+    "opponentAmbush": {
+      "x": 0.1,
+      "y": 0.12,
+      "w": 0.68,
+      "h": 0.08
+    },
+    "opponentFront": {
+      "x": 0.08,
+      "y": 0.2,
+      "w": 0.72,
+      "h": 0.19
+    },
+    "royalCastle": {
+      "x": 0.25,
+      "y": 0.395,
+      "w": 0.4,
+      "h": 0.105
+    },
+    "playerFront": {
+      "x": 0.08,
+      "y": 0.51,
+      "w": 0.72,
+      "h": 0.18
+    },
+    "playerAmbush": {
+      "x": 0.1,
+      "y": 0.695,
+      "w": 0.68,
+      "h": 0.075
+    },
+    "hand": {
+      "x": 0.04,
+      "y": 0.77,
+      "w": 0.76,
+      "h": 0.21
+    },
+    "battleReportDrawer": {
+      "x": 0.81,
+      "y": 0.1,
+      "w": 0.18,
+      "h": 0.76,
+      "mode": "overlay-drawer"
+    },
+    "phaseIndicator": {
+      "x": 0.82,
+      "y": 0.02,
+      "w": 0.16,
+      "h": 0.075
+    },
+    "primaryAction": {
+      "x": 0.83,
+      "y": 0.88,
+      "w": 0.14,
+      "h": 0.08
+    }
+  },
+  "constraints": [
+    "No horizontal scrolling in battle reference mode",
+    "Battle report may collapse below 1366x768",
+    "Hand never becomes inaccessible; use overlap/fan/zoom",
+    "All target sockets remain at least 44 reference-px interactive size"
+  ],
+  "breakpoints": [
+    {
+      "minWidth": 1440,
+      "mode": "reference"
+    },
+    {
+      "minWidth": 1280,
+      "mode": "compact"
+    },
+    {
+      "minWidth": 960,
+      "mode": "spectator-or-scaled",
+      "note": "commercial PC target; below this is not a primary gameplay target"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "version": "1.30",
+  "result": "PASS",
+  "checks": [
+    {
+      "id": "PORT-01",
+      "pass": true,
+      "note": "Canonical contracts are engine/API neutral"
+    },
+    {
+      "id": "ASSET-01",
+      "pass": true,
+      "note": "SVG sources + PNG fallback present"
+    },
+    {
+      "id": "FLOW-01",
+      "pass": true,
+      "note": "Screen flow explicit"
+    },
+    {
+      "id": "PHASE-01",
+      "pass": true,
+      "note": "START/AMBUSH/ACTION/DISCARD/END explicit"
+    },
+    {
+      "id": "MOTION-01",
+      "pass": true,
+      "note": "Motion contracts and MP4 previews present"
+    },
+    {
+      "id": "FILE-01",
+      "pass": true,
+      "note": "FILE_INDEX.csv present"
+    }
+  ]
+}

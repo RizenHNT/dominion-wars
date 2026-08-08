@@ -1,0 +1,138 @@
+{
+  "version": "1.30",
+  "rule": "generic artwork contains no text; renderer draws localized/dynamic text into these slots",
+  "card_front_master": {
+    "cardId": [
+      0.044,
+      0.025,
+      0.28,
+      0.05
+    ],
+    "type": [
+      0.044,
+      0.59,
+      0.36,
+      0.04
+    ],
+    "name": [
+      0.044,
+      0.64,
+      0.72,
+      0.07
+    ],
+    "rules": [
+      0.044,
+      0.735,
+      0.9,
+      0.14
+    ],
+    "punish": [
+      0.044,
+      0.89,
+      0.22,
+      0.085
+    ],
+    "stats": [
+      0.69,
+      0.9,
+      0.25,
+      0.07
+    ]
+  },
+  "battle_report_frame": {
+    "title": [
+      0.055,
+      0.025,
+      0.72,
+      0.07
+    ],
+    "events": [
+      0.055,
+      0.11,
+      0.89,
+      0.74
+    ]
+  },
+  "chain_tab": {
+    "chainIndex": [
+      0.08,
+      0.36,
+      0.78,
+      0.36
+    ]
+  },
+  "sealed_slip": {
+    "hiddenLabel": [
+      0.2,
+      0.74,
+      0.6,
+      0.18
+    ]
+  },
+  "chant_progress": {
+    "progress": [
+      0.34,
+      0.36,
+      0.32,
+      0.22
+    ]
+  },
+  "archive_tab": {
+    "label": [
+      0.08,
+      0.28,
+      0.78,
+      0.52
+    ]
+  },
+  "ticket": {
+    "punishValue": [
+      0.18,
+      0.3,
+      0.67,
+      0.38
+    ]
+  },
+  "counterfiled": {
+    "label": [
+      0.16,
+      0.28,
+      0.68,
+      0.44
+    ]
+  },
+  "royal_castle_master": {
+    "title": [
+      0.035,
+      0.035,
+      0.33,
+      0.13
+    ],
+    "hp": [
+      0.79,
+      0.06,
+      0.16,
+      0.13
+    ],
+    "status": [
+      0.38,
+      0.79,
+      0.24,
+      0.13
+    ]
+  },
+  "victory_count": {
+    "label": [
+      0.06,
+      0.06,
+      0.55,
+      0.2
+    ],
+    "value": [
+      0.38,
+      0.38,
+      0.54,
+      0.46
+    ]
+  }
+}

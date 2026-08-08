@@ -1,0 +1,7 @@
+﻿artifact,canonical,web,unity,godot,other,rule
+Contract,JSON,direct,direct,direct,direct,no engine APIs
+Vector,SVG source,direct,import/pre-raster,import/pre-raster,depends,PNG fallback
+Raster,RGBA PNG,direct,direct,direct,direct,transparent
+Layout,normalized,adapter,RectTransform,Control,adapter,no CSS
+Motion,semantic primitives,adapter,Animator/Tween,Tween/AnimationPlayer,adapter,no plugin dependency
+Input,canonical actions,adapter,adapter,adapter,adapter,same action schema

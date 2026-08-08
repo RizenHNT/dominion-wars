@@ -1,0 +1,117 @@
+{
+  "version": "1.30",
+  "screens": [
+    {
+      "id": "BOOT",
+      "purpose": "verify manifest/data and initialize renderer",
+      "transitions": {
+        "READY": "TITLE",
+        "FATAL": "FATAL_ERROR"
+      }
+    },
+    {
+      "id": "TITLE",
+      "purpose": "first-contact identity; archive cover",
+      "transitions": {
+        "ACCEPT": "MAIN_MENU"
+      }
+    },
+    {
+      "id": "MAIN_MENU",
+      "actions": [
+        "DUEL",
+        "DECK_BUILDER",
+        "RULEBOOK",
+        "SETTINGS",
+        "QUIT"
+      ],
+      "transitions": {
+        "DUEL": "MATCH_SETUP",
+        "DECK_BUILDER": "DECK_BUILDER",
+        "RULEBOOK": "RULEBOOK",
+        "SETTINGS": "SETTINGS",
+        "QUIT": "QUIT_CONFIRM"
+      }
+    },
+    {
+      "id": "MATCH_SETUP",
+      "purpose": "select deck A/B and mode PvE/local PvP/AI demo",
+      "transitions": {
+        "START": "BATTLE_LOADING",
+        "BACK": "MAIN_MENU"
+      }
+    },
+    {
+      "id": "DECK_BUILDER",
+      "purpose": "build/validate/save decks",
+      "transitions": {
+        "BACK": "MAIN_MENU",
+        "TEST_DUEL": "MATCH_SETUP"
+      }
+    },
+    {
+      "id": "RULEBOOK",
+      "purpose": "rules + keyword glossary + tutorial entry",
+      "transitions": {
+        "TUTORIAL": "TUTORIAL",
+        "BACK": "MAIN_MENU"
+      }
+    },
+    {
+      "id": "TUTORIAL",
+      "purpose": "guided battles driven by same battle components",
+      "transitions": {
+        "COMPLETE": "MAIN_MENU",
+        "BACK": "RULEBOOK"
+      }
+    },
+    {
+      "id": "SETTINGS",
+      "purpose": "language, density, text scale, motion, audio, accessibility",
+      "transitions": {
+        "BACK": "MAIN_MENU"
+      }
+    },
+    {
+      "id": "BATTLE_LOADING",
+      "purpose": "load data/skin and create match snapshot",
+      "transitions": {
+        "READY": "BATTLE",
+        "ERROR": "MATCH_SETUP"
+      }
+    },
+    {
+      "id": "BATTLE",
+      "purpose": "single authoritative battle surface",
+      "transitions": {
+        "GAME_OVER": "RESULT",
+        "PAUSE": "PAUSE"
+      }
+    },
+    {
+      "id": "PAUSE",
+      "purpose": "resume/settings/return confirmation",
+      "transitions": {
+        "RESUME": "BATTLE",
+        "SETTINGS": "SETTINGS_OVERLAY",
+        "QUIT_MATCH": "MAIN_MENU"
+      }
+    },
+    {
+      "id": "RESULT",
+      "purpose": "present final state and reason",
+      "transitions": {
+        "REMATCH": "BATTLE_LOADING",
+        "MAIN_MENU": "MAIN_MENU",
+        "DETAIL": "MATCH_REPORT"
+      }
+    },
+    {
+      "id": "MATCH_REPORT",
+      "purpose": "causal event summary / deck result",
+      "transitions": {
+        "BACK": "RESULT"
+      }
+    }
+  ]
+}

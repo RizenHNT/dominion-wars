@@ -1,0 +1,41 @@
+{
+  "spec": "dw-runtime-ui-contract",
+  "version": "1.30",
+  "engineIndependent": true,
+  "principles": [
+    "Rule engine is authoritative; presentation never re-implements legality.",
+    "Game data, UI semantics, layout, motion and skin are separate packages.",
+    "No DOM/CSS/JavaScript/Unity/Godot identifiers appear in canonical contracts.",
+    "Coordinates are normalized reference-space anchors; renderer chooses native layout implementation.",
+    "All user-visible text is localization-key based; no text is baked into generic UI artwork.",
+    "All reusable graphic primitives ship as SVG source plus transparent PNG fallback.",
+    "Card artwork and skins are replaceable content packs and cannot change gameplay contracts."
+  ],
+  "referenceViewport": {
+    "width": 1440,
+    "height": 900,
+    "origin": "top-left",
+    "normalizedUnit": "0..1"
+  },
+  "presentationInputs": [
+    "GameSnapshot",
+    "LegalActionSet",
+    "GameEventStream",
+    "LocalizationTable",
+    "SkinManifest"
+  ],
+  "presentationOutputs": [
+    "GameAction",
+    "UIIntent",
+    "AccessibilityAnnouncement"
+  ],
+  "forbiddenDependencies": [
+    "browser plugin",
+    "DOM selector",
+    "CSS class contract",
+    "JavaScript callback contract",
+    "Unity GameObject path",
+    "Godot NodePath",
+    "engine-specific shader name"
+  ]
+}

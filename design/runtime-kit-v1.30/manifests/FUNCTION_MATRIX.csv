@@ -1,0 +1,21 @@
+﻿screen_state,function,canonical_input,engine_event,component,motion,error_or_constraint
+TITLE,Accept,UIIntent ACCEPT,-,title cover,DossierOpen,-
+MAIN_MENU,Open Duel,UIIntent OPEN_MATCH_SETUP,-,menu index,IndexShift,-
+MATCH_SETUP,Start Duel,Game setup request,MATCH_READY/ERROR,setup sheet,SealBreak,deck validation error
+DECK_BUILDER,Add/Remove Card,deck data mutation,VALIDATION_UPDATED,CardView/DeckLedger,FileStamp,copy/limit/leader constraints
+BATTLE/AMBUSH,Set Ambush,SET_AMBUSH,AMBUSH_SET/TARGET_REJECTED,Hand/AmbushZone,SealToSlot,engine rejection reason
+BATTLE/AMBUSH,Skip,SKIP_AMBUSH,PHASE_CHANGED,PrimaryAction,PhaseEnd,not legal
+BATTLE/ACTION,Play Card,PLAY_CARD,CARD_PLAYED/PUNISH_*,Hand/CardView/PunishFeed,CardFiled+PunishChain,not usable reason
+BATTLE/ACTION,Select Attacker,UIIntent SELECT_SOURCE,-,Field/TargetOverlay,SourceSelect,cannot attack reason
+BATTLE/ACTION,Attack,ATTACK,ATTACK_DECLARED/DAMAGE/TARGET_REJECTED,TargetOverlay,TargetLock+Damage,guard/phase/target reason
+BATTLE/ACTION,Choose Effect Target,CHOOSE_TARGET,DAMAGE/HEAL/etc,TargetOverlay,TargetLock,ward/leader immunity reason
+BATTLE/ACTION,End Turn,END_TURN,PHASE_CHANGED,PrimaryAction,PhaseEnd,pending prompt
+BATTLE/DISCARD,Discard,DISCARD,CARD_DISCARDED/PHASE_CHANGED,Hand,RedactionDrop,required count
+BATTLE,Open Card Detail,UIIntent OPEN_DETAIL,-,CardDetail,FolioOpen,-
+BATTLE,Pause,UIIntent PAUSE,-,Pause,FolderSlide,-
+BATTLE,Punish Resolve,-,PUNISH_ISSUED/PUNISH_TRIGGERED/CHAIN_*,PunishFeed,PunishChain,chain limit/end
+BATTLE,Castle Damage,-,CASTLE_DAMAGED/CASTLE_BROKEN,RoyalCastle,CastleDamage,-
+BATTLE,Leader Manifest,-,LEADER_MANIFESTED,LeaderManifest,Manifest,-
+BATTLE,Victory Progress,-,VICTORY_PROGRESS/DECK_CYCLED,VictoryProgress,CounterStep,-
+RESULT,Rematch,UIIntent REMATCH,-,Result,ResultFiling,-
+SETTINGS,Reduced Motion,UI setting,-,all motion adapters,reduced path,must preserve state

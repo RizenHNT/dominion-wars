@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dominion Wars Skin Manifest",
+  "type": "object",
+  "required": [
+    "skinId",
+    "version",
+    "theme",
+    "assets"
+  ],
+  "properties": {
+    "skinId": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "theme": {
+      "type": "string"
+    },
+    "assets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "cardArtwork": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "audioCues": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}

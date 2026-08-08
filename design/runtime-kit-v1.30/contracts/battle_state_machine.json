@@ -1,0 +1,72 @@
+{
+  "version": "1.30",
+  "phaseOrder": [
+    "START",
+    "AMBUSH",
+    "ACTION",
+    "DISCARD",
+    "END"
+  ],
+  "states": {
+    "START": {
+      "input": "LOCKED",
+      "entryVisual": "active-side registration + phase stamp",
+      "behavior": "renderer consumes engine-emitted start events; never guesses draw/effect logic",
+      "exit": "engine PHASE_CHANGED"
+    },
+    "AMBUSH": {
+      "input": "AMBUSH_PLACEMENT",
+      "focus": "hand + own ambush zone",
+      "legalActions": [
+        "SET_AMBUSH",
+        "SKIP_AMBUSH"
+      ],
+      "exit": "engine PHASE_CHANGED"
+    },
+    "ACTION": {
+      "input": "ACTION",
+      "focus": "hand + fields + core targets",
+      "substates": [
+        "IDLE",
+        "SOURCE_SELECTED",
+        "TARGETING",
+        "RESOLVING"
+      ],
+      "legalActions": [
+        "PLAY_CARD",
+        "ATTACK",
+        "CHOOSE_TARGET",
+        "END_TURN"
+      ],
+      "exit": "engine PHASE_CHANGED"
+    },
+    "DISCARD": {
+      "input": "DISCARD_ONLY_IF_REQUIRED",
+      "focus": "hand",
+      "behavior": "engine provides requiredCount and legal card ids; requiredCount=0 may auto-pass",
+      "legalActions": [
+        "DISCARD"
+      ],
+      "exit": "engine PHASE_CHANGED"
+    },
+    "END": {
+      "input": "LOCKED",
+      "focus": "battle report + active player index",
+      "behavior": "resolve end events and handoff; renderer does not advance turn itself",
+      "exit": "engine TURN_CHANGED or GAME_OVER"
+    },
+    "OVER": {
+      "input": "LOCKED",
+      "focus": "result transition",
+      "exit": "screen flow RESULT"
+    }
+  },
+  "interruptOverlayStates": [
+    "PUNISH_CHAIN",
+    "AMBUSH_TRIGGER",
+    "LEADER_MANIFEST",
+    "TARGET_PROMPT",
+    "CASTLE_BREAK",
+    "GAME_OVER"
+  ]
+}

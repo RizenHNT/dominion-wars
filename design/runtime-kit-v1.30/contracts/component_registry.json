@@ -1,0 +1,117 @@
+{
+  "version": "1.30",
+  "components": {
+    "CardView": {
+      "inputs": [
+        "cardPublicState",
+        "ownerVisibility",
+        "localization",
+        "skin"
+      ],
+      "states": [
+        "default",
+        "hover",
+        "selected",
+        "disabled",
+        "silenced",
+        "destroyed"
+      ],
+      "engineRule": "display only"
+    },
+    "CardDetail": {
+      "inputs": [
+        "cardFullState",
+        "rulesTextKey",
+        "artworkId"
+      ],
+      "behavior": "folio overlay; no gameplay authority"
+    },
+    "HandView": {
+      "inputs": [
+        "cardIds",
+        "legalActionMap"
+      ],
+      "behavior": "fan/overlap renderer choice; preserve order and accessibility"
+    },
+    "FieldView": {
+      "inputs": [
+        "entityIds",
+        "legalActionMap"
+      ],
+      "behavior": "stable sockets; no rule inference"
+    },
+    "AmbushZone": {
+      "inputs": [
+        "ownVisibleCards",
+        "opponentSealedCount",
+        "kindRestrictions"
+      ],
+      "behavior": "opponent identity hidden unless snapshot reveals"
+    },
+    "RoyalCastle": {
+      "inputs": [
+        "hp",
+        "maxHp",
+        "breaker",
+        "damageHistory"
+      ],
+      "assets": [
+        "royal_castle_master",
+        "castle_damage_*"
+      ],
+      "behavior": "shared center target"
+    },
+    "LeaderManifest": {
+      "inputs": [
+        "leaderForm",
+        "leaderState",
+        "leaderAssetId"
+      ],
+      "behavior": "form-specific socket supplied by state; never normalized to generic portrait HP"
+    },
+    "PunishFeed": {
+      "inputs": [
+        "causalEvents"
+      ],
+      "behavior": "parentEventId chain; newest visible, older collapse"
+    },
+    "PhaseIndicator": {
+      "inputs": [
+        "phase",
+        "turn",
+        "currentPlayer"
+      ],
+      "behavior": "text rendered by localization; artwork remains text-free"
+    },
+    "TargetOverlay": {
+      "inputs": [
+        "selectedSource",
+        "legalTargets",
+        "rejectionReasons"
+      ],
+      "behavior": "shape+label, never color-only"
+    },
+    "VictoryProgress": {
+      "inputs": [
+        "goalType",
+        "current",
+        "target",
+        "threatLevel"
+      ],
+      "behavior": "goal-specific visual metaphor through skin adapter"
+    },
+    "BattleReport": {
+      "inputs": [
+        "events"
+      ],
+      "behavior": "causal summary; optional drawer, not required to understand legal actions"
+    },
+    "PrimaryAction": {
+      "inputs": [
+        "phase",
+        "legalActions"
+      ],
+      "behavior": "single context action: skip ambush/end turn/confirm discard when applicable"
+    }
+  }
+}

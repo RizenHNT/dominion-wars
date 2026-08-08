@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dominion Wars Gameplay Action",
+  "type": "object",
+  "required": [
+    "actionId",
+    "type",
+    "actor"
+  ],
+  "properties": {
+    "actionId": {
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "PLAY_CARD",
+        "SET_AMBUSH",
+        "SKIP_AMBUSH",
+        "ATTACK",
+        "CHOOSE_TARGET",
+        "DISCARD",
+        "END_TURN"
+      ]
+    },
+    "actor": {
+      "type": "integer"
+    },
+    "sourceId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "targetId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cardId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  }
+}

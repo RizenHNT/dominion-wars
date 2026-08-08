@@ -1,0 +1,13 @@
+﻿priority,area,task,exit
+P0,Adapter,Implement snapshot/action/event adapters against current Java engine,No UI rule duplication
+P0,Renderer,Implement normalized layout + components,1440x900/1280x720 stable
+P0,Assets,Resolve logical asset IDs to SVG/PNG,No hardcoded file paths
+P0,Motion,Map semantic motion primitives to native engine animations,Reduced motion works
+P0,Battle,Implement phase UI from battle_state_machine.json,Phase parity
+P0,Targeting,All targets use legalActions / reason,Click and drag same GameAction
+P0,Punish,Render parentEventId causal chain,Cause understandable without log
+P1,Deck Builder,Use CardView + deck validation contract,No renderer-coupled deck data
+P1,Localization,All UI strings use keys,JP/ZH/EN safe
+P1,Skin,Load skin manifest,Skin swap without code edit
+P2,Content Art,Produce ship card art,No layout code changes
+P3,Runtime QA,sim/regression/a11y/input/perf,Release gate

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dominion Wars Presentation Snapshot",
+  "type": "object",
+  "required": [
+    "matchId",
+    "turn",
+    "phase",
+    "currentPlayer",
+    "players",
+    "castle",
+    "legalActions"
+  ],
+  "properties": {
+    "matchId": {
+      "type": "string"
+    },
+    "turn": {
+      "type": "integer"
+    },
+    "phase": {
+      "enum": [
+        "START",
+        "AMBUSH",
+        "ACTION",
+        "DISCARD",
+        "END",
+        "OVER"
+      ]
+    },
+    "currentPlayer": {
+      "type": "integer"
+    },
+    "players": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object"
+      }
+    },
+    "castle": {
+      "type": "object"
+    },
+    "legalActions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "pendingPrompt": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "presentationHints": {
+      "type": "object"
+    }
+  }
+}

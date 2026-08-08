@@ -3,7 +3,7 @@
 ## 1. 技术栈
 
 - Java 17（无任何外部依赖；JSON 解析与测试框架均为自实现）
-- Swing 界面；Gradle 构建（也提供纯 javac 脚本兜底）
+- Swing 界面与本地 Web 界面；当前仓库使用 JDK 17+ 的纯 `javac` 脚本构建
 - 卡牌、卡组、数值全部 JSON 数据驱动，从工作目录 `data/` 加载
 
 ## 2. 目录结构
@@ -26,7 +26,7 @@ src/main/java/com/dominionwars/
   ui/editor/EditorWindow.java 卡牌编辑器
   app/Main.java             入口
 src/test/java/com/dominionwars/test/
-  TestMain.java             30 项规则回归测试
+  TestMain.java             35 项规则回归测试
   SimMain.java              AI 对 AI 批量平衡模拟
 data/
   balance.json  cards/*.json  decks/*.json
@@ -85,7 +85,7 @@ data/
 ## 6. 测试与模拟
 
 ```bash
-# 30 项规则测试
+# 35 项规则测试
 java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -cp build/classes:build/test-classes com.dominionwars.test.TestMain
 # 平衡模拟（每个对阵 8 局）
 java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -cp build/classes:build/test-classes com.dominionwars.test.SimMain 8

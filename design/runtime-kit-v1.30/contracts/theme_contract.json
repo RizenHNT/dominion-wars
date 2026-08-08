@@ -1,0 +1,24 @@
+{
+  "version": "1.30",
+  "semanticTokens": {
+    "surface.paper": "#F3EDE0",
+    "surface.ink": "#11110F",
+    "action.primary": "#BC2C22",
+    "state.disabled": "#B8B2A8",
+    "faction.flame": "#BC2C22",
+    "faction.sea": "#2C5868",
+    "faction.wood": "#596B43",
+    "faction.machine": "#B98C2E",
+    "faction.neutral": "#7A7065"
+  },
+  "fontRoles": {
+    "display": "skin-defined condensed display",
+    "body": "skin-defined CJK-capable serif/sans",
+    "mono": "skin-defined monospaced numerals"
+  },
+  "rules": [
+    "Generic vector assets do not contain localized text",
+    "Renderer maps semantic token names to native colors/materials",
+    "Skin may replace texture/seal/accent/artwork but not gameplay component ids or layout semantics"
+  ]
+}

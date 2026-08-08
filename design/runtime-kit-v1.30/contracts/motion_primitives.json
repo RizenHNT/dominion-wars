@@ -1,0 +1,242 @@
+{
+  "version": "1.30",
+  "timeUnit": "ms",
+  "spaceUnit": "normalized/local-px",
+  "primitives": {
+    "MOVE": {
+      "params": [
+        "from",
+        "to",
+        "duration",
+        "ease"
+      ]
+    },
+    "SCALE": {
+      "params": [
+        "from",
+        "to",
+        "duration",
+        "ease"
+      ]
+    },
+    "ROTATE": {
+      "params": [
+        "degrees",
+        "duration",
+        "ease"
+      ]
+    },
+    "OPACITY": {
+      "params": [
+        "from",
+        "to",
+        "duration"
+      ]
+    },
+    "CLIP_REVEAL": {
+      "params": [
+        "direction",
+        "progress",
+        "duration"
+      ]
+    },
+    "MASK_SWAP": {
+      "params": [
+        "assetId",
+        "duration"
+      ]
+    },
+    "TINT": {
+      "params": [
+        "token",
+        "duration"
+      ]
+    },
+    "LINE_DRAW": {
+      "params": [
+        "sourceAnchor",
+        "targetAnchor",
+        "duration"
+      ]
+    },
+    "COUNTER_STEP": {
+      "params": [
+        "from",
+        "to",
+        "duration"
+      ]
+    },
+    "SPRITE_SWAP": {
+      "params": [
+        "assetId"
+      ]
+    },
+    "AUDIO_CUE": {
+      "params": [
+        "cueId"
+      ]
+    }
+  },
+  "namedMotions": {
+    "PHASE_START": {
+      "duration": 300,
+      "steps": [
+        [
+          "CLIP_REVEAL",
+          "phaseStamp"
+        ],
+        [
+          "OPACITY",
+          "activeSide",
+          0.65,
+          1.0
+        ]
+      ]
+    },
+    "PHASE_AMBUSH": {
+      "duration": 320,
+      "steps": [
+        [
+          "MOVE",
+          "ambushSeals",
+          "edge",
+          "slots"
+        ],
+        [
+          "TINT",
+          "ambushZone",
+          "accent.muted"
+        ]
+      ]
+    },
+    "PHASE_ACTION": {
+      "duration": 260,
+      "steps": [
+        [
+          "MOVE",
+          "registrationMarks",
+          "outer",
+          "battleCorners"
+        ],
+        [
+          "OPACITY",
+          "actionable",
+          0.7,
+          1.0
+        ]
+      ]
+    },
+    "PHASE_DISCARD": {
+      "duration": 280,
+      "steps": [
+        [
+          "MOVE",
+          "hand",
+          "rest",
+          "focus"
+        ],
+        [
+          "OPACITY",
+          "nonHand",
+          1.0,
+          0.72
+        ]
+      ]
+    },
+    "PHASE_END": {
+      "duration": 300,
+      "steps": [
+        [
+          "MOVE",
+          "reportPin",
+          "off",
+          "latestEvent"
+        ],
+        [
+          "MOVE",
+          "pageIndex",
+          "current",
+          "next"
+        ]
+      ]
+    },
+    "PUNISH_CHAIN": {
+      "duration": "event-driven",
+      "steps": [
+        [
+          "MOVE",
+          "ticket",
+          "source",
+          "opponentFeed"
+        ],
+        [
+          "COUNTER_STEP",
+          "punishCount"
+        ],
+        [
+          "MASK_SWAP",
+          "counterfiledOnTrigger"
+        ],
+        [
+          "MOVE",
+          "chainTab",
+          "feed",
+          "stack"
+        ]
+      ]
+    },
+    "TARGET_LOCK": {
+      "duration": 180,
+      "steps": [
+        [
+          "LINE_DRAW",
+          "source",
+          "pointerOrFocus"
+        ],
+        [
+          "SPRITE_SWAP",
+          "reticleByLegality"
+        ]
+      ]
+    },
+    "CASTLE_DAMAGE": {
+      "duration": 260,
+      "steps": [
+        [
+          "MASK_SWAP",
+          "damageThresholdMask"
+        ],
+        [
+          "MOVE",
+          "paperLayer",
+          "registered",
+          "sheared"
+        ]
+      ]
+    },
+    "RESULT_FILING": {
+      "duration": 650,
+      "steps": [
+        [
+          "OPACITY",
+          "controls",
+          1,
+          0
+        ],
+        [
+          "MOVE",
+          "battleSheet",
+          "live",
+          "flat"
+        ],
+        [
+          "CLIP_REVEAL",
+          "resultFrame"
+        ]
+      ]
+    }
+  },
+  "reducedMotion": {
+    "rule": "Preserve state result and causal order; collapse translation to <=80ms cross-fade/sprite-swap; never hide critical information."
+  }
+}

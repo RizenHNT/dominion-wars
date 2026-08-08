@@ -33,7 +33,7 @@
 - Java 17 + Swing，**零外部依赖**（JSON 解析与测试框架均为自实现）
 - 卡牌 / 卡组 / 全部数值由 `data/` 下的 JSON 驱动，内置可视化卡牌编辑器
 - 支持：人机对战、双人同屏、AI 演示观战
-- 4 个阵营 91 张卡、4 套 61 张构筑卡组、30 项规则回归测试、AI 平衡模拟器
+- 4 个阵营 91 张卡、4 套 61 张构筑卡组、35 项规则回归测试、AI 平衡模拟器
 
 完整规则见 [docs/RULES.md](docs/RULES.md)，架构与扩展指南见 [docs/DESIGN.md](docs/DESIGN.md)，平衡数据见 [docs/BALANCE.md](docs/BALANCE.md)。
 
@@ -41,27 +41,21 @@
 
 需要 JDK 17 或更高版本。**请在项目根目录运行**（程序从工作目录读取 `data/`）。
 
-### 方式一：Gradle
-
-```bash
-gradle run          # 启动游戏
-gradle rulesTest    # 运行 30 项规则测试
-gradle simulate -Pgames=8   # AI 对 AI 平衡模拟
-```
-
-### 方式二：纯 JDK（无需 Gradle）
+### 方式一：纯 JDK（当前仓库支持）
 
 ```bash
 # Linux / macOS
 scripts/build.sh
-scripts/run.sh
+scripts/run.sh       # 经典 Swing 界面
+java -cp build/classes com.dominionwars.app.Main --web  # Web 界面
 
 # Windows
 scripts\build.bat
-scripts\run.bat
+scripts\run.bat      # 经典 Swing 界面
+scripts\run-web.bat  # Web 界面
 ```
 
-### 方式三：控制台对战模式（无图形环境 / 手机）
+### 方式二：控制台对战模式（无图形环境 / 手机）
 
 与图形版共用同一套引擎与 AI，规则零分叉：
 

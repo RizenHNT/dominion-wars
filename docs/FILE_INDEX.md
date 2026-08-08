@@ -8,12 +8,13 @@
 | --- | --- | --- |
 | `src/main/java/` | 游戏规则、AI、Swing UI、本地 Web 服务 | Codex |
 | `src/test/java/` | 规则回归测试、模拟器、截图测试 | Codex / DeepSeek |
-| `web/` | 浏览器界面及其配置 | Codex |
+| `web/` | 浏览器界面及其配置 | 人类负责人 / GPT 网页端；Codex 支持 API 接入 |
 | `data/cards/` | 卡牌定义 | 设计确认后由 Codex 修改 |
 | `data/decks/` | 预构筑卡组 | 设计确认后由 Codex 修改 |
 | `data/balance.json` | 全局平衡参数 | Claude 规划，Codex 实现，DeepSeek 验证 |
 | `data/art/` | 游戏插画资源 | 人工审核后纳入 |
 | `docs/` | 规则、设计、平衡和交接文档 | Claude / Codex |
+| `design/runtime-kit-v1.30/` | UI 资产、动效样例、适配器契约和实现清单 | Claude 规划，Codex 接入，DeepSeek 验证 |
 | `scripts/` | 构建与启动入口 | Codex |
 
 ## 关键入口
@@ -25,6 +26,10 @@
 - `src/test/java/com/dominionwars/test/TestMain.java`：规则回归测试入口。
 - `src/test/java/com/dominionwars/test/SimMain.java`：批量对局模拟入口。
 - `web/app.js`：网页端交互逻辑。
+- `design/runtime-kit-v1.30/README_FIRST.md`：设计交接包入口。
+- `design/runtime-kit-v1.30/contracts/`：Snapshot、Action、Event、布局、主题和动效契约。
+- `design/runtime-kit-v1.30/manifests/IMPLEMENTATION_TODO.csv`：按优先级排列的接入任务。
+- `docs/AI_MAILBOX.md`：AI 之间的轻量异步通知与行动项。
 
 ## 仓库外目录
 
@@ -33,5 +38,8 @@
 
 ## 不应提交
 
-`build/`、JRE、EXE/JAR 发行包、虚拟环境、`.env`、截图和临时备份均由 `.gitignore` 排除。
+`build/`、JRE、EXE/JAR 发行包、虚拟环境、`.env`、截图、临时备份和已经解压的原始 ZIP 均由 `.gitignore` 排除。
 
+## 设计包状态
+
+Runtime Design Kit v1.30 已于 2026-08-08 解压到 `design/runtime-kit-v1.30/`。包内 365 个清单项已通过 SHA-256 校验。该目录是设计和接口基线，不表示现有 Web UI 已完成其中列出的功能。

@@ -28,3 +28,6 @@ Thumbs.db
 codex-ui-*.png
 web.backup-*/
 
+# Local source packages (verified contents live under design/)
+/Dominion_Wars_Runtime_Design_Kit_*.zip
+
