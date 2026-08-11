@@ -1013,7 +1013,7 @@ function Invoke-DeepSeekJson {
 
 function Get-TestSandboxArguments {
     param([Parameter(Mandatory)][string]$TestCommand, [string[]]$TestArguments = @())
-    $permissionDefinition = 'permissions.nightshift-test={ description = "Night test isolation", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "deny", ":slash_tmp" = "deny", "~/AppData/Local/DominionWarsNightshift" = "deny", ":workspace_roots" = { "." = "read", "build" = "write", ".git" = "read", ".codex" = "read" } }, network = { enabled = false } }'
+    $permissionDefinition = 'permissions = { nightshift-test = { description = "Night test isolation", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "deny", ":slash_tmp" = "deny", "~/AppData/Local/DominionWarsNightshift" = "deny", ":workspace_roots" = { "." = "read", "build" = "write", ".git" = "read", ".codex" = "read" } }, network = { enabled = false } } }'
     @(
         'sandbox',
         '-c', 'default_permissions="nightshift-test"',
@@ -1032,7 +1032,7 @@ function Get-DeveloperPermissionDefinition {
     foreach ($path in @($AllowedPaths | ForEach-Object { Normalize-RepoRelativePath -Path ([string]$_) } | Sort-Object -Unique)) {
         $workspaceRules.Add(('"{0}" = "write"' -f $path))
     }
-    'permissions.nightshift-developer={ description = "Write only the human-approved task paths", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "deny", ":slash_tmp" = "deny", "~/AppData/Local/DominionWarsNightshift" = "deny", ":workspace_roots" = { ' + ($workspaceRules -join ', ') + ' } }, network = { enabled = false } }'
+    'permissions = { nightshift-developer = { description = "Write only the human-approved task paths", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "deny", ":slash_tmp" = "deny", "~/AppData/Local/DominionWarsNightshift" = "deny", ":workspace_roots" = { ' + ($workspaceRules -join ', ') + ' } }, network = { enabled = false } } }'
 }
 
 function Get-DeveloperProfileProbeArguments {
