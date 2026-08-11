@@ -79,6 +79,8 @@ if ([int]$config.providerRetryBaseSeconds -lt 1 -or [int]$config.providerRetryBa
 if ([int]$config.totalRunSeconds -lt 600 -or [int]$config.totalRunSeconds -gt 20700) { throw 'totalRunSeconds must be between 600 and 20700.' }
 if ([int]$config.scheduledLatestStartHour -lt 2 -or [int]$config.scheduledLatestStartHour -gt 12) { throw 'scheduledLatestStartHour must be between 2 and 12.' }
 if ([int]$config.goalMaxAgeHours -lt 2 -or [int]$config.goalMaxAgeHours -gt 48) { throw 'goalMaxAgeHours must be between 2 and 48.' }
+if ([string]$config.developer.model -ne 'gpt-5.6-luna') { throw 'Night-shift developer model must remain pinned to gpt-5.6-luna.' }
+if ([string]$config.developer.reasoningEffort -notin @('low', 'medium', 'high', 'xhigh', 'max')) { throw 'Invalid night-shift developer reasoning effort.' }
 
 if (-not (Get-Command $configuredMiniMax -ErrorAction SilentlyContinue)) {
     foreach ($candidate in @(
@@ -1056,13 +1058,14 @@ function Get-DeveloperSandboxArguments {
         [Parameter(Mandatory)][string]$Prompt
     )
     $permissionDefinition = Get-DeveloperPermissionDefinition -AllowedPaths $AllowedPaths
+    $modelArguments = @('-m', [string]$config.developer.model, '-c', ('model_reasoning_effort="{0}"' -f [string]$config.developer.reasoningEffort))
     @(
         'exec', '--ephemeral', '--ignore-user-config', '--strict-config',
         '-c', 'approval_policy="never"',
         '-c', 'default_permissions="nightshift-developer"',
         '-c', $permissionDefinition,
-        '--json', '--color', 'never', '-C', $repoRoot, '-o', $ScratchOutput, $Prompt
-    )
+        '--json', '--color', 'never'
+    ) + $modelArguments + @('-C', $repoRoot, '-o', $ScratchOutput, $Prompt)
 }
 
 function Invoke-TestProfile {
