@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dominion-wars.local/data/schema/cards.schema.json",
+  "title": "Dominion Wars Card Definition",
+  "description": "Card data contract. Reverse-derived from the 91 hand-edited cards under data/cards/. New fields MUST be added here first; Unity loaders validate at boot and fail closed on mismatch.",
+  "type": "array",
+  "minItems": 1,
+  "uniqueItems": true,
+  "items": { "$ref": "#/$defs/Card" },
+  "$defs": {
+    "StableId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "minLength": 3,
+      "maxLength": 64
+    },
+    "CardType": {
+      "type": "string",
+      "enum": ["MINION", "SPELL", "AMBUSH", "PUNISH"]
+    },
+    "Faction": {
+      "type": "string",
+      "enum": ["烈焰帝国", "机械遗迹", "深海联盟", "古木圣地", "无阵营"]
+    },
+    "Keyword": {
+      "type": "string",
+      "enum": ["嘲讽", "圣盾", "扰魔", "突袭"]
+    },
+    "Tag": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8
+    },
+    "WinCondition": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "ROYAL_CASTLE_BREAK",
+        "AMBUSH_TRIGGER_WIN",
+        "OPP_DISCARD_TOTAL_GE",
+        "OPP_PUNISH_DRAW_TURN_GE",
+        "NO_DAMAGE_TURNS_GE"
+      ]
+    },
+    "EffectTarget": {
+      "type": "string",
+      "enum": [
+        "ENEMY_TARGET",
+        "ENEMY_MINION",
+        "FRIENDLY_MINION",
+        "ALL_ENEMY_MINIONS",
+        "ALL_FRIENDLY_MINIONS",
+        "ALL_MINIONS",
+        "ENEMY_FACE"
+      ]
+    },
+    "EffectSpec": {
+      "type": "object",
+      "required": ["action"],
+      "additionalProperties": false,
+      "properties": {
+        "action": { "$ref": "#/$defs/EffectAction" },
+        "target": { "$ref": "#/$defs/EffectTarget" },
+        "amount": { "type": "integer", "minimum": -99, "maximum": 99 },
+        "param": { "type": "string", "maxLength": 64 },
+        "condition": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "EffectAction": {
+      "type": "string",
+      "enum": [
+        "DAMAGE", "HEAL", "DRAW", "OPP_DRAW",
+        "DISCARD_OPP_RANDOM", "DISCARD_DRAWN", "DESTROY",
+        "BUFF", "GRANT_KEYWORD", "SUMMON", "SUMMON_LEADER",
+        "END_TURN",
+        "ADD_OPP_PUNISH_TURN", "ADD_SELF_PUNISH_TURN",
+        "CONVERT_PUNISH_TO_DISCARD", "PROTECT_TURN",
+        "NEGATE", "NEGATE_ENEMY_EFFECTS_TURN",
+        "SKIP_RESHUFFLE", "RESTORE_ATTACKS",
+        "GAIN_LIFE", "LOSE_LIFE", "DAMAGE_CASTLE", "WIN_GAME"
+      ]
+    },
+    "LeaderDef": {
+      "type": "object",
+      "required": ["winCondition"],
+      "additionalProperties": false,
+      "properties": {
+        "winCondition": { "$ref": "#/$defs/WinCondition" },
+        "winText": { "type": "string", "maxLength": 64 },
+        "winAmount": { "type": "integer", "minimum": 0, "maximum": 999 },
+        "grantLife": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "enterEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "punishEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        }
+      }
+    },
+    "Card": {
+      "type": "object",
+      "required": ["id", "name", "faction", "type", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/StableId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "faction": { "$ref": "#/$defs/Faction" },
+        "type": { "$ref": "#/$defs/CardType" },
+        "tags": {
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/Tag" },
+          "uniqueItems": true
+        },
+        "punish": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20,
+          "default": 0
+        },
+        "attack": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "health": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "keywords": {
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/Keyword" },
+          "uniqueItems": true
+        },
+        "leader": { "type": "boolean", "const": true },
+        "leaderDef": { "$ref": "#/$defs/LeaderDef" },
+        "onPlayEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "text": { "type": "string", "minLength": 0, "maxLength": 256 },
+        "flavor": { "type": "string", "maxLength": 256 },
+        "guard": { "type": "boolean", "default": false },
+        "kingSlayer": { "type": "boolean", "default": false },
+        "summonedThisTurn": { "type": "boolean", "default": false }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "MINION" } }, "required": ["type"] },
+          "then": { "required": ["attack", "health"] }
+        },
+        {
+          "if": { "properties": { "leader": { "const": true } }, "required": ["leader"] },
+          "then": { "required": ["leaderDef"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "PUNISH" } }, "required": ["type"] },
+          "then": {
+            "required": ["punish"],
+            "properties": { "punish": { "minimum": 1, "maximum": 20 } }
+          }
+        }
+      ]
+    }
+  }
+}

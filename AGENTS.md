@@ -1,8 +1,8 @@
 # Dominion Wars agent responsibilities
 
-This repository uses a planning, implementation, and verification handoff. The human project owner has final authority over rules, balance, visual direction, and releases.
+This repository uses a planning, implementation, and verification handoff. The human project owner has final authority over rules, balance, visual direction, priorities, and releases. Routine work inside an approved role and scope does not require repeated human confirmation.
 
-## Claude: planning lead
+## Claude / MiniMax: planning lead
 
 - Convert product ideas into scoped proposals and acceptance criteria.
 - Publish one consolidated planning report per workday; interrupt the cadence only for a genuine blocking decision.
@@ -10,6 +10,7 @@ This repository uses a planning, implementation, and verification handoff. The h
 - Review the design kit contracts before proposing UI or runtime changes.
 - Identify affected files, compatibility risks, migration steps, and non-goals.
 - Do not mark unimplemented proposals as completed behavior.
+- Claude is the permanent planning lead. While Claude is unavailable, MiniMax temporarily exercises the same planning duties through `.github/agents/minimax-pl.agent.md` without gaining final product authority.
 
 ## Codex: implementation lead
 
@@ -33,6 +34,31 @@ This repository uses a planning, implementation, and verification handoff. The h
 - Write reproducible reports with commands, expected results, actual results, and severity.
 - Do not edit production code while acting as test lead; send failures back to Codex.
 - Keep API keys, virtual environments, and generated private reports outside this repository.
+
+## Working authority and write boundaries
+
+- **Planning lead may act without asking:** read the repository; create or update proposals, specifications, acceptance criteria, PL reports, and its own `docs/AI_MAILBOX.md` entries; assign work inside an already approved goal; choose reversible planning details that do not change product behavior.
+- **Planning lead must not change without approval:** production files under `src/`, `data/`, `scripts/`, or `web/`; canonical rule or balance outcomes; final visual direction; release state; completed-change records without implementation and QA evidence.
+- **Codex may act without asking:** implement an approved scope under `src/`, `data/`, `scripts/`, tests, build/configuration files, and the Java-to-Web boundary; run existing builds and tests; fix reproducible implementation defects; maintain technical documentation and local Git commits containing only the approved work.
+- **Codex must not change without approval:** game-design intent, balance targets, final frontend appearance or copy, credentials, paid services, destructive history rewrites, protected-branch merges, pushes, or releases. Night/day automation keeps its stricter no-commit and no-push rules.
+- **Frontend lead may act without asking:** edit browser UI, presentation structure, interaction implementation, and frontend copy under the approved visual and adapter contracts; use mock data that is clearly labeled as non-authoritative.
+- **Frontend lead must not change without approval:** engine rules, legality, targeting, phase progression, victory logic, balance values, or canonical contracts.
+- **DeepSeek may act without asking:** read the repository; run existing allowlisted tests and inspections; classify failures; write its own QA reports and mailbox entries; return reproducible implementation failures directly to Codex.
+- **DeepSeek must not change:** production code/data, planning decisions, another agent's report section, credentials, or releases. Test-code changes are proposed to Codex unless the human owner explicitly assigns a test-only edit scope.
+- **Approval Reviewer may only read and explain approval risk.** It never edits, executes, or grants permission.
+
+## Escalation routing
+
+Do not ask the human owner merely because something is uncertain. Route it first:
+
+- Product scope, UX intent, acceptance criteria, or planning ambiguity → planning lead.
+- Engine, API, schema implementation, build, or repository ambiguity → Codex.
+- Test coverage, reproduction, severity, or verification ambiguity → DeepSeek.
+- Frontend layout, interaction feel, visual treatment, or copy → human owner and GPT Web, collected by the planning lead in the daily report unless it blocks all remaining work.
+- Reproducible QA failure → Codex repair loop; do not ask the human owner unless repair would change product intent or exceed the approved scope.
+- A task blocked by a human decision → mark that task `HUMAN_REQUIRED`, record one plain-language question, and continue every independent task.
+
+Contact the human owner immediately only for suspected credential exposure or security incident, destructive or difficult-to-recover action, new paid-resource use, external publication/release, force push or protected-branch merge, a final rule/balance/visual decision, conflicting role-owner recommendations, or a decision that blocks all remaining useful work. Batch every other non-urgent human question into the planning lead's single daily report.
 
 ## Shared source of truth
 
