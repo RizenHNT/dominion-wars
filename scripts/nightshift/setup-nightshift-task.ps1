@@ -163,7 +163,15 @@ if ([int]$registered.Settings.RestartCount -ne 0) { $mismatches.Add('restart pol
 if ((ConvertTo-TaskTimeSpan -Value $registered.Settings.ExecutionTimeLimit) -ne [TimeSpan]::FromMinutes(345)) { $mismatches.Add('execution time limit') }
 if ([string]$registered.Principal.RunLevel -ne 'Limited') { $mismatches.Add('run level') }
 if ([string]$registered.Principal.LogonType -ne 'Interactive') { $mismatches.Add('interactive logon type') }
-if (-not ([string]$registered.Principal.UserId).Equals([Security.Principal.WindowsIdentity]::GetCurrent().Name, [StringComparison]::OrdinalIgnoreCase)) { $mismatches.Add('principal user') }
+$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$expectedPrincipalIds = @(
+    $currentIdentity.Name
+    $currentIdentity.User.Value
+    ($currentIdentity.Name -split '\\')[-1]
+)
+if (@($expectedPrincipalIds | Where-Object { ([string]$registered.Principal.UserId).Equals([string]$_, [StringComparison]::OrdinalIgnoreCase) }).Count -eq 0) {
+    $mismatches.Add('principal user')
+}
 if ($actualTrigger -and -not $actualTrigger.Enabled) { $mismatches.Add('trigger disabled') }
 if ($actualTrigger -and [int]$actualTrigger.DaysInterval -ne 1) { $mismatches.Add('daily interval') }
 if ($actualTrigger) {
