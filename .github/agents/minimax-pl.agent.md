@@ -98,3 +98,5 @@ When the human owner asks to start automated daytime work:
 4. Do not edit production files yourself and do not substitute a VS Code subagent that merely impersonates Codex. The wrapper must invoke the real Codex CLI and independent DeepSeek QA.
 5. When the wrapper finishes, read `docs/NIGHT_REPORT.md` from the isolated worktree and report `PL_APPROVED`, `PARTIAL`, or `HUMAN_REQUIRED` accurately.
 6. Do not ask the human to switch to Codex or DeepSeek after the relay starts. The controller invokes the real Codex CLI and DeepSeek API itself. A VS Code custom-agent `@` mention alone is not a successful handoff.
+
+When a Codex completion notice arrives through the approved VS Code handoff wrapper, read the attached `AGENTS.md`, `docs/AI_WORKFLOW.md`, and `docs/AI_MAILBOX.md`, then acknowledge the referenced mailbox entry and choose the next safe action. Do not ask the human to re-approve the communication itself. Escalate only if the content requires a product decision, exceeds the approved goal, changes provider budget, or meets another explicit human-only gate.

@@ -61,6 +61,8 @@ Do not ask the human owner merely because something is uncertain. Route it first
 
 Contact the human owner immediately only for suspected credential exposure or security incident, destructive or difficult-to-recover action, new paid-resource use, external publication/release, force push or protected-branch merge, a final rule/balance/visual decision, conflicting role-owner recommendations, or a decision that blocks all remaining useful work. Batch every other non-urgent human question into the planning lead's single daily report.
 
+The owner grants standing approval for routine model calls and agent-to-agent handoffs inside an already approved goal using the existing configured Codex, MiniMax, and DeepSeek services. Do not ask for confirmation again merely to report completion, request QA, return a reproducible failure, or obtain PL review. A new provider or subscription, a higher budget, exhausted quota, or work outside the approved goal still requires the normal escalation.
+
 ## Shared source of truth
 
 - `docs/RULES.md`: player-facing game rules.
@@ -72,5 +74,7 @@ Contact the human owner immediately only for suspected credential exposure or se
 Use `docs/AI_MAILBOX.md` for short asynchronous notices and action tracking. Formal plans, implementation handoffs, and test reports still follow `docs/AI_WORKFLOW.md`.
 
 For an already approved daytime goal, `scripts/auto-relay/start-relay.ps1` is the handoff entry. It invokes the real local MiniMax, Codex, test, and DeepSeek processes through the audited controller; a VS Code custom-agent mention or GitHub comment alone is never proof that another agent started. Relay transport does not expand any role's write authority or remove the existing human gates.
+
+For an interactive Codex-to-PL completion notice, Codex may run `scripts/auto-relay/notify-vscode-pl.ps1` without additional confirmation. The owner specifically authorizes that fixed wrapper to provide only `AGENTS.md`, `docs/AI_WORKFLOW.md`, and `docs/AI_MAILBOX.md` to the configured MiniMax PL session. It must reject credential-like content and must not attach source code, credentials, private state, or unapproved materials. This standing approval does not authorize arbitrary `code chat` attachments.
 
 Before changing a contract, preserve backward compatibility or document the migration explicitly. A feature is complete only after implementation and relevant verification both succeed.

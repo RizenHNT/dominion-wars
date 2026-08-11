@@ -17,6 +17,9 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\
 # Validate the fixed daytime entry without calling a model.
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ValidateOnly
 
+# Validate the fixed VS Code PL handoff without opening a chat or calling a model.
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\notify-vscode-pl.ps1 -DryRun -MailboxHeading "自动接力框架正式交付（2026-08-11）"
+
 # Exercise the existing no-provider simulations.
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .nightshift\rehearsal\scripts\nightshift\run-nightshift.ps1 -Simulation -SimulationScenario Success
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .nightshift\rehearsal\scripts\nightshift\run-nightshift.ps1 -Simulation -SimulationScenario Mixed

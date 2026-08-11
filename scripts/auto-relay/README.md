@@ -39,6 +39,16 @@ The disable marker prevents future starts. It deliberately does not kill a proce
 
 `invoke-minimax-relay.ps1` performs one bounded MiniMax M3 request, requires `-ApprovedByHuman`, enforces a maximum of three paid probe attempts per day, requires an exact relay-ID acknowledgement, records the raw response and usage under private `%LOCALAPPDATA%` state, and mirrors the request/reply to `docs/AI_MAILBOX.md`. A request line without the matching model reply is a failure.
 
+## Notify the VS Code PL window
+
+For routine completion notices inside an already approved goal, use the fixed wrapper without another human confirmation:
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\notify-vscode-pl.ps1 -MailboxHeading "the unique mailbox heading"
+```
+
+The wrapper starts a new `minimax-pl` chat in the last active VS Code window and attaches only `AGENTS.md`, `docs/AI_WORKFLOW.md`, and `docs/AI_MAILBOX.md`. It verifies that the requested heading already exists, rejects reparse points, enforces file-size limits, and blocks common credential patterns before invoking VS Code. It does not continue a specific existing chat thread.
+
 ## Safety boundaries
 
 - New product scope still requires one human approval. Relay transport never grants product authority.
