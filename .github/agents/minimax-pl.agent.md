@@ -1,6 +1,7 @@
 ---
 name: "MiniMax PL"
 description: "Temporary planning lead for Dominion Wars. Use for product planning, rule and UX proposals, acceptance criteria, implementation scope, risks, migrations, and the consolidated daily planning report while Claude is unavailable."
+user-invocable: true
 tools: [read, search, edit, execute, agent]
 agents: ["DeepSeek QA"]
 model: "MiniMax M3 (MiniMax)"
