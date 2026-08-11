@@ -17,8 +17,8 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\
 # Validate the fixed daytime entry without calling a model.
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ValidateOnly
 
-# Validate the fixed VS Code PL handoff without opening a chat or calling a model.
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\notify-vscode-pl.ps1 -DryRun -MailboxHeading "自动接力框架正式交付（2026-08-11）"
+# Confirm the unsupported VS Code Chat-view route fails closed.
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\notify-vscode-pl.ps1 -MailboxHeading "automatic relay handoff"
 
 # Exercise the existing no-provider simulations.
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .nightshift\rehearsal\scripts\nightshift\run-nightshift.ps1 -Simulation -SimulationScenario Success
@@ -26,7 +26,7 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .nightsh
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .nightshift\rehearsal\scripts\nightshift\run-nightshift.ps1 -Simulation -SimulationScenario Timeout
 ```
 
-Expected: parser checks pass; the private relay copy reports only USER/SYSTEM/Administrators and leaves `~/.mmx` unchanged; validate-only reports whether a goal is ready without provider calls; simulations exit `0`, `2`, and `3`; timeout leaves no child process.
+Expected: parser checks pass; the private relay copy reports only USER/SYSTEM/Administrators and leaves `~/.mmx` unchanged; validate-only reports whether a goal is ready without provider calls; `notify-vscode-pl.ps1` exits nonzero without opening any chat; simulations exit `0`, `2`, and `3`; timeout leaves no child process.
 
 ## One real MiniMax acknowledgement
 

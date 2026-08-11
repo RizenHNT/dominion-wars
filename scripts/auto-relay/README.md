@@ -39,15 +39,11 @@ The disable marker prevents future starts. It deliberately does not kill a proce
 
 `invoke-minimax-relay.ps1` performs one bounded MiniMax M3 request, requires `-ApprovedByHuman`, enforces a maximum of three paid probe attempts per day, requires an exact relay-ID acknowledgement, records the raw response and usage under private `%LOCALAPPDATA%` state, and mirrors the request/reply to `docs/AI_MAILBOX.md`. A request line without the matching model reply is a failure.
 
-## Notify the VS Code PL window
+## VS Code Agents Window limitation
 
-For routine completion notices inside an already approved goal, use the fixed wrapper without another human confirmation:
+The VS Code CLI can open the Agents Window, but the installed version does not expose a supported command that injects a prompt into a specifically verified MiniMax PL Agents Window session. `code chat` opens the ordinary Chat view and may route to whichever model that chat uses; it is not an Agents Window transport.
 
-```powershell
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\notify-vscode-pl.ps1 -MailboxHeading "the unique mailbox heading"
-```
-
-The wrapper starts a new `minimax-pl` chat in the last active VS Code window and attaches only `AGENTS.md`, `docs/AI_WORKFLOW.md`, and `docs/AI_MAILBOX.md`. It verifies that the requested heading already exists, rejects reparse points, enforces file-size limits, and blocks common credential patterns before invoking VS Code. It does not continue a specific existing chat thread.
+`notify-vscode-pl.ps1` is retained only as a fail-closed compatibility stub. It must not open a chat or report delivery. Routine unattended collaboration uses `start-relay.ps1`, which invokes the configured providers directly and records their identities and outputs. Interactive Agents Window delivery remains a UI action until a verifiable API is available.
 
 ## Safety boundaries
 
