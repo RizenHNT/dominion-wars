@@ -33,15 +33,19 @@
 
 ## 夜班自动化
 
+- `.codex/config.toml`：只在显式选择时使用的 `nightshift-test` 权限配置；测试默认只读仓库，仅允许写入 `build/`，并拒绝网络和本机夜班凭据目录。
 - `docs/DAILY_GOAL.md`：每日由人类批准的目标记录，供《统御战纪》PL 规划步骤读取并据此限定当晚任务范围。
 - `docs/NIGHTSHIFT_WORKFLOW.md`：自动化夜班工作流说明，涵盖状态机与安全门、配置和运行器用法，以及凭据设置指导。
 - `scripts/nightshift/nightshift.config.json`：夜班配置文件，定义修复与任务上限、受保护分支、PL、开发和 QA 提供方设置，以及允许的测试配置。
+- `scripts/nightshift/invoke-command.ps1`：非交互式子进程包装器；配合主运行器进行有界输出捕获、启动门和超时进程树清理。
+- `scripts/nightshift/invoke-scheduled-nightshift.ps1`：Windows 计划任务的外层看门人；即使主运行器在读取配置前失败，也会写入本机 scheduler 状态与日志。
 - `scripts/nightshift/run-nightshift.ps1`：夜班入口与运行器循环；读取每日目标和配置，编排 PL 规划、Codex 实现、允许列表测试、DeepSeek QA、有限修复循环及最终报告。
-- `scripts/nightshift/start-day-shift.ps1`：把人类已批准的白班目标提交到隔离分支，并立即启动同一条受审计流水线。
-- `scripts/nightshift/setup-deepseek-key.ps1`：DeepSeek 凭据设置辅助脚本，以当前 Windows 用户的 DPAPI 加密密钥并保存到本机 `%LOCALAPPDATA%`，不把明文写入仓库。
+- `scripts/nightshift/setup-nightshift-task.ps1`：注册并核验 01:00 Windows 计划任务，同时配置 AC/DC 唤醒计时器安全策略。
+- `scripts/nightshift/start-day-shift.ps1`：把人类已批准的白班目标原子写入仓库外私有状态，并立即启动同一条受审计流水线；不会提交或推送。
+- `scripts/nightshift/setup-deepseek-key.ps1`：DeepSeek 凭据设置辅助脚本，以当前 Windows 用户的 DPAPI 加密密钥并保存到本机 `%LOCALAPPDATA%`；同时移除继承 ACL，仅保留当前用户、SYSTEM 与本机管理员访问权限，也可用 `-HardenOnly` 加固已有密钥。
 - `scripts/nightshift/verify-nightshift-index.ps1`：夜班文件索引验证脚本，检查本节所需路径以及 `.nightshift/` 本地、Git 忽略状态说明。
 
-运行时状态及原始提供方输出位于 `.nightshift/`；该目录仅保存在本机，并被 Git 忽略。
+真实夜班的锁、幂等账本、状态、用量与原始提供方输出位于 `%LOCALAPPDATA%\DominionWarsNightshift\state\<worktree-id>/` 的私有本机目录；无付费模拟状态位于 Git 忽略的 `.nightshift/`。两者都不会进入版本库。
 
 ## 仓库外目录
 

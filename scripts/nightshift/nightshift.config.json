@@ -1,7 +1,23 @@
 {
-  "version": 1,
+  "version": 2,
   "maxRepairCycles": 3,
-  "maxTasks": 5,
+  "maxTasks": 1,
+  "maxCapturedOutputChars": 500000,
+  "maxGoalChars": 20000,
+  "maxProviderPromptChars": 180000,
+  "maxPaidModelAttempts": 12,
+  "providerMaxAttempts": 3,
+  "providerRetryBaseSeconds": 5,
+  "totalRunSeconds": 19800,
+  "scheduledLatestStartHour": 6,
+  "goalMaxAgeHours": 18,
+  "timeouts": {
+    "plannerSeconds": 600,
+    "developerSeconds": 3600,
+    "testSeconds": 1200,
+    "qaSeconds": 900,
+    "finalReviewSeconds": 600
+  },
   "protectedBranches": ["main", "master"],
   "pl": {
     "command": "mmx",
@@ -10,8 +26,7 @@
     "temperature": 0.1
   },
   "developer": {
-    "command": "codex",
-    "sandbox": "workspace-write"
+    "command": "codex"
   },
   "qa": {
     "endpoint": "https://api.deepseek.com/v1/chat/completions",

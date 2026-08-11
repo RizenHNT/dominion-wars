@@ -1,0 +1,18 @@
+[permissions.nightshift-test]
+description = "Read the repository and write only build outputs plus night-shift-local temporary files. No network or local credentials."
+
+[permissions.nightshift-test.filesystem]
+":root" = "deny"
+":minimal" = "read"
+":tmpdir" = "deny"
+":slash_tmp" = "deny"
+"~/AppData/Local/DominionWarsNightshift" = "deny"
+
+[permissions.nightshift-test.filesystem.":workspace_roots"]
+"." = "read"
+"build" = "write"
+".git" = "read"
+".codex" = "read"
+
+[permissions.nightshift-test.network]
+enabled = false
