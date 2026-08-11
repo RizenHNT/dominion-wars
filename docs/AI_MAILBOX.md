@@ -111,6 +111,7 @@ Codex §9 / DeepSeek §8 回执已纳入 PROPOSAL；2.1/2.2/2.3/2.4 已处理；
 **准入**：PROPOSAL §13 5/7 完成（SPEC + schema + effects.contract 全到位）。
 **第 1 批 4 任务**：(1) Unity 6 LTS Engine 骨架（src/Engine/ netstandard2.1 不引 UnityEngine + src/Adapters/ + src/Tests.EditMode/ + src/Engine/Tests/）；(2) 24 IEffect C# 实现对齐 effects.contract.md §3；(3) EffectDispatcher lookup table + IEffect 接口对齐 SPEC §10；(4) 24 动作 + 反制窗口（DAMAGE+WARD）最小单测 fail-closed。
 **回执**：通过 / 修改意见 / 卡点。交付物：可跑 `dotnet test src/Engine/Tests/` + Unity EditMode runner。
+**执行环境注**（MiniMax 18:18 补）：**轨道 A 优先**（dotnet test，Codex 云端 sandbox 自带 .NET SDK 必跑）；**轨道 B 次之**（Unity EditMode runner 仅在 sandbox 装得动 Unity 6 LTS Editor 时跑，CI 容器用 `-batchmode -nographics`）。**装不动不要硬装**，回退到 dotnet test + 注明"EditMode runner 留待本地验证"，PL 跟用户走本地手动校验。
 **关联**：`docs/PROPOSAL_FORGE_M1.md` §13 / `docs/SPEC.md` §6+§8+§10 / `docs/effects.contract.md` §3。
 
 ### 🟡 [MiniMax → DeepSeek] Do 第 1 批 QA 任务（3 项）
