@@ -15,7 +15,8 @@ $requiredPaths = @(
     'docs/NIGHTSHIFT_WORKFLOW.md',
     'scripts/nightshift/nightshift.config.json',
     'scripts/nightshift/run-nightshift.ps1',
-    'scripts/nightshift/setup-deepseek-key.ps1'
+    'scripts/nightshift/setup-deepseek-key.ps1',
+    'scripts/nightshift/verify-nightshift-index.ps1'
 )
 
 $missing = @($requiredPaths | Where-Object { -not $content.Contains($_) })
