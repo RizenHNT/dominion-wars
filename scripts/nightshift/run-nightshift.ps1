@@ -117,10 +117,24 @@ function Get-DeepSeekCredential {
     if (-not (Test-Path -LiteralPath $expanded)) {
         throw "DeepSeek credential is missing. Run scripts/nightshift/setup-deepseek-key.ps1 first."
     }
-    $secure = Get-Content -Raw -LiteralPath $expanded | ConvertTo-SecureString
+    # Set-Content leaves a trailing newline. ConvertTo-SecureString expects the
+    # DPAPI hex payload only, so trim transport whitespace before decoding.
+    $encrypted = (Get-Content -Raw -LiteralPath $expanded).Trim()
+    $secure = $encrypted | ConvertTo-SecureString
     $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
     finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+}
+
+function Test-DeepSeekCredential {
+    try {
+        $expanded = [Environment]::ExpandEnvironmentVariables([string]$config.qa.credentialFile)
+        if (-not (Test-Path -LiteralPath $expanded)) { return $false }
+        $encrypted = (Get-Content -Raw -LiteralPath $expanded).Trim()
+        $secure = $encrypted | ConvertTo-SecureString
+        return $secure.Length -gt 0
+    }
+    catch { return $false }
 }
 
 function Invoke-DeepSeekJson {
@@ -223,7 +237,7 @@ if ($DryRun) {
         MiniMax = (Get-Command $config.pl.command).Source
         Codex = (Get-Command $config.developer.command).Source
         Python = $pythonCommand
-        DeepSeekCredentialConfigured = Test-Path ([Environment]::ExpandEnvironmentVariables([string]$config.qa.credentialFile))
+        DeepSeekCredentialConfigured = Test-DeepSeekCredential
         MaxTasks = $config.maxTasks
         MaxRepairCycles = $config.maxRepairCycles
     } | ConvertTo-Json -Depth 5
