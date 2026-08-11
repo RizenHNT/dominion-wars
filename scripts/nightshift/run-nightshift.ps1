@@ -1020,6 +1020,7 @@ function Get-TestSandboxArguments {
     )
     @(
         'sandbox',
+        '-c', 'permissions={}',
         '-c', 'default_permissions="nightshift-test"',
         '--permission-profile', 'nightshift-test',
         '--sandbox-state-disable-network', '-C', $repoRoot,
@@ -1049,7 +1050,7 @@ function Get-DeveloperProfileProbeArguments {
         [string[]]$ChildArguments = @()
     )
     $permissionDefinition = Get-DeveloperPermissionDefinition -AllowedPaths $AllowedPaths
-    @('sandbox', '-c', 'default_permissions="nightshift-developer"') +
+    @('sandbox', '-c', 'permissions={}', '-c', 'default_permissions="nightshift-developer"') +
         @($permissionDefinition | ForEach-Object { @('-c', $_) }) +
         @('--permission-profile', 'nightshift-developer', '-C', $repoRoot, $ChildCommand) + $ChildArguments
 }
@@ -1063,6 +1064,7 @@ function Get-DeveloperSandboxArguments {
     $permissionDefinition = Get-DeveloperPermissionDefinition -AllowedPaths $AllowedPaths
     $modelArguments = @('-m', [string]$config.developer.model, '-c', ('model_reasoning_effort="{0}"' -f [string]$config.developer.reasoningEffort))
     @('exec', '--ephemeral', '--ignore-user-config', '--strict-config',
+        '-c', 'permissions={}',
         '-c', 'approval_policy="never"',
         '-c', 'default_permissions="nightshift-developer"') +
         @($permissionDefinition | ForEach-Object { @('-c', $_) }) +
