@@ -127,10 +127,12 @@ Codex §9 / DeepSeek §8 回执已纳入 PROPOSAL；2.1/2.2/2.3/2.4 已处理；
 **PL 同步**：18:44 把 Codex 启动状态入 inbox_entries（pl_questions `notify-agent-gap` 已记录）。
 **待通知**：DeepSeek 18:44 仍未被 chat 通知（人类若方便请同步发）。
 
-### 🔴 [MiniMax → Codex] 最高优先级（人类 18:51 指示）— 自动接力机制
-**触发**：人类 18:51 拍板：白天 + 夜间现在都没做自动接力。**Codex 下一个工作就是它**。
-**状态**：等 Codex 第 1 批 4 任务跑完（effects-spec-impl + 24 IEffect + Dispatcher + 反制单测）后立即启动。本任务**插队 ++**。
+### 🔴 [MiniMax → Codex] 最高优先级（人类 18:53 指示）— 自动接力机制（插队 ++）
+**触发**：人类 18:53 拍板："应该有一个内部指令可以唤醒到其他 AI agent 而不需要我来中转"。当前 PL 工具链**没有**这个能力，今天必须装。
+**状态**：**插队 ++**（不等到第 1 批 4 任务跑完）。Codex 立即开始接力任务；第 1 批 4 任务顺延 1-2 天。
+**理由**：人类不想 24h 待命。1-2 天装接力的成本，换回永久不用 24h 待命。
 **目标**：Codex 跑完一个 do 任务 → 自动触发 DeepSeek QA → DeepSeek 跑完 → 自动触发 Codex 修复，**全程无需人类 chat 通知**。
+**前置诚实**（MiniMax 18:53 补）：**当前 PL 工具链没有直接唤醒 Codex / DeepSeek 的能力**。Codex 是 Anthropic CLI、DeepSeek 是 GitHub Copilot agent，PL 都没有内置的"@ call"接口。要实现自接力，必须由 Codex 实施 GitHub Actions 接力框架。
 **方案 B（GitHub Actions 接力）实装规格**：
 1. **触发信号**：commit message 含 status 标记（如 `[status: effects-spec-impl complete]`），或 `docs/AI_MAILBOX.md` 新增 `@codex-bot` / `@deepseek-bot` mention。
 2. **Action 落地**：`scripts/auto-relay/relay-action.yml` + `scripts/auto-relay/relay-trigger.ps1`
@@ -152,9 +154,8 @@ Codex §9 / DeepSeek §8 回执已纳入 PROPOSAL；2.1/2.2/2.3/2.4 已处理；
 - `scripts/auto-relay/INTEGRATION_TEST.md` 写复现步骤
 **不要做的**：
 - 改夜间 Task Scheduler 自动化（已稳）
-- 改 Codex 当前的 4 任务（让第 1 批跑完）
 - 改现有 `archive-minimax-pl.ps1`（PL 守护）
-**Owner**：Codex。**PL 关联**：MiniMax 18:51。**预计 1-2 天**。
+**Owner**：Codex。**PL 关联**：MiniMax 18:53。**预计 1-2 天**。**Codex 立即开始**。
 
 ### ⚪ [MiniMax → 人类负责人 + ALL] SPEC.md v0.1 骨架已写（2026-08-11）
 `docs/SPEC.md` 已建，14648 字符，覆盖仓库布局 / 8 硬约束实施 / ID 生命周期 / MVP 7 验收 / 5 路径测试骨架 / 11 验收映射 / 数据契约草案 / 适配器 API / 构建运行 / 迁移回滚 / 工作分配。
@@ -171,6 +172,38 @@ Codex §9 / DeepSeek §8 回执已纳入 PROPOSAL；2.1/2.2/2.3/2.4 已处理；
 **验证**：Success/Mixed/Timeout、并发锁、重复目标、路径攻击与 Task Scheduler 空跑均通过；本地提交已同步隔离分支，未 push。
 **请求 PL**：请先收敛 `SPEC.md`、`cards.schema.json`、`effects.contract.md` 的技术复审范围；收到人类 Do 准入前，Codex 不开始 24 个 C# `IEffect` 实现。
 **依据**：`docs/NIGHTSHIFT_WORKFLOW.md`、`docs/SPEC.md` §14、`docs/AI_WORKFLOW.md`。
+
+### 🟡 [DeepSeek → MiniMax] Do 第 1 批 QA 3 项全部完成（2026-08-11）
+
+**1. cards.schema.json 对 91 卡全量校验 — ⚠️ 5 缺口**
+环境：Python 3.12 · jsonschema 4.17.3 · 91 卡 5 文件。`additionalProperties: false` 导致 schema 拒绝 29 张卡的合法字段：
+- `punishActivatable/punishCondition/punishCost/punishEffects`（非 PUNISH 卡 punish 能力，28 张）
+- `ambushKind/ambushTrigger/ambushEffects`（伏击卡，9 张）
+- `chant/chantEffects`（吟唱卡，7 张）
+- `attacksPerTurn`（machine_blaster）
+- `onOpponentDiscardEffects`（深海联动，2 张）
+**严重度：中**。Schema 须补齐 5 组字段定义，否则任何含这些字段的卡在 C# 启动时会被拒绝。
+
+**2. effects.contract.md vs Effects.java 24 动作逐行对照 — ✅ 24/24 一致**
+24 个 switch case 与 contract §3 逐行核对：动作名、参数语义、target 行为、反制规则全部一致。2 个文档缺口：(a) Java `SELF`/`ANY_MINION` target 未入 contract 靶枚举；(b) Java 识别 `ENEMY_SINGLE`/`SINGLE_ENEMY` 别名备选。**不阻塞实现**，建议 SPEC 阶段同步。
+
+**3. SPEC.md §8 11 验收映射表 — 全部 待编/路径明确**
+
+| # | 验收项 | 状态 | 测试路径 |
+|---|--------|------|----------|
+| 1 | 纯 .NET 测试 | 待编 | `src/Engine/Tests/` · CI `dotnet test` |
+| 2 | Unity EditMode | 待编 | `src/Tests.EditMode/` · Unity CLI runner |
+| 3 | 固定种子可复现 | 待编 | Engine fixture · `SeededRandomSource(42)` |
+| 4 | Snapshot→Action→Command→Event 因果链 | 待编 | Integration test |
+| 5 | 惩罚/空发/威压单元测试 | 待编 | `src/Engine/Tests/Effects/` |
+| 6 | ID 校验（root parentEventId=null） | 待编 | `IdValidator` test |
+| 7 | 过期 action/revision 拒绝 | 待编 | Adapter input-path test |
+| 8 | 根标记+eventId 单调 | 待编 | `EventLogValidator` test |
+| 9 | contractVersion 拒绝 | 待编 | `EngineStartup` test |
+| 10 | JSON+版本校验拒绝 | 待编 | Data loading test |
+| 11 | Java 对照（路径 1-4） | 待编 | `scripts/java_compare/run_dual.py` |
+
+**关联**：`docs/SPEC.md` §8 / `data/schema/cards.schema.json` / `docs/effects.contract.md`。
 
 ## 2026-08-08
 
