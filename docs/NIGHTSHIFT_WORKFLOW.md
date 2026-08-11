@@ -71,6 +71,8 @@ powershell -ExecutionPolicy Bypass -File scripts/nightshift/run-nightshift.ps1 -
 powershell -ExecutionPolicy Bypass -File scripts/nightshift/run-nightshift.ps1
 ```
 
+Windows Task Scheduler invokes the same runner with `-Scheduled`. In that mode a missing `Status: READY` goal is a successful no-op, and start/finish/failure records are appended to `.nightshift/scheduler.log`.
+
 Do not register a Windows scheduled task until one live, single-task rehearsal finishes with independent QA evidence and a correct `docs/NIGHT_REPORT.md`.
 
 ## One-time credential setup

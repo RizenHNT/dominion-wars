@@ -2,6 +2,7 @@
 param(
     [switch]$DryRun,
     [switch]$Simulation,
+    [switch]$Scheduled,
     [ValidateSet('Mixed', 'Success')]
     [string]$SimulationScenario = 'Mixed',
     [string]$GoalFile = 'docs/DAILY_GOAL.md'
@@ -20,6 +21,7 @@ $stateRoot = Join-Path $repoRoot '.nightshift'
 $runId = Get-Date -Format 'yyyy-MM-dd_HHmmss'
 $runRoot = Join-Path $stateRoot $runId
 $reportPath = if ($Simulation) { Join-Path $runRoot 'SIMULATION_REPORT.md' } else { Join-Path $repoRoot 'docs\NIGHT_REPORT.md' }
+$schedulerLog = Join-Path $stateRoot 'scheduler.log'
 $pythonCommand = $null
 foreach ($candidate in @((Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'), 'python', 'py')) {
     if ($candidate -and (Get-Command $candidate -ErrorAction SilentlyContinue)) {
@@ -235,6 +237,13 @@ function Write-NightReport {
 Set-Location $repoRoot
 New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 
+trap {
+    if ($Scheduled) {
+        "$(Get-Date -Format 'o') FAILED $($_.Exception.Message)" | Add-Content -LiteralPath $schedulerLog -Encoding UTF8
+    }
+    exit 1
+}
+
 $goalPath = Join-Path $repoRoot $GoalFile
 if (-not (Test-Path -LiteralPath $goalPath)) { throw "Goal file not found: $goalPath" }
 $goalText = Get-Content -Raw -LiteralPath $goalPath
@@ -269,7 +278,14 @@ if ($DryRun) {
     exit 0
 }
 
-if (-not $ready) { throw 'docs/DAILY_GOAL.md is not READY.' }
+if (-not $ready) {
+    if ($Scheduled) {
+        "$(Get-Date -Format 'o') SKIPPED no READY daily goal" | Add-Content -LiteralPath $schedulerLog -Encoding UTF8
+        Write-Host 'No READY daily goal; scheduled night shift skipped.'
+        exit 0
+    }
+    throw 'docs/DAILY_GOAL.md is not READY.'
+}
 if ($goalAllowedPaths.Count -eq 0) { throw 'The READY goal has no allowed paths.' }
 foreach ($path in $goalAllowedPaths) {
     if (-not (Test-SafeAllowedPath -Path $path)) { throw "Unsafe allowed path in goal: $path" }
@@ -471,3 +487,6 @@ Write-NightReport -State $plan -FinalReview $finalReview
 $plan | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $runRoot 'state.json') -Encoding UTF8
 Write-Host "Night shift finished: $($finalReview.status)"
 Write-Host "Report: $reportPath"
+if ($Scheduled) {
+    "$(Get-Date -Format 'o') FINISHED $($finalReview.status) report=$reportPath" | Add-Content -LiteralPath $schedulerLog -Encoding UTF8
+}
