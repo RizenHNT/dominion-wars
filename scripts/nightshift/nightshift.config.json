@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "maxRepairCycles": 3,
+  "maxTasks": 5,
+  "protectedBranches": ["main", "master"],
+  "pl": {
+    "command": "mmx",
+    "model": "MiniMax-M3",
+    "maxTokens": 4096,
+    "temperature": 0.1
+  },
+  "developer": {
+    "command": "codex",
+    "sandbox": "workspace-write"
+  },
+  "qa": {
+    "endpoint": "https://api.deepseek.com/v1/chat/completions",
+    "model": "deepseek-v4-pro",
+    "credentialFile": "%LOCALAPPDATA%\\DominionWarsNightshift\\deepseek.key",
+    "maxOutputTokens": 4096,
+    "temperature": 0.1
+  },
+  "allowedTestProfiles": ["build", "regression", "sanity", "alignment"]
+}

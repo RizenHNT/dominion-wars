@@ -22,6 +22,7 @@ __pycache__/
 .vscode/
 .DS_Store
 Thumbs.db
+/debug.log
 
 # Generated QA artifacts
 /artifacts/
@@ -30,4 +31,4 @@ web.backup-*/
 
 # Local source packages (verified contents live under design/)
 /Dominion_Wars_Runtime_Design_Kit_*.zip
-
+.nightshift/
