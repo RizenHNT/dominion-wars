@@ -2,6 +2,11 @@
 /build/
 *.class
 
+# .NET / Unity package build output
+bin/
+obj/
+TestResults/
+
 # Local runtimes and packaged releases
 /jre/
 /releases/

@@ -1,0 +1,16 @@
+{
+  "name": "DominionWars.Adapters",
+  "rootNamespace": "DominionWars.Adapters",
+  "references": [
+    "DominionWars.Engine"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

@@ -1,0 +1,23 @@
+{
+  "name": "DominionWars.Engine.Tests",
+  "rootNamespace": "DominionWars.Engine.Tests",
+  "references": [
+    "DominionWars.Engine"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "DOMINION_WARS_DOTNET_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}
