@@ -11,8 +11,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$mainRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$worktree = Join-Path $mainRoot '.nightshift\rehearsal'
+$invocationRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$invocationBranch = (& git -C $invocationRoot branch --show-current).Trim()
+$worktree = if ($invocationBranch.StartsWith('agents/nightshift')) {
+    $invocationRoot
+}
+else {
+    Join-Path $invocationRoot '.nightshift\rehearsal'
+}
 $runner = Join-Path $worktree 'scripts\nightshift\run-nightshift.ps1'
 $goalFile = Join-Path $worktree 'docs\DAILY_GOAL.md'
 
