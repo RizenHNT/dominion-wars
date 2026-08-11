@@ -1018,14 +1018,9 @@ function Get-TestSandboxArguments {
         'permissions.nightshift-test.filesystem={":root"="deny",":minimal"="read",":tmpdir"="deny",":slash_tmp"="deny","~/AppData/Local/DominionWarsNightshift"="deny",":workspace_roots"={"."="read","build"="write",".git"="read",".codex"="read"}}',
         'permissions.nightshift-test.network={enabled=false}'
     )
-    @(
-        'sandbox',
-        '-c', 'permissions={}',
-        '-c', 'default_permissions="nightshift-test"',
-        '--permission-profile', 'nightshift-test',
-        '--sandbox-state-disable-network', '-C', $repoRoot,
-        $TestCommand
-    ) + @($permissionDefinition | ForEach-Object { @('-c', $_) }) + $TestArguments
+    @('sandbox', '-c', 'permissions={}', '-c', 'default_permissions="nightshift-test"') +
+        @($permissionDefinition | ForEach-Object { @('-c', $_) }) +
+        @('--permission-profile', 'nightshift-test', '--sandbox-state-disable-network', '-C', $repoRoot, $TestCommand) + $TestArguments
 }
 
 function Get-DeveloperPermissionDefinition {
