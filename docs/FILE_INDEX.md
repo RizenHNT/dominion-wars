@@ -37,6 +37,7 @@
 - `docs/NIGHTSHIFT_WORKFLOW.md`：自动化夜班工作流说明，涵盖状态机与安全门、配置和运行器用法，以及凭据设置指导。
 - `scripts/nightshift/nightshift.config.json`：夜班配置文件，定义修复与任务上限、受保护分支、PL、开发和 QA 提供方设置，以及允许的测试配置。
 - `scripts/nightshift/run-nightshift.ps1`：夜班入口与运行器循环；读取每日目标和配置，编排 PL 规划、Codex 实现、允许列表测试、DeepSeek QA、有限修复循环及最终报告。
+- `scripts/nightshift/start-day-shift.ps1`：把人类已批准的白班目标提交到隔离分支，并立即启动同一条受审计流水线。
 - `scripts/nightshift/setup-deepseek-key.ps1`：DeepSeek 凭据设置辅助脚本，以当前 Windows 用户的 DPAPI 加密密钥并保存到本机 `%LOCALAPPDATA%`，不把明文写入仓库。
 - `scripts/nightshift/verify-nightshift-index.ps1`：夜班文件索引验证脚本，检查本节所需路径以及 `.nightshift/` 本地、Git 忽略状态说明。
 

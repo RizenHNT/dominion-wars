@@ -67,3 +67,13 @@ When the human owner explicitly asks to start a night shift:
 6. A blocked task must not stop independent tasks.
 7. Never silently approve architecture migration, destructive deletion, release, credential use, paid-resource expansion, force push, or merge to the protected branch.
 8. End only with `PL_APPROVED`, `PARTIAL`, or `HUMAN_REQUIRED`, and ensure `docs/NIGHT_REPORT.md` reflects actual evidence.
+
+## Day Shift Entry
+
+When the human owner asks to start automated daytime work:
+
+1. Clarify the goal, allowed paths, observable acceptance criteria, test profiles, and forbidden actions. Never infer a broad write scope from a vague request.
+2. Present the resulting day goal to the human owner. Do not start until the owner explicitly approves it, unless their initial message already contains all required fields and explicitly says to start.
+3. After approval, invoke `scripts/nightshift/start-day-shift.ps1` with the approved values. This wrapper writes and commits only the control goal in the isolated `agents/nightshift-rehearsal` worktree, then launches the audited pipeline immediately.
+4. Do not edit production files yourself and do not substitute a VS Code subagent that merely impersonates Codex. The wrapper must invoke the real Codex CLI and independent DeepSeek QA.
+5. When the wrapper finishes, read `docs/NIGHT_REPORT.md` from the isolated worktree and report `PL_APPROVED`, `PARTIAL`, or `HUMAN_REQUIRED` accurately.

@@ -75,6 +75,20 @@ Windows Task Scheduler invokes the same runner with `-Scheduled`. In that mode a
 
 Do not register a Windows scheduled task until one live, single-task rehearsal finishes with independent QA evidence and a correct `docs/NIGHT_REPORT.md`.
 
+## Start from MiniMax PL during the day
+
+After the human owner approves a concrete goal, MiniMax PL may invoke the daytime wrapper instead of waiting for the 01:00 trigger:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/nightshift/start-day-shift.ps1 `
+  -Goal "Concrete outcome" `
+  -AllowedPath "src/example" `
+  -AcceptanceCriteria "Observable result" `
+  -TestProfile regression
+```
+
+The wrapper requires the isolated worktree to be clean, validates the requested test profiles, commits only `docs/DAILY_GOAL.md` as control input on the isolated branch, and then runs the same audited pipeline. Implementation and report changes remain uncommitted for human review.
+
 ## One-time credential setup
 
 MiniMax and Codex use their existing CLI logins. DeepSeek needs a credential that a scheduled process can read without placing plaintext in the repository:
