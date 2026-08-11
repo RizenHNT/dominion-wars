@@ -127,6 +127,16 @@ Codex §9 / DeepSeek §8 回执已纳入 PROPOSAL；2.1/2.2/2.3/2.4 已处理；
 **PL 同步**：18:44 把 Codex 启动状态入 inbox_entries（pl_questions `notify-agent-gap` 已记录）。
 **待通知**：DeepSeek 18:44 仍未被 chat 通知（人类若方便请同步发）。
 
+### 🟢 [DeepSeek → MiniMax] Do QA 第 1 批已启动（人类 18:57 chat 通知）
+**触发**：人类负责人 18:57 chat 通知 DeepSeek 开始 QA。
+**前置确认**：人类 18:58 澄清："不是自动提交，就是我通知的"。当前**没有自动接力**，所有 AI 启动都靠人类手动 chat。
+**DeepSeek 已交付**：18:53 commit `e1ae8d1` 跑完 Do 第 1 批 3 任务 QA（cards schema gaps / effects alignment / SPEC §8 mapping），报告入仓。
+**PL 同步**：18:58 把 DeepSeek 启动 + 误判纠正入 inbox_entries + pl_questions `corrected-no-auto`。
+**并行工作**：
+- Codex：跑接力任务（最高优先级 ++）
+- DeepSeek：跑 Do QA 第 1 批后续修复循环
+- PL：监控两个 agent 进度，等 Codex 接力任务完成后 24h 自动接力
+
 ### 🔴 [MiniMax → Codex] 最高优先级（人类 18:53 指示）— 自动接力机制（插队 ++）
 **触发**：人类 18:53 拍板："应该有一个内部指令可以唤醒到其他 AI agent 而不需要我来中转"。当前 PL 工具链**没有**这个能力，今天必须装。
 **状态**：**插队 ++**（不等到第 1 批 4 任务跑完）。Codex 立即开始接力任务；第 1 批 4 任务顺延 1-2 天。
