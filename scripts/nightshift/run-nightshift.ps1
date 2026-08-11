@@ -1013,15 +1013,18 @@ function Invoke-DeepSeekJson {
 
 function Get-TestSandboxArguments {
     param([Parameter(Mandatory)][string]$TestCommand, [string[]]$TestArguments = @())
-    $permissionDefinition = 'permissions = { nightshift-test = { description = "Night test isolation", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "deny", ":slash_tmp" = "deny", "~/AppData/Local/DominionWarsNightshift" = "deny", ":workspace_roots" = { "." = "read", "build" = "write", ".git" = "read", ".codex" = "read" } }, network = { enabled = false } } }'
+    $permissionDefinition = @(
+        'permissions.nightshift-test.description="Night test isolation"',
+        'permissions.nightshift-test.filesystem={":root"="deny",":minimal"="read",":tmpdir"="deny",":slash_tmp"="deny","~/AppData/Local/DominionWarsNightshift"="deny",":workspace_roots"={"."="read","build"="write",".git"="read",".codex"="read"}}',
+        'permissions.nightshift-test.network={enabled=false}'
+    )
     @(
         'sandbox',
         '-c', 'default_permissions="nightshift-test"',
-        '-c', $permissionDefinition,
         '--permission-profile', 'nightshift-test',
         '--sandbox-state-disable-network', '-C', $repoRoot,
         $TestCommand
-    ) + $TestArguments
+    ) + @($permissionDefinition | ForEach-Object { @('-c', $_) }) + $TestArguments
 }
 
 function Get-DeveloperPermissionDefinition {
@@ -1032,7 +1035,11 @@ function Get-DeveloperPermissionDefinition {
     foreach ($path in @($AllowedPaths | ForEach-Object { Normalize-RepoRelativePath -Path ([string]$_) } | Sort-Object -Unique)) {
         $workspaceRules.Add(('"{0}" = "write"' -f $path))
     }
-    'permissions = { nightshift-developer = { description = "Write only the human-approved task paths", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "deny", ":slash_tmp" = "deny", "~/AppData/Local/DominionWarsNightshift" = "deny", ":workspace_roots" = { ' + ($workspaceRules -join ', ') + ' } }, network = { enabled = false } } }'
+    @(
+        'permissions.nightshift-developer.description="Write only the human-approved task paths"',
+        ('permissions.nightshift-developer.filesystem={":root"="deny",":minimal"="read",":tmpdir"="deny",":slash_tmp"="deny","~/AppData/Local/DominionWarsNightshift"="deny",":workspace_roots"={' + (($workspaceRules -join ', ') -replace ' = ', '=' -replace '"', '"') + '}}'),
+        'permissions.nightshift-developer.network={enabled=false}'
+    )
 }
 
 function Get-DeveloperProfileProbeArguments {
@@ -1042,13 +1049,9 @@ function Get-DeveloperProfileProbeArguments {
         [string[]]$ChildArguments = @()
     )
     $permissionDefinition = Get-DeveloperPermissionDefinition -AllowedPaths $AllowedPaths
-    @(
-        'sandbox',
-        '-c', 'default_permissions="nightshift-developer"',
-        '-c', $permissionDefinition,
-        '--permission-profile', 'nightshift-developer', '-C', $repoRoot,
-        $ChildCommand
-    ) + $ChildArguments
+    @('sandbox', '-c', 'default_permissions="nightshift-developer"') +
+        @($permissionDefinition | ForEach-Object { @('-c', $_) }) +
+        @('--permission-profile', 'nightshift-developer', '-C', $repoRoot, $ChildCommand) + $ChildArguments
 }
 
 function Get-DeveloperSandboxArguments {
@@ -1059,13 +1062,11 @@ function Get-DeveloperSandboxArguments {
     )
     $permissionDefinition = Get-DeveloperPermissionDefinition -AllowedPaths $AllowedPaths
     $modelArguments = @('-m', [string]$config.developer.model, '-c', ('model_reasoning_effort="{0}"' -f [string]$config.developer.reasoningEffort))
-    @(
-        'exec', '--ephemeral', '--ignore-user-config', '--strict-config',
+    @('exec', '--ephemeral', '--ignore-user-config', '--strict-config',
         '-c', 'approval_policy="never"',
-        '-c', 'default_permissions="nightshift-developer"',
-        '-c', $permissionDefinition,
-        '--json', '--color', 'never'
-    ) + $modelArguments + @('-C', $repoRoot, '-o', $ScratchOutput, $Prompt)
+        '-c', 'default_permissions="nightshift-developer"') +
+        @($permissionDefinition | ForEach-Object { @('-c', $_) }) +
+        @('--json', '--color', 'never') + $modelArguments + @('-C', $repoRoot, '-o', $ScratchOutput, $Prompt)
 }
 
 function Invoke-TestProfile {
@@ -1373,7 +1374,7 @@ if ($SafetySelfTest) {
     if ($developerControlText -match '(?:--dangerously-bypass|--approve-for-me|--sandbox\s)') {
         throw 'Developer invocation unexpectedly selected a bypass, legacy sandbox, or auto-escalation flag.'
     }
-    foreach ($requiredControl in @('approval_policy="never"', 'default_permissions="nightshift-developer"', 'network = { enabled = false }')) {
+    foreach ($requiredControl in @('approval_policy="never"', 'default_permissions="nightshift-developer"', 'permissions.nightshift-developer.network={enabled=false}')) {
         if (-not $developerControlText.Contains($requiredControl)) { throw "Developer invocation omitted safety control: $requiredControl" }
     }
     [pscustomobject]@{
