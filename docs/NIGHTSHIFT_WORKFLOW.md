@@ -60,6 +60,9 @@ Automation must stop or defer a task involving any of the following:
 # No model calls and no edits; validates prerequisites and prints the intended flow.
 powershell -ExecutionPolicy Bypass -File scripts/nightshift/run-nightshift.ps1 -DryRun
 
+# Uses the real state machine and allowlisted tests, but no paid model calls or edits.
+powershell -ExecutionPolicy Bypass -File scripts/nightshift/run-nightshift.ps1 -Simulation
+
 # One small human-approved goal on a clean night-shift branch.
 powershell -ExecutionPolicy Bypass -File scripts/nightshift/run-nightshift.ps1
 ```

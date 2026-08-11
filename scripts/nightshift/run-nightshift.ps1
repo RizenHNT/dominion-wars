@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$DryRun,
+    [switch]$Simulation,
     [string]$GoalFile = 'docs/DAILY_GOAL.md'
 )
 
@@ -16,7 +17,7 @@ $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
 $stateRoot = Join-Path $repoRoot '.nightshift'
 $runId = Get-Date -Format 'yyyy-MM-dd_HHmmss'
 $runRoot = Join-Path $stateRoot $runId
-$reportPath = Join-Path $repoRoot 'docs\NIGHT_REPORT.md'
+$reportPath = if ($Simulation) { Join-Path $runRoot 'SIMULATION_REPORT.md' } else { Join-Path $repoRoot 'docs\NIGHT_REPORT.md' }
 $pythonCommand = $null
 foreach ($candidate in @((Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'), 'python', 'py')) {
     if ($candidate -and (Get-Command $candidate -ErrorAction SilentlyContinue)) {
@@ -196,9 +197,9 @@ New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 $goalPath = Join-Path $repoRoot $GoalFile
 if (-not (Test-Path -LiteralPath $goalPath)) { throw "Goal file not found: $goalPath" }
 $goalText = Get-Content -Raw -LiteralPath $goalPath
-$goalAllowedPaths = @(Get-GoalAllowedPaths -Goal $goalText)
+$goalAllowedPaths = if ($Simulation) { @('docs') } else { @(Get-GoalAllowedPaths -Goal $goalText) }
 
-$requiredCommands = @('git', [string]$config.pl.command, [string]$config.developer.command, 'java')
+$requiredCommands = if ($Simulation) { @('git', 'java') } else { @('git', [string]$config.pl.command, [string]$config.developer.command, 'java') }
 foreach ($command in $requiredCommands) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Required command not found: $command" }
 }
@@ -206,7 +207,7 @@ if (-not $pythonCommand) { throw 'Required Python interpreter not found.' }
 
 $branch = (& git -C $repoRoot branch --show-current).Trim()
 $changedBefore = @(Get-GitChangedPaths)
-$ready = $goalText -match '(?m)^Status:\s*READY\s*$'
+$ready = $Simulation -or ($goalText -match '(?m)^Status:\s*READY\s*$')
 
 if ($DryRun) {
     [pscustomobject]@{
@@ -233,7 +234,7 @@ foreach ($path in $goalAllowedPaths) {
 }
 if ($config.protectedBranches -contains $branch) { throw "Live night shift is forbidden on protected branch: $branch" }
 if ($changedBefore.Count -gt 0) { throw 'Live night shift requires a clean worktree.' }
-$null = Get-DeepSeekCredential
+if (-not $Simulation) { $null = Get-DeepSeekCredential }
 
 $plannerSystem = @'
 You are the Dominion Wars temporary PL. Produce a bounded plan from the human-approved goal.
@@ -241,7 +242,40 @@ Return JSON only with this shape:
 {"nightGoal":"...","tasks":[{"id":"T1","title":"...","acceptanceCriteria":["..."],"dependencies":[],"allowedPaths":["path"],"testProfiles":["build"],"risk":"low","humanRequired":false,"humanQuestion":""}]}
 Use at most five tasks. Copy allowedPaths only from the goal's Allowed scope section; never broaden them. Test profiles may only be build, regression, sanity, alignment. Never authorize commits, pushes, merges, releases, credentials, paid resources, destructive deletion, or unapproved architecture decisions.
 '@
-$plan = Invoke-MiniMaxJson -SystemPrompt $plannerSystem -Message $goalText -OutputFile (Join-Path $runRoot 'pl-plan-raw.json')
+if ($Simulation) {
+    $plan = @'
+{
+  "nightGoal": "Exercise repair, independent-task continuation, human escalation, and final approval guards.",
+  "tasks": [
+    {
+      "id": "SIM-REPAIR",
+      "title": "Simulate one QA failure followed by a passing repair",
+      "acceptanceCriteria": ["First QA cycle fails", "Second QA cycle passes"],
+      "dependencies": [],
+      "allowedPaths": ["docs"],
+      "testProfiles": ["sanity"],
+      "risk": "low",
+      "humanRequired": false,
+      "humanQuestion": ""
+    },
+    {
+      "id": "SIM-HUMAN",
+      "title": "Simulate a decision that automation may not make",
+      "acceptanceCriteria": ["Task is deferred without stopping SIM-REPAIR"],
+      "dependencies": [],
+      "allowedPaths": ["docs"],
+      "testProfiles": [],
+      "risk": "high",
+      "humanRequired": true,
+      "humanQuestion": "Human approval is required for this simulated architecture decision."
+    }
+  ]
+}
+'@ | ConvertFrom-Json
+}
+else {
+    $plan = Invoke-MiniMaxJson -SystemPrompt $plannerSystem -Message $goalText -OutputFile (Join-Path $runRoot 'pl-plan-raw.json')
+}
 if (@($plan.tasks).Count -gt [int]$config.maxTasks) { throw 'PL returned too many tasks.' }
 
 foreach ($task in $plan.tasks) {
@@ -288,7 +322,13 @@ Do not commit, push, merge, install dependencies, modify credentials, or edit ou
 "@
         $devOutput = Join-Path $runRoot ("{0}-dev-{1}.txt" -f $task.id, $task.repairCycles)
         $devArgs = @('exec', '--ephemeral', '--sandbox', [string]$config.developer.sandbox, '--approve-for-me', '-C', $repoRoot, '-o', $devOutput, $devPrompt)
-        $devRun = Invoke-CapturedCommand -Command $config.developer.command -Arguments $devArgs -OutputFile (Join-Path $runRoot ("{0}-dev-events-{1}.txt" -f $task.id, $task.repairCycles))
+        if ($Simulation) {
+            "SIMULATED Codex cycle $($task.repairCycles)" | Set-Content -LiteralPath $devOutput -Encoding UTF8
+            $devRun = [pscustomobject]@{ ExitCode = 0; Output = 'SIMULATED' }
+        }
+        else {
+            $devRun = Invoke-CapturedCommand -Command $config.developer.command -Arguments $devArgs -OutputFile (Join-Path $runRoot ("{0}-dev-events-{1}.txt" -f $task.id, $task.repairCycles))
+        }
         if ($devRun.ExitCode -ne 0) {
             $task.status = 'HUMAN_REQUIRED'; $task.blocker = 'Codex execution failed.'; break
         }
@@ -324,7 +364,18 @@ $($testEvidence -join "`n---`n")
 ACTUAL DIFF:
 $diff
 "@
-        $qa = Invoke-DeepSeekJson -Message $qaPrompt -OutputFile (Join-Path $runRoot ("{0}-qa-{1}.json" -f $task.id, $task.repairCycles))
+        if ($Simulation) {
+            if ($task.id -eq 'SIM-REPAIR' -and $task.repairCycles -eq 1) {
+                $qa = [pscustomobject]@{ verdict = 'FAIL'; summary = 'Simulated reproducible failure on the first QA cycle.'; findings = @() }
+            }
+            else {
+                $qa = [pscustomobject]@{ verdict = 'PASS'; summary = 'Simulated QA pass backed by the allowlisted sanity profile.'; findings = @() }
+            }
+            $qa | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $runRoot ("{0}-qa-{1}.json" -f $task.id, $task.repairCycles)) -Encoding UTF8
+        }
+        else {
+            $qa = Invoke-DeepSeekJson -Message $qaPrompt -OutputFile (Join-Path $runRoot ("{0}-qa-{1}.json" -f $task.id, $task.repairCycles))
+        }
         $task.qaSummary = [string]$qa.summary
         switch ([string]$qa.verdict) {
             'PASS' {
@@ -348,7 +399,14 @@ PL_APPROVED is allowed only when every task is COMPLETE with QA PASS evidence.
 STATE:
 $($plan | ConvertTo-Json -Depth 20)
 "@
-$finalReview = Invoke-MiniMaxJson -SystemPrompt 'You are the final PL reviewer. Use only supplied evidence and return JSON only.' -Message $finalPrompt -OutputFile (Join-Path $runRoot 'pl-final-raw.json')
+if ($Simulation) {
+    # Deliberately propose an invalid approval. The deterministic guard below
+    # must downgrade it because SIM-HUMAN is incomplete.
+    $finalReview = [pscustomobject]@{ status = 'PL_APPROVED'; summary = 'Simulated PL attempted approval.' }
+}
+else {
+    $finalReview = Invoke-MiniMaxJson -SystemPrompt 'You are the final PL reviewer. Use only supplied evidence and return JSON only.' -Message $finalPrompt -OutputFile (Join-Path $runRoot 'pl-final-raw.json')
+}
 if (@($plan.tasks | Where-Object { $_.status -ne 'COMPLETE' }).Count -gt 0 -and $finalReview.status -eq 'PL_APPROVED') {
     $finalReview.status = 'PARTIAL'
     $finalReview.summary = 'Framework overrode an invalid PL approval because one or more tasks were incomplete.'
