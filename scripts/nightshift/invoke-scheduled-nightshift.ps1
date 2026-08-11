@@ -14,6 +14,7 @@ finally { $hasher.Dispose() }
 $stateRoot = Join-Path (Join-Path $env:LOCALAPPDATA 'DominionWarsNightshift\state') $stateKey
 $statusPath = Join-Path $stateRoot 'last-scheduled-status.json'
 $logPath = Join-Path $stateRoot 'scheduler.log'
+$scheduledGoalPath = Join-Path $stateRoot 'scheduled-goal.md'
 
 function Initialize-SafeStateDirectory {
     $trusted = [IO.Path]::GetFullPath($env:LOCALAPPDATA).TrimEnd('\', '/')
@@ -70,6 +71,41 @@ function Test-NightShiftLockOwned {
     catch [IO.IOException] { return $true }
 }
 
+function Copy-ApprovedScheduledGoal {
+    $nightshiftDirectory = Split-Path -Parent $repoRoot
+    if (-not (Split-Path -Leaf $nightshiftDirectory).Equals('.nightshift', [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Scheduled worktree is not inside the expected .nightshift directory.'
+    }
+    $mainRoot = [IO.Path]::GetFullPath((Split-Path -Parent $nightshiftDirectory)).TrimEnd('\', '/')
+    $expectedWorktree = [IO.Path]::GetFullPath((Join-Path $mainRoot '.nightshift\rehearsal')).TrimEnd('\', '/')
+    if (-not $repoRoot.TrimEnd('\', '/').Equals($expectedWorktree, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Scheduled worktree path does not match the approved rehearsal location.'
+    }
+    $sourcePath = Join-Path $mainRoot 'docs\DAILY_GOAL.md'
+    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) { throw 'Main-worktree DAILY_GOAL.md is missing.' }
+    $sourceItem = Get-Item -LiteralPath $sourcePath -Force
+    if (($sourceItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Main-worktree DAILY_GOAL.md must not be a reparse point.' }
+    if ($sourceItem.Length -gt 100000) { throw 'Main-worktree DAILY_GOAL.md exceeds the launcher safety limit.' }
+    if (Test-Path -LiteralPath $scheduledGoalPath) {
+        $targetItem = Get-Item -LiteralPath $scheduledGoalPath -Force
+        if (($targetItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Private scheduled goal must not be a reparse point.' }
+    }
+
+    $text = [IO.File]::ReadAllText($sourcePath, [Text.Encoding]::UTF8)
+    $temporary = Join-Path $stateRoot ('.scheduled-goal.{0}.tmp' -f [Guid]::NewGuid().ToString('N'))
+    try {
+        [IO.File]::WriteAllText($temporary, $text, [Text.UTF8Encoding]::new($false))
+        if (Test-Path -LiteralPath $scheduledGoalPath -PathType Leaf) {
+            try { [IO.File]::Replace($temporary, $scheduledGoalPath, $null) }
+            catch { Move-Item -LiteralPath $temporary -Destination $scheduledGoalPath -Force }
+        }
+        else { Move-Item -LiteralPath $temporary -Destination $scheduledGoalPath }
+        [IO.File]::SetLastWriteTimeUtc($scheduledGoalPath, $sourceItem.LastWriteTimeUtc)
+    }
+    finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
+    $scheduledGoalPath
+}
+
 function Test-FreshRunnerStatus {
     param([Parameter(Mandatory)][int]$RunnerExitCode)
     if (-not (Test-Path -LiteralPath $statusPath -PathType Leaf)) { return $false }
@@ -84,7 +120,10 @@ function Test-FreshRunnerStatus {
 }
 
 function Invoke-ContainedRunner {
-    param([Parameter(Mandatory)][string]$PowerShellExe)
+    param(
+        [Parameter(Mandatory)][string]$PowerShellExe,
+        [Parameter(Mandatory)][string]$ApprovedGoalPath
+    )
     if (-not ('DominionWarsNightShift.ScheduledJob' -as [type])) {
         Add-Type -TypeDefinition @'
 using System;
@@ -127,7 +166,7 @@ namespace DominionWarsNightShift {
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = [Diagnostics.ProcessStartInfo]::new()
     $process.StartInfo.FileName = $PowerShellExe
-    $process.StartInfo.Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$runner`" -Scheduled"
+    $process.StartInfo.Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$runner`" -Scheduled -ApprovedScheduledGoal -GoalFile `"$ApprovedGoalPath`""
     $process.StartInfo.WorkingDirectory = $repoRoot
     $process.StartInfo.UseShellExecute = $false
     $process.StartInfo.CreateNoWindow = $true
@@ -157,8 +196,9 @@ try {
     Initialize-SafeStateDirectory
     Write-LauncherLog -Message "START worktree=$repoRoot"
     if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) { throw "Runner is missing: $runner" }
+    $approvedGoalPath = Copy-ApprovedScheduledGoal
     $powershellExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $exitCode = Invoke-ContainedRunner -PowerShellExe $powershellExe
+    $exitCode = Invoke-ContainedRunner -PowerShellExe $powershellExe -ApprovedGoalPath $approvedGoalPath
     if (-not (Test-FreshRunnerStatus -RunnerExitCode $exitCode)) {
         if ($exitCode -eq 0 -and (Test-NightShiftLockOwned)) {
             Write-LauncherLog -Message 'FINISH skipped because another runner owns the lock'

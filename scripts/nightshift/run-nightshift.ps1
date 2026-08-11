@@ -3,6 +3,7 @@ param(
     [switch]$DryRun,
     [switch]$Simulation,
     [switch]$Scheduled,
+    [switch]$ApprovedScheduledGoal,
     [switch]$RetryGoal,
     [switch]$SafetySelfTest,
     [ValidateSet('Mixed', 'Success', 'Timeout')]
@@ -1400,16 +1401,24 @@ trap {
 
 $normalizedGoalFile = ''
 if ([IO.Path]::IsPathRooted($GoalFile)) {
-    if ($Scheduled -or $Simulation) { throw 'Scheduled and simulation modes do not accept an absolute goal file.' }
+    if ($Simulation) { throw 'Simulation mode does not accept an absolute goal file.' }
     $goalPath = [IO.Path]::GetFullPath($GoalFile)
-    $expectedDayGoal = [IO.Path]::GetFullPath((Join-Path $privateStateRoot 'day-goal.md'))
-    if (-not $goalPath.Equals($expectedDayGoal, [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Manual automation accepts an absolute goal only at its private day-goal path.'
+    $expectedGoal = if ($Scheduled) {
+        if (-not $ApprovedScheduledGoal) { throw 'Scheduled private goals require -ApprovedScheduledGoal.' }
+        [IO.Path]::GetFullPath((Join-Path $privateStateRoot 'scheduled-goal.md'))
+    }
+    else {
+        if ($ApprovedScheduledGoal) { throw '-ApprovedScheduledGoal requires -Scheduled.' }
+        [IO.Path]::GetFullPath((Join-Path $privateStateRoot 'day-goal.md'))
+    }
+    if (-not $goalPath.Equals($expectedGoal, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Automation accepts an absolute goal only at its dedicated private-state goal path.'
     }
     Initialize-SafeDirectory -TrustedRoot $env:LOCALAPPDATA -Path $privateStateRoot
-    $normalizedGoalFile = '<private-state>/day-goal.md'
+    $normalizedGoalFile = if ($Scheduled) { '<private-state>/scheduled-goal.md' } else { '<private-state>/day-goal.md' }
 }
 else {
+    if ($ApprovedScheduledGoal) { throw '-ApprovedScheduledGoal requires the private scheduled goal path.' }
     $normalizedGoalFile = Normalize-RepoRelativePath -Path $GoalFile
     if ($Scheduled -and $normalizedGoalFile -ne 'docs/DAILY_GOAL.md') { throw 'Scheduled mode only accepts docs/DAILY_GOAL.md.' }
     $goalPath = Join-Path $repoRoot ($normalizedGoalFile.Replace('/', '\'))
