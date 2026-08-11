@@ -109,11 +109,16 @@ function ConvertFrom-ModelJson {
 
 function Invoke-MiniMaxJson {
     param([string]$SystemPrompt, [string]$Message, [string]$OutputFile)
+    $messagesFile = "$OutputFile.messages.json"
+    $messagesJson = @(
+        @{ role = 'system'; content = $SystemPrompt },
+        @{ role = 'user'; content = $Message }
+    ) | ConvertTo-Json -Depth 10
+    [System.IO.File]::WriteAllText($messagesFile, $messagesJson, [System.Text.UTF8Encoding]::new($false))
     $arguments = @(
         'text', 'chat',
         '--model', [string]$config.pl.model,
-        '--system', $SystemPrompt,
-        '--message', $Message,
+        '--messages-file', $messagesFile,
         '--max-tokens', [string]$config.pl.maxTokens,
         '--temperature', [string]$config.pl.temperature,
         '--output', 'json'
