@@ -2,7 +2,7 @@
 
 > **目的**：把 [`docs/PROPOSAL_FORGE_M1.md`](PROPOSAL_FORGE_M1.md) 的"做什么"翻译成"怎么做"——落到仓库布局、API 表面、测试钩子和构建步骤。
 > **Owner**：MiniMax（PL 起草）/ Codex 实现 / DeepSeek 校验。
-> **状态**：🟡 v0.1 骨架（2026-08-11 起草）；等 Codex + DeepSeek 反馈后细化。
+> **状态**：🟡 v0.1 骨架（2026-08-11 起草）；2026-08-11 18:30 同步 PROPOSAL §5.9 新增硬约束 #9（模块拆分 + 单文件 ≤500 行）。等 Codex + DeepSeek 反馈后细化。
 > **冲突解决优先级**（从高到低）：`docs/RULES.md` > 本 SPEC > `docs/PROPOSAL_FORGE_M1.md` > UI/视觉稿。任何冲突都要回到 PL 协商。
 
 ---
@@ -79,6 +79,8 @@ dominion-wars/
 ---
 
 ## 4. 抗负债硬约束（PROPOSAL §5 展开）
+
+> 9 条硬约束从 PROPOSAL §5 镜像；本节仅记录与 Codex 落地的映射。
 
 每条都列**怎么实现 + 怎么验证**。
 

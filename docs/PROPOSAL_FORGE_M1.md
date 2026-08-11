@@ -43,8 +43,9 @@
 - 引擎为独立程序集，可无 Unity 编辑器运行
 - 确定性 `IRandomSource`，禁 `UnityEngine.Random` 直接调用
 - `CommandBuffer` 接口（MVP 本地，Post-MVP 复用 Netcode）
+- **主循环拆 5 模块**：EventLoop / EffectDispatcher / CardInstance / PlayerState / IGame（PROPOSAL §5.9 硬约束 #9）
 
-## 5. 抗负债硬约束（8 条）
+## 5. 抗负债硬约束（9 条）
 
 1. Engine DLL 独立 ── UI 不可反向引用
 2. 数据 JSON + ScriptableObject ── **JSON 是唯一数据源**；ScriptableObject 仅用于生成或缓存，运行时不可写
@@ -54,6 +55,7 @@
 6. `Localization.Get("key")` only ── 硬编码 = 编译错
 7. `contractVersion` 校验 ── 不兼容 = 启动拒绝
 8. **稳定字符串 ID**（Codex 加固） ── 卡牌/事件/动作严禁 Unity Instance ID
+9. **模块拆分 + 单文件 ≤500 行**（MiniMax 2026-08-11 18:30 补） ── 主循环 / Dispatcher / 玩家状态 / 卡实例 / 事件溯源 各自独立程序集；任一文件 > 500 行 PR 拒绝。**理由**：旧 Java `Game.java` 980 行单类，重构代价远超拆分代价。Codex 实现时强制 `src/Engine/` 内 ≥5 个 .cs 文件（EventLoop / EffectDispatcher / CardInstance / PlayerState / IGame）。
 
 ## 6. ID 生命周期（Codex 强制）
 
@@ -132,7 +134,7 @@
 - [x] `data/cards.schema.json`（DeepSeek 协助）
 - [x] `docs/effects.contract.md`（21 动作 + 目标枚举）
 - [ ] 平移 `design/runtime-kit-v1.30/` 到 Unity 包
-- [ ] `AI_MAILBOX.md` 通知 Codex 进 Do
+- [x] `AI_MAILBOX.md` 通知 Codex 进 Do（commit ea7c3cb + 4e72c8b）
 
 ## 14. 协作约束
 
