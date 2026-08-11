@@ -2,6 +2,8 @@
 param(
     [switch]$DryRun,
     [switch]$Simulation,
+    [ValidateSet('Mixed', 'Success')]
+    [string]$SimulationScenario = 'Mixed',
     [string]$GoalFile = 'docs/DAILY_GOAL.md'
 )
 
@@ -212,6 +214,7 @@ $ready = $Simulation -or ($goalText -match '(?m)^Status:\s*READY\s*$')
 if ($DryRun) {
     [pscustomobject]@{
         Mode = 'DRY_RUN'
+        SimulationScenario = $SimulationScenario
         Repository = $repoRoot
         Branch = $branch
         GoalReady = $ready
@@ -272,6 +275,10 @@ if ($Simulation) {
   ]
 }
 '@ | ConvertFrom-Json
+    if ($SimulationScenario -eq 'Success') {
+        $plan.nightGoal = 'Exercise a complete repair and QA path ending in PL approval.'
+        $plan.tasks = @($plan.tasks | Where-Object { $_.id -eq 'SIM-REPAIR' })
+    }
 }
 else {
     $plan = Invoke-MiniMaxJson -SystemPrompt $plannerSystem -Message $goalText -OutputFile (Join-Path $runRoot 'pl-plan-raw.json')
