@@ -754,6 +754,9 @@ function Invoke-MiniMaxJson {
             throw 'The private MiniMax relay credential path is a reparse point.'
         }
     }
+    if (-not (Test-MiniMaxCredentialAcl)) {
+        throw 'The private MiniMax relay credential ACL is not restricted to the current user, LocalSystem, and local Administrators.'
+    }
     $messagesFile = "$OutputFile.messages.json"
     $messagesJson = @(
         @{ role = 'system'; content = $SystemPrompt },
@@ -824,6 +827,70 @@ function Test-DeepSeekCredential {
     catch { return $false }
 }
 
+function Test-PrivateAclRuleSet {
+    param(
+        [Parameter(Mandatory)][object[]]$Rules,
+        [Parameter(Mandatory)][string[]]$ExpectedSids,
+        [Parameter(Mandatory)][Security.AccessControl.InheritanceFlags]$ExpectedInheritance,
+        [switch]$AllowInherited
+    )
+
+    $allowRules = @($Rules | Where-Object { $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow })
+    if ($allowRules.Count -ne $ExpectedSids.Count) { return $false }
+    foreach ($sidValue in $ExpectedSids) {
+        $matches = @($allowRules | Where-Object { $_.IdentityReference.Value -eq $sidValue })
+        if ($matches.Count -ne 1) { return $false }
+        $rule = $matches[0]
+        $hasFullControl = ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl
+        if (-not $hasFullControl -or
+            ($rule.IsInherited -and -not $AllowInherited) -or
+            $rule.InheritanceFlags -ne $ExpectedInheritance -or
+            $rule.PropagationFlags -ne [Security.AccessControl.PropagationFlags]::None) { return $false }
+    }
+
+    # Extra Deny rules cannot grant access and are intentionally allowed for
+    # sandbox identities. A Deny against one of the three required principals
+    # would make the credential or state unusable and remains invalid.
+    $invalidRules = @($Rules | Where-Object {
+        $_.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -and
+        ($_.AccessControlType -ne [Security.AccessControl.AccessControlType]::Deny -or
+         $ExpectedSids -contains $_.IdentityReference.Value)
+    })
+    return $invalidRules.Count -eq 0
+}
+
+function Test-MiniMaxCredentialAcl {
+    try {
+        $directory = Join-Path $env:LOCALAPPDATA 'DominionWarsAutoRelay\mmx'
+        $file = Join-Path $directory 'config.json'
+        $expectedSids = @(
+            [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+            'S-1-5-18'
+            'S-1-5-32-544'
+        )
+        foreach ($entry in @(
+            [pscustomobject]@{ Path = $directory; IsDirectory = $true }
+            [pscustomobject]@{ Path = $file; IsDirectory = $false }
+        )) {
+            $pathType = if ($entry.IsDirectory) { 'Container' } else { 'Leaf' }
+            if (-not (Test-Path -LiteralPath $entry.Path -PathType $pathType)) { return $false }
+            $item = Get-Item -LiteralPath $entry.Path -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+            $acl = Get-Acl -LiteralPath $entry.Path
+            if (-not $acl.AreAccessRulesProtected) { return $false }
+            if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $expectedSids[0]) { return $false }
+            $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
+            $inheritance = if ($entry.IsDirectory) {
+                [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
+            }
+            else { [Security.AccessControl.InheritanceFlags]::None }
+            if (-not (Test-PrivateAclRuleSet -Rules $rules -ExpectedSids $expectedSids -ExpectedInheritance $inheritance)) { return $false }
+        }
+        return $true
+    }
+    catch { return $false }
+}
+
 function Test-DeepSeekCredentialAcl {
     try {
         $expanded = [Environment]::ExpandEnvironmentVariables([string]$config.qa.credentialFile)
@@ -844,21 +911,11 @@ function Test-DeepSeekCredentialAcl {
             if (-not $acl.AreAccessRulesProtected) { return $false }
             if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $currentSid) { return $false }
             $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
-            if ($rules.Count -ne $expectedSids.Count) { return $false }
             $expectedInheritance = if ($entry.IsDirectory) {
                 [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
             }
             else { [Security.AccessControl.InheritanceFlags]::None }
-            foreach ($sidValue in $expectedSids) {
-                $matches = @($rules | Where-Object { $_.IdentityReference.Value -eq $sidValue })
-                if ($matches.Count -ne 1) { return $false }
-                $rule = $matches[0]
-                $hasFullControl = ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl
-                if ($rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -or
-                    -not $hasFullControl -or $rule.IsInherited -or
-                    $rule.InheritanceFlags -ne $expectedInheritance -or
-                    $rule.PropagationFlags -ne [Security.AccessControl.PropagationFlags]::None) { return $false }
-            }
+            if (-not (Test-PrivateAclRuleSet -Rules $rules -ExpectedSids $expectedSids -ExpectedInheritance $expectedInheritance)) { return $false }
         }
         return $true
     }
@@ -875,16 +932,20 @@ function Test-NightShiftStateAclPrivate {
             'S-1-5-18'
             'S-1-5-32-544'
         )
-        $acl = Get-Acl -LiteralPath $stateRoot
-        if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $expectedSids[0]) { return $false }
-        $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
-        if ($rules.Count -ne $expectedSids.Count) { return $false }
-        foreach ($sidValue in $expectedSids) {
-            $matches = @($rules | Where-Object { $_.IdentityReference.Value -eq $sidValue })
-            if ($matches.Count -ne 1) { return $false }
-            $rule = $matches[0]
-            $hasFullControl = ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl
-            if ($rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -or -not $hasFullControl) { return $false }
+        $privateBase = Join-Path $env:LOCALAPPDATA 'DominionWarsNightshift'
+        foreach ($entry in @(
+            [pscustomobject]@{ Path = $privateBase; AllowInherited = $false }
+            [pscustomobject]@{ Path = $stateRoot; AllowInherited = $true }
+        )) {
+            if (-not (Test-Path -LiteralPath $entry.Path -PathType Container)) { return $false }
+            $entryItem = Get-Item -LiteralPath $entry.Path -Force
+            if (($entryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+            $acl = Get-Acl -LiteralPath $entry.Path
+            if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $expectedSids[0]) { return $false }
+            if (-not $entry.AllowInherited -and -not $acl.AreAccessRulesProtected) { return $false }
+            $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
+            $inheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
+            if (-not (Test-PrivateAclRuleSet -Rules $rules -ExpectedSids $expectedSids -ExpectedInheritance $inheritance -AllowInherited:$entry.AllowInherited)) { return $false }
         }
         return $true
     }
@@ -1391,8 +1452,10 @@ if ($DryRun) {
         MiniMax = (Get-Command $config.pl.command).Source
         Codex = (Get-Command $config.developer.command).Source
         Python = $pythonCommand
+        MiniMaxCredentialAclPrivate = Test-MiniMaxCredentialAcl
         DeepSeekCredentialConfigured = Test-DeepSeekCredential
         DeepSeekCredentialAclPrivate = Test-DeepSeekCredentialAcl
+        NightShiftStateAclPrivate = Test-NightShiftStateAclPrivate
         MaxTasks = $config.maxTasks
         MaxRepairCycles = $config.maxRepairCycles
         Timeouts = $config.timeouts
@@ -1405,6 +1468,9 @@ $stateTrustedRoot = if ($Simulation) { $repoRoot } else { $env:LOCALAPPDATA }
 Initialize-SafeDirectory -TrustedRoot $stateTrustedRoot -Path $stateRoot
 if (-not $Simulation -and -not (Test-DeepSeekCredentialAcl)) {
     throw 'DeepSeek credential ACL is not private. Run scripts/nightshift/setup-deepseek-key.ps1 -HardenOnly before unattended execution.'
+}
+if (-not $Simulation -and -not (Test-MiniMaxCredentialAcl)) {
+    throw 'MiniMax credential ACL is not private. Run scripts/auto-relay/harden-minimax-auth.ps1 -Apply before unattended execution.'
 }
 if (-not $Simulation -and -not (Test-NightShiftStateAclPrivate)) {
     throw 'Night-shift private state ACL is not restricted to the current user, LocalSystem, and local Administrators.'

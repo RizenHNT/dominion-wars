@@ -86,8 +86,9 @@ function Assert-PrivateAcl {
 
     $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
     $expectedSids = @(Get-PrivateCredentialSids)
-    if ($rules.Count -ne $expectedSids.Count) {
-        throw "$Label ACL must contain exactly $($expectedSids.Count) explicit access rules; found $($rules.Count)."
+    $allowRules = @($rules | Where-Object { $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow })
+    if ($allowRules.Count -ne $expectedSids.Count) {
+        throw "$Label ACL must contain exactly $($expectedSids.Count) Allow rules; found $($allowRules.Count)."
     }
 
     $expectedInheritance = if ($Directory) {
@@ -95,8 +96,8 @@ function Assert-PrivateAcl {
     }
     else { [Security.AccessControl.InheritanceFlags]::None }
     foreach ($sid in $expectedSids) {
-        $matches = @($rules | Where-Object { $_.IdentityReference.Value -eq $sid.Value })
-        if ($matches.Count -ne 1) { throw "$Label ACL must contain exactly one rule for $($sid.Value)." }
+        $matches = @($allowRules | Where-Object { $_.IdentityReference.Value -eq $sid.Value })
+        if ($matches.Count -ne 1) { throw "$Label ACL must contain exactly one Allow rule for $($sid.Value)." }
         $rule = $matches[0]
         $hasFullControl = ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl
         if ($rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -or
@@ -105,6 +106,15 @@ function Assert-PrivateAcl {
             $rule.PropagationFlags -ne [Security.AccessControl.PropagationFlags]::None) {
             throw "$Label ACL rule for $($sid.Value) is not the expected explicit FullControl rule."
         }
+    }
+
+    $invalidRules = @($rules | Where-Object {
+        $_.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -and
+        ($_.AccessControlType -ne [Security.AccessControl.AccessControlType]::Deny -or
+         $expectedSids.Value -contains $_.IdentityReference.Value)
+    })
+    if ($invalidRules.Count -gt 0) {
+        throw "$Label ACL contains an invalid rule. Extra Deny rules are permitted only for non-privileged sandbox identities."
     }
 }
 
