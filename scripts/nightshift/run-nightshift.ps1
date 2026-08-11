@@ -154,7 +154,7 @@ function Invoke-DeepSeekJson {
     param([string]$Message, [string]$OutputFile)
     $key = Get-DeepSeekCredential
     try {
-        $headers = @{ Authorization = "Bearer $key"; 'Content-Type' = 'application/json' }
+        $headers = @{ Authorization = "Bearer $key" }
         $body = @{
             model = [string]$config.qa.model
             temperature = [double]$config.qa.temperature
@@ -164,7 +164,11 @@ function Invoke-DeepSeekJson {
                 @{ role = 'user'; content = $Message }
             )
         } | ConvertTo-Json -Depth 10
-        $response = Invoke-RestMethod -Method Post -Uri $config.qa.endpoint -Headers $headers -Body $body
+        # Windows PowerShell otherwise sends a JSON string using its legacy
+        # request encoding, which corrupts CJK evidence and can produce invalid
+        # Unicode code points at the API boundary.
+        $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+        $response = Invoke-RestMethod -Method Post -Uri $config.qa.endpoint -Headers $headers -ContentType 'application/json; charset=utf-8' -Body $bodyBytes
         $response | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $OutputFile -Encoding UTF8
         ConvertFrom-ModelJson -Text ([string]$response.choices[0].message.content)
     }
