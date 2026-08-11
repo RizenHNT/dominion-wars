@@ -22,6 +22,24 @@ $runId = Get-Date -Format 'yyyy-MM-dd_HHmmss'
 $runRoot = Join-Path $stateRoot $runId
 $reportPath = if ($Simulation) { Join-Path $runRoot 'SIMULATION_REPORT.md' } else { Join-Path $repoRoot 'docs\NIGHT_REPORT.md' }
 $schedulerLog = Join-Path $stateRoot 'scheduler.log'
+$configuredMiniMax = [string]$config.pl.command
+$configuredCodex = [string]$config.developer.command
+
+if (-not (Get-Command $configuredMiniMax -ErrorAction SilentlyContinue)) {
+    foreach ($candidate in @(
+        (Join-Path $env:APPDATA 'npm\mmx.ps1'),
+        (Join-Path $env:APPDATA 'npm\mmx.cmd')
+    )) {
+        if (Test-Path -LiteralPath $candidate) { $config.pl.command = $candidate; break }
+    }
+}
+
+if (-not (Get-Command $configuredCodex -ErrorAction SilentlyContinue)) {
+    $codexCandidate = Get-ChildItem -Path (Join-Path $env:USERPROFILE '.vscode\extensions\openai.chatgpt-*-win32-x64\bin\windows-x86_64\codex.exe') -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($codexCandidate) { $config.developer.command = $codexCandidate.FullName }
+}
 $pythonCommand = $null
 foreach ($candidate in @((Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'), 'python', 'py')) {
     if ($candidate -and (Get-Command $candidate -ErrorAction SilentlyContinue)) {
@@ -249,12 +267,6 @@ if (-not (Test-Path -LiteralPath $goalPath)) { throw "Goal file not found: $goal
 $goalText = Get-Content -Raw -LiteralPath $goalPath
 $goalAllowedPaths = if ($Simulation) { @('docs') } else { @(Get-GoalAllowedPaths -Goal $goalText) }
 
-$requiredCommands = if ($Simulation) { @('git', 'java') } else { @('git', [string]$config.pl.command, [string]$config.developer.command, 'java') }
-foreach ($command in $requiredCommands) {
-    if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Required command not found: $command" }
-}
-if (-not $pythonCommand) { throw 'Required Python interpreter not found.' }
-
 $branch = (& git -C $repoRoot branch --show-current).Trim()
 $changedBefore = @(Get-GitChangedPaths)
 $ready = $Simulation -or ($goalText -match '(?m)^Status:\s*READY\s*$')
@@ -286,6 +298,12 @@ if (-not $ready) {
     }
     throw 'docs/DAILY_GOAL.md is not READY.'
 }
+
+$requiredCommands = if ($Simulation) { @('git', 'java') } else { @('git', [string]$config.pl.command, [string]$config.developer.command, 'java') }
+foreach ($command in $requiredCommands) {
+    if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Required command not found: $command" }
+}
+if (-not $pythonCommand) { throw 'Required Python interpreter not found.' }
 if ($goalAllowedPaths.Count -eq 0) { throw 'The READY goal has no allowed paths.' }
 foreach ($path in $goalAllowedPaths) {
     if (-not (Test-SafeAllowedPath -Path $path)) { throw "Unsafe allowed path in goal: $path" }
