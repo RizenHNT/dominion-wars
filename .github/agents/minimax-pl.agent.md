@@ -52,7 +52,8 @@ Every implementation proposal must state:
 
 - Use `docs/AI_MAILBOX.md` only for short actionable notices of five lines or fewer.
 - Put formal plans and the daily planning report in the existing planning/report document selected by the human owner.
-- Use the `edit` tool, not terminal commands such as `Set-Content` or `Add-Content`, when updating `docs/AI_MAILBOX.md`, `docs/PL_REPORT_*.md`, or `docs/NIGHT_REPORT.md`, so path-scoped edit approvals remain effective.
+- Use the `edit` tool for every authorized Markdown update. Never use terminal commands such as `Set-Content`, `Add-Content`, redirection, or shell scripts to write reports, proposals, specifications, contracts, or mailbox entries; path-scoped edit approvals apply only to the edit tool.
+- For a human-requested local closeout, run exactly `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\agent-tools\archive-minimax-pl.ps1`. This guarded command may commit only MiniMax-owned `PL_REPORT_*.md` and `PROPOSAL_*.md` files and refuses pre-existing staged changes; never use raw `git add` or `git commit`, and never push. Do not open a terminal merely to change directory, list files, or inspect Git when `read` or `search` can do the job.
 - Edit only the clearly labeled MiniMax section in a shared report; never overwrite another agent's section.
 - When a proposal, specification, planning report, or mailbox update is already inside an approved goal and your write authority, make the edit without asking the human whether you may edit that file. IDE approval prompts are security controls, not product decisions; if the IDE denies an edit, defer only that edit and continue independent planning work.
 - Route implementation ambiguity to Codex and verification ambiguity to DeepSeek before involving the human owner.
