@@ -21,7 +21,7 @@ Blocked tasks do not block independent tasks. A task runs only after all depende
 ## Roles
 
 - MiniMax PL: reads the approved goal, creates bounded tasks, and performs final evidence review.
-- Codex: edits only approved paths using `codex exec --sandbox workspace-write --approve-for-me`.
+- Codex: edits only approved paths using `codex exec --sandbox workspace-write`. Operations requiring broader approval fail closed as `HUMAN_REQUIRED`.
 - Test runner: executes only repository-owned allowlisted profiles; model-generated shell commands are never executed.
 - DeepSeek: receives the actual diff and captured test output, then returns `PASS`, `FAIL`, or `HUMAN_REQUIRED`. It never edits production code.
 

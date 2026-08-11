@@ -342,7 +342,10 @@ Previous QA: $($task.qaSummary)
 Do not commit, push, merge, install dependencies, modify credentials, or edit outside allowed paths. If a human decision is required, stop and state HUMAN_REQUIRED.
 "@
         $devOutput = Join-Path $runRoot ("{0}-dev-{1}.txt" -f $task.id, $task.repairCycles)
-        $devArgs = @('exec', '--ephemeral', '--sandbox', [string]$config.developer.sandbox, '--approve-for-me', '-C', $repoRoot, '-o', $devOutput, $devPrompt)
+        # Current Codex CLI versions reject --approve-for-me when an explicit
+        # sandbox is also supplied. Keep the auditable workspace-write sandbox;
+        # any operation that needs broader approval must fail closed.
+        $devArgs = @('exec', '--ephemeral', '--sandbox', [string]$config.developer.sandbox, '-C', $repoRoot, '-o', $devOutput, $devPrompt)
         if ($Simulation) {
             "SIMULATED Codex cycle $($task.repairCycles)" | Set-Content -LiteralPath $devOutput -Encoding UTF8
             $devRun = [pscustomobject]@{ ExitCode = 0; Output = 'SIMULATED' }
