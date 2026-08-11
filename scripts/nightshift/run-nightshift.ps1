@@ -34,8 +34,21 @@ function Invoke-CapturedCommand {
         [Parameter(Mandatory)][string[]]$Arguments,
         [Parameter(Mandatory)][string]$OutputFile
     )
-    $output = & $Command @Arguments 2>&1 | Out-String
-    $exitCode = $LASTEXITCODE
+    # Native CLIs legitimately stream progress to stderr. With the script-wide
+    # Stop policy PowerShell turns those records into terminating exceptions,
+    # so capture both streams and judge the process only by its exit code.
+    $previousPreference = $ErrorActionPreference
+    $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $PSNativeCommandUseErrorActionPreference = $false
+    try {
+        $output = & $Command @Arguments 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+        $PSNativeCommandUseErrorActionPreference = $previousNativePreference
+    }
     $output | Set-Content -LiteralPath $OutputFile -Encoding UTF8
     [pscustomobject]@{ ExitCode = $exitCode; Output = $output }
 }
