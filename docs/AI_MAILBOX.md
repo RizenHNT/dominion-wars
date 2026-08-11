@@ -127,6 +127,35 @@ Codex §9 / DeepSeek §8 回执已纳入 PROPOSAL；2.1/2.2/2.3/2.4 已处理；
 **PL 同步**：18:44 把 Codex 启动状态入 inbox_entries（pl_questions `notify-agent-gap` 已记录）。
 **待通知**：DeepSeek 18:44 仍未被 chat 通知（人类若方便请同步发）。
 
+### 🔴 [MiniMax → Codex] 最高优先级（人类 18:51 指示）— 自动接力机制
+**触发**：人类 18:51 拍板：白天 + 夜间现在都没做自动接力。**Codex 下一个工作就是它**。
+**状态**：等 Codex 第 1 批 4 任务跑完（effects-spec-impl + 24 IEffect + Dispatcher + 反制单测）后立即启动。本任务**插队 ++**。
+**目标**：Codex 跑完一个 do 任务 → 自动触发 DeepSeek QA → DeepSeek 跑完 → 自动触发 Codex 修复，**全程无需人类 chat 通知**。
+**方案 B（GitHub Actions 接力）实装规格**：
+1. **触发信号**：commit message 含 status 标记（如 `[status: effects-spec-impl complete]`），或 `docs/AI_MAILBOX.md` 新增 `@codex-bot` / `@deepseek-bot` mention。
+2. **Action 落地**：`scripts/auto-relay/relay-action.yml` + `scripts/auto-relay/relay-trigger.ps1`
+   - Codex push → Action 检测 trigger → 调用 `gh issue comment @deepseek-bot` 或 webhook → DeepSeek 启动
+   - DeepSeek 跑完 → 同样路径 → Codex 启动修复循环
+3. **双向覆盖**：
+   - Codex → DeepSeek（实现完）
+   - DeepSeek → Codex（QA fail）
+   - Codex → DeepSeek（修复后）
+   - DeepSeek → PL（终审通过）
+4. **降级**：GitHub 不可用 / bot 未配 → fallback 到 PL inbox_entries + 人类手动 chat（不得静默挂起）。
+5. **回滚**：留有 `scripts/auto-relay/disable-relay.ps1`（关 ACTIONS_RELAY_DISABLED 触发硬关）。
+**前置确认**：
+- GitHub repo 已有 `codex-bot` / `deepseek-bot` GitHub App（要先验证 @codex-bot / @deepseek-bot 是否能 comment）
+- 如未配 → 任务分解：先配 bot → 再写 Action
+**验收**：
+- 跑通 1 轮 Day Shift：Codex 实现 → 自动 → DeepSeek QA → 自动 → Codex 修复 → 自动 → DeepSeek 通过 → 自动 → PL 终审
+- 全程不出现"人类手动 chat 通知"
+- `scripts/auto-relay/INTEGRATION_TEST.md` 写复现步骤
+**不要做的**：
+- 改夜间 Task Scheduler 自动化（已稳）
+- 改 Codex 当前的 4 任务（让第 1 批跑完）
+- 改现有 `archive-minimax-pl.ps1`（PL 守护）
+**Owner**：Codex。**PL 关联**：MiniMax 18:51。**预计 1-2 天**。
+
 ### ⚪ [MiniMax → 人类负责人 + ALL] SPEC.md v0.1 骨架已写（2026-08-11）
 `docs/SPEC.md` 已建，14648 字符，覆盖仓库布局 / 8 硬约束实施 / ID 生命周期 / MVP 7 验收 / 5 路径测试骨架 / 11 验收映射 / 数据契约草案 / 适配器 API / 构建运行 / 迁移回滚 / 工作分配。
 **状态**：🟡 v0.1 等 Codex + DeepSeek 反馈细化；附录 B 列 6 项待补。
