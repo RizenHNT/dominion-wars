@@ -192,6 +192,9 @@ function Invoke-TestProfile {
         'alignment' {
             Invoke-CapturedCommand -Command $pythonCommand -Arguments @('scripts/align_check.py') -OutputFile $OutputFile
         }
+        'nightshift-index' {
+            Invoke-CapturedCommand -Command 'powershell' -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/nightshift/verify-nightshift-index.ps1') -OutputFile $OutputFile
+        }
         default { throw "Test profile is not allowlisted: $Profile" }
     }
 }
@@ -273,8 +276,8 @@ if (-not $Simulation) { $null = Get-DeepSeekCredential }
 $plannerSystem = @'
 You are the Dominion Wars temporary PL. Produce a bounded plan from the human-approved goal.
 Return JSON only with this shape:
-{"nightGoal":"...","tasks":[{"id":"T1","title":"...","acceptanceCriteria":["..."],"dependencies":[],"allowedPaths":["path"],"testProfiles":["build"],"risk":"low","humanRequired":false,"humanQuestion":""}]}
-Use at most five tasks. Copy allowedPaths only from the goal's Allowed scope section; never broaden them. Test profiles may only be build, regression, sanity, alignment. Never authorize commits, pushes, merges, releases, credentials, paid resources, destructive deletion, or unapproved architecture decisions.
+{"nightGoal":"...","tasks":[{"id":"T1","kind":"implementation","title":"...","acceptanceCriteria":["..."],"dependencies":[],"allowedPaths":["path"],"testProfiles":["build"],"risk":"low","humanRequired":false,"humanQuestion":""}]}
+Every executable task must have "kind":"implementation" and must create an observable deliverable in allowedPaths. Reading, research, and verification are steps inside an implementation task, never separate tasks. For one small file goal, return exactly one task. Copy allowedPaths only from the goal's Allowed scope section; never broaden them. Test profiles may only be build, regression, sanity, alignment, nightshift-index. Never authorize commits, pushes, merges, releases, credentials, paid resources, destructive deletion, or unapproved architecture decisions.
 '@
 if ($Simulation) {
     $plan = @'
@@ -283,6 +286,7 @@ if ($Simulation) {
   "tasks": [
     {
       "id": "SIM-REPAIR",
+      "kind": "implementation",
       "title": "Simulate one QA failure followed by a passing repair",
       "acceptanceCriteria": ["First QA cycle fails", "Second QA cycle passes"],
       "dependencies": [],
@@ -294,6 +298,7 @@ if ($Simulation) {
     },
     {
       "id": "SIM-HUMAN",
+      "kind": "decision",
       "title": "Simulate a decision that automation may not make",
       "acceptanceCriteria": ["Task is deferred without stopping SIM-REPAIR"],
       "dependencies": [],
@@ -323,6 +328,9 @@ foreach ($task in $plan.tasks) {
     $task | Add-Member -NotePropertyName blocker -NotePropertyValue ([string]$task.humanQuestion)
     foreach ($profile in $task.testProfiles) {
         if ($config.allowedTestProfiles -notcontains [string]$profile) { throw "PL selected a non-allowlisted test profile: $profile" }
+    }
+    if (-not $task.humanRequired -and [string]$task.kind -ne 'implementation') {
+        throw "PL returned a non-implementation executable task: $($task.id)"
     }
     foreach ($path in $task.allowedPaths) {
         if (-not (Test-SafeAllowedPath -Path ([string]$path))) { throw "PL selected an unsafe path: $path" }
@@ -400,6 +408,8 @@ Independently evaluate this task. Return JSON only:
 Task: $($task.title)
 Acceptance criteria: $($task.acceptanceCriteria -join '; ')
 Allowlisted tests all exited zero: $testsPassed
+CODEX DELIVERY STATEMENT:
+$(Get-Content -Raw -LiteralPath $devOutput)
 TEST EVIDENCE:
 $($testEvidence -join "`n---`n")
 ACTUAL DIFF:

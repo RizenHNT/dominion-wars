@@ -53,6 +53,7 @@ Automation must stop or defer a task involving any of the following:
 | `regression` | Java `com.dominionwars.test.TestMain` |
 | `sanity` | `python scripts/sanity_check_v2.py` |
 | `alignment` | `python scripts/align_check.py` |
+| `nightshift-index` | Verifies that `docs/FILE_INDEX.md` contains every committed night-shift entry and the local-state note |
 
 ## Operating modes
 

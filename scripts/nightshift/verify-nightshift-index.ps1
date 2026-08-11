@@ -1,0 +1,35 @@
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = 'Stop'
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$indexPath = Join-Path $repoRoot 'docs\FILE_INDEX.md'
+
+if (-not (Test-Path -LiteralPath $indexPath)) {
+    throw 'docs/FILE_INDEX.md does not exist.'
+}
+
+$content = Get-Content -Raw -LiteralPath $indexPath
+$requiredPaths = @(
+    'docs/DAILY_GOAL.md',
+    'docs/NIGHTSHIFT_WORKFLOW.md',
+    'scripts/nightshift/nightshift.config.json',
+    'scripts/nightshift/run-nightshift.ps1',
+    'scripts/nightshift/setup-deepseek-key.ps1'
+)
+
+$missing = @($requiredPaths | Where-Object { -not $content.Contains($_) })
+if ($missing.Count -gt 0) {
+    Write-Error "Missing night-shift index entries: $($missing -join ', ')"
+    exit 1
+}
+
+$mentionsRuntimeDirectory = $content.Contains('.nightshift/')
+$mentionsLocal = $content -match '(?i)local|本地'
+$mentionsIgnored = $content -match '(?i)git.?ignored|ignored by git|Git.?忽略|忽略.*Git'
+if (-not ($mentionsRuntimeDirectory -and $mentionsLocal -and $mentionsIgnored)) {
+    Write-Error 'The index must state that .nightshift/ runtime state is local and Git-ignored.'
+    exit 1
+}
+
+Write-Host 'Night-shift file index verification passed.'

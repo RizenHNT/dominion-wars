@@ -23,6 +23,7 @@ Replace this paragraph with one small, concrete outcome for the night.
 - `regression`
 - `sanity`
 - `alignment`
+- `nightshift-index`
 
 ## Human decisions already made
 

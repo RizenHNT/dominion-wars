@@ -20,5 +20,5 @@
     "maxOutputTokens": 4096,
     "temperature": 0.1
   },
-  "allowedTestProfiles": ["build", "regression", "sanity", "alignment"]
+  "allowedTestProfiles": ["build", "regression", "sanity", "alignment", "nightshift-index"]
 }
