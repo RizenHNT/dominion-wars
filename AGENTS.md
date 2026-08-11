@@ -71,4 +71,6 @@ Contact the human owner immediately only for suspected credential exposure or se
 
 Use `docs/AI_MAILBOX.md` for short asynchronous notices and action tracking. Formal plans, implementation handoffs, and test reports still follow `docs/AI_WORKFLOW.md`.
 
+For an already approved daytime goal, `scripts/auto-relay/start-relay.ps1` is the handoff entry. It invokes the real local MiniMax, Codex, test, and DeepSeek processes through the audited controller; a VS Code custom-agent mention or GitHub comment alone is never proof that another agent started. Relay transport does not expand any role's write authority or remove the existing human gates.
+
 Before changing a contract, preserve backward compatibility or document the migration explicitly. A feature is complete only after implementation and relevant verification both succeed.

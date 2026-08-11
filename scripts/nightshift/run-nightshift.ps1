@@ -691,6 +691,9 @@ function Add-UsageRecord {
 
 function Enter-PaidModelAttempt {
     param([Parameter(Mandatory)][string]$Provider, [Parameter(Mandatory)][string]$Stage)
+    if ($env:DOMINION_RELAY_DISABLE_FILE -and (Test-Path -LiteralPath $env:DOMINION_RELAY_DISABLE_FILE -PathType Leaf)) {
+        throw 'Auto relay was disabled after this run started. The next paid model call was stopped.'
+    }
     if ($script:paidModelAttempts -ge [int]$config.maxPaidModelAttempts) {
         throw "Nightly paid-model attempt limit ($($config.maxPaidModelAttempts)) reached before $Provider/$Stage."
     }
@@ -740,6 +743,17 @@ function Invoke-MiniMaxJson {
     )
     $SystemPrompt = Protect-ProviderText -Text $SystemPrompt -MaximumCharacters 20000
     $Message = Protect-ProviderText -Text $Message
+    $miniMaxConfigDirectory = Join-Path $env:LOCALAPPDATA 'DominionWarsAutoRelay\mmx'
+    $miniMaxConfigFile = Join-Path $miniMaxConfigDirectory 'config.json'
+    if (-not (Test-Path -LiteralPath $miniMaxConfigFile -PathType Leaf)) {
+        throw 'The private MiniMax relay credential copy is missing. Run scripts/auto-relay/harden-minimax-auth.ps1 -Apply.'
+    }
+    foreach ($credentialPath in @($miniMaxConfigDirectory, $miniMaxConfigFile)) {
+        $credentialItem = Get-Item -LiteralPath $credentialPath -Force
+        if (($credentialItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'The private MiniMax relay credential path is a reparse point.'
+        }
+    }
     $messagesFile = "$OutputFile.messages.json"
     $messagesJson = @(
         @{ role = 'system'; content = $SystemPrompt },
@@ -753,7 +767,7 @@ function Invoke-MiniMaxJson {
         '--max-tokens', [string]$config.pl.maxTokens,
         '--temperature', [string]$config.pl.temperature,
         '--output', 'json',
-        '--quiet', '--no-color', '--non-interactive',
+        '--no-color', '--non-interactive',
         '--timeout', [string]([Math]::Max(1, $TimeoutSeconds - 5))
     )
     $lastReason = 'MiniMax failed.'
@@ -761,7 +775,7 @@ function Invoke-MiniMaxJson {
         $paidAttempt = Enter-PaidModelAttempt -Provider 'MiniMax' -Stage $Stage
         $wrapper = $null
         $attemptOutput = "$OutputFile.attempt-$attempt.txt"
-        $result = Invoke-CapturedCommand -Command $config.pl.command -Arguments $arguments -OutputFile $attemptOutput -TimeoutSeconds $TimeoutSeconds -Stage ("{0}_ATTEMPT_{1}" -f $Stage, $attempt) -SanitizeEnvironment
+        $result = Invoke-CapturedCommand -Command $config.pl.command -Arguments $arguments -OutputFile $attemptOutput -TimeoutSeconds $TimeoutSeconds -Stage ("{0}_ATTEMPT_{1}" -f $Stage, $attempt) -Environment @{ MMX_CONFIG_DIR = $miniMaxConfigDirectory } -SanitizeEnvironment
         if ($result.ExitCode -eq 0 -and -not $result.OutputTruncated) {
             try {
                 $wrapper = $result.Output | ConvertFrom-Json
@@ -991,6 +1005,9 @@ function Get-DeveloperSandboxArguments {
 
 function Invoke-TestProfile {
     param([string]$Profile, [string]$OutputFile, [string]$Stage)
+    if ($env:DOMINION_RELAY_DISABLE_FILE -and (Test-Path -LiteralPath $env:DOMINION_RELAY_DISABLE_FILE -PathType Leaf)) {
+        throw 'Auto relay was disabled after this run started. The next test stage was stopped.'
+    }
     $testCommand = ''
     $testArguments = @()
     switch ($Profile) {

@@ -25,6 +25,14 @@ Codex 的交付至少写明：实际修改、与规划的偏差、执行过的�
 
 DeepSeek 的报告至少写明：测试环境、执行命令、通过/失败项、复现步骤和风险等级。测试失败时不得直接改生产源码，应先提交报告，由 Codex 修复。
 
+## 自动接力
+
+- VS Code 自定义智能体只是角色配置，不是常驻进程；仅在 Markdown 中写 `@MiniMax`、`@Codex` 或 `@DeepSeek` 不算唤醒成功。
+- 白天目标经人类一次批准并写入 `docs/DAILY_GOAL.md` 后，由 `scripts/auto-relay/start-relay.ps1` 启动本地编排器。之后 MiniMax、Codex、本地测试、DeepSeek、修复循环和 MiniMax 终审在同一受控进程内完成，不再要求人类切换聊天窗口。
+- 夜间继续使用既有 `DominionWars-NightShift` 计划任务；自动接力层不替换夜间调度器。
+- GitHub 评论、未知 bot、webhook 或普通 mailbox 文本不得作为执行授权。模型不可用、权限越界、目标不明确或最多三轮修复仍失败时，状态必须落为 `HUMAN_REQUIRED`，其余独立工作继续。
+- `scripts/auto-relay/disable-relay.ps1` 是关闭开关；它不强杀正在写文件的进程，但已启动的白天接力会在下一次付费模型调用或测试阶段前协作式停止并落为 `HUMAN_REQUIRED`。
+
 ## Runtime Design Kit 接入顺序
 
 1. Claude 从 `manifests/IMPLEMENTATION_TODO.csv` 选择一个明确范围，补充目标、非目标和验收标准。

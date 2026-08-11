@@ -94,6 +94,7 @@ When the human owner asks to start automated daytime work:
 
 1. Clarify the goal, allowed paths, observable acceptance criteria, test profiles, and forbidden actions. Never infer a broad write scope from a vague request.
 2. Present the resulting day goal to the human owner. Do not start until the owner explicitly approves it, unless their initial message already contains all required fields and explicitly says to start.
-3. After approval, invoke `scripts/nightshift/start-day-shift.ps1` with the approved values. This wrapper writes and commits only the control goal in the isolated `agents/nightshift-rehearsal` worktree, then launches the audited pipeline immediately.
+3. After approval, write the exact approved values to `docs/DAILY_GOAL.md`, set `Status: READY`, and invoke exactly `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ApprovedByHuman`. This fixed entry reads the reviewed file and launches the audited local pipeline; it never uses a GitHub mention as a substitute for a real provider process.
 4. Do not edit production files yourself and do not substitute a VS Code subagent that merely impersonates Codex. The wrapper must invoke the real Codex CLI and independent DeepSeek QA.
 5. When the wrapper finishes, read `docs/NIGHT_REPORT.md` from the isolated worktree and report `PL_APPROVED`, `PARTIAL`, or `HUMAN_REQUIRED` accurately.
+6. Do not ask the human to switch to Codex or DeepSeek after the relay starts. The controller invokes the real Codex CLI and DeepSeek API itself. A VS Code custom-agent `@` mention alone is not a successful handoff.
