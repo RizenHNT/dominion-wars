@@ -91,5 +91,35 @@ public sealed class AdapterContractTests
     {
         Assert.DoesNotThrow(() => ContractVersionGuard.Validate(1));
     }
+
+    [Test]
+    public void PublicCardProjectionMapsAStableEntityId()
+    {
+        var definition = new CardDefinition("public_card", "Public Card", 1, 2);
+        var mapped = EngineProjectionAdapter.ToCardDto(new CardInstance(19, 0, definition));
+        Assert.That(mapped.EntityId, Is.EqualTo("entity_000000000019"));
+    }
+
+    [Test]
+    public void PublicSnapshotValidationAcceptsAdapterOutput()
+    {
+        var snapshot = EngineProjectionAdapter.ToSnapshot(new GameState(), "public_match", 0, "START");
+        Assert.DoesNotThrow(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void PublicLegalActionBatchProjectionMapsEngineActions()
+    {
+        var mapped = EngineProjectionAdapter.ToLegalActions(new[]
+        {
+            new DominionWars.Engine.LegalAction
+            {
+                ActionId = "public_action",
+                Type = "END_TURN",
+                Actor = 0,
+            },
+        });
+        Assert.That(mapped[0].ActionId, Is.EqualTo("public_action"));
+    }
 }
 }
