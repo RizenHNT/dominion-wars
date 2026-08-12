@@ -52,6 +52,12 @@ public sealed class CardDto
     public bool IsLeader { get; set; }
     public bool IsLeaderEntity { get; set; }
     public int OwnerPlayer { get; set; }
+    public string Faction { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    public string? Flavor { get; set; }
+    public int Cost { get; set; }
+    public string Rarity { get; set; } = string.Empty;
+    public string? ArtId { get; set; }
     public int DefinitionAttack { get; set; }
     public int DefinitionHealth { get; set; }
     public int GrantLife { get; set; }
@@ -87,17 +93,8 @@ public sealed class LegalActionDto
         = new Dictionary<string, object?>();
 }
 
-public sealed class LegalAction
+public sealed class LegalAction : DominionWars.Engine.LegalAction
 {
-    public string ActionId { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty;
-    public int Actor { get; set; }
-    public long? SourceId { get; set; }
-    public long? TargetId { get; set; }
-    public string? CardId { get; set; }
-    public string? ReasonKey { get; set; }
-    public IReadOnlyDictionary<string, object?> Payload { get; set; }
-        = new Dictionary<string, object?>();
 }
 
 public class UiEventDto

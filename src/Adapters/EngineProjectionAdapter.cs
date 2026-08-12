@@ -81,7 +81,7 @@ public static class EngineProjectionAdapter
             });
         }
 
-        return new SnapshotDto
+        var snapshot = new SnapshotDto
         {
             ContractVersion = 1,
             MatchId = matchId,
@@ -96,6 +96,9 @@ public static class EngineProjectionAdapter
             },
             LegalActions = legalActions ?? Array.Empty<LegalActionDto>(),
         };
+
+        ValidateSnapshot(snapshot);
+        return snapshot;
     }
 
     public static SnapshotDto ToSnapshot(
@@ -103,13 +106,13 @@ public static class EngineProjectionAdapter
         string matchId,
         int turn,
         string phase,
-        IReadOnlyList<LegalAction> legalActions)
+        IReadOnlyList<DominionWars.Engine.LegalAction> legalActions)
     {
         return ToSnapshot(state, matchId, turn, phase, ToLegalActionDtos(legalActions));
     }
 
     public static IReadOnlyList<LegalActionDto> ToLegalActionDtos(
-        IEnumerable<LegalAction> actions)
+        IEnumerable<DominionWars.Engine.LegalAction> actions)
     {
         if (actions is null)
         {
@@ -139,6 +142,60 @@ public static class EngineProjectionAdapter
         }
 
         return result;
+    }
+
+    public static IReadOnlyList<LegalActionDto> ToLegalActions(
+        IEnumerable<DominionWars.Engine.LegalAction> actions)
+    {
+        return ToLegalActionDtos(actions);
+    }
+
+    public static void ValidateSnapshot(SnapshotDto snapshot)
+    {
+        if (snapshot is null)
+        {
+            throw new ArgumentNullException(nameof(snapshot));
+        }
+
+        if (snapshot.ContractVersion != 1)
+        {
+            throw new ArgumentException("Unsupported snapshot contract version.", nameof(snapshot));
+        }
+
+        if (string.IsNullOrWhiteSpace(snapshot.MatchId))
+        {
+            throw new ArgumentException("A stable match id is required.", nameof(snapshot));
+        }
+
+        if (snapshot.Turn < 0)
+        {
+            throw new ArgumentException("Snapshot turn cannot be negative.", nameof(snapshot));
+        }
+
+        if (snapshot.Phase is not ("START" or "AMBUSH" or "ACTION" or "DISCARD" or "END" or "OVER"))
+        {
+            throw new ArgumentException("Snapshot phase is not recognized.", nameof(snapshot));
+        }
+
+        if (snapshot.CurrentPlayer is < 0 or > 1)
+        {
+            throw new ArgumentException("Snapshot current player must be 0 or 1.", nameof(snapshot));
+        }
+
+        if (snapshot.Players is null || snapshot.Players.Count != 2)
+        {
+            throw new ArgumentException("A snapshot must contain exactly two players.", nameof(snapshot));
+        }
+
+        if (snapshot.Castle is null || snapshot.Castle.Health < 0)
+        {
+            throw new ArgumentException("Snapshot castle health cannot be negative.", nameof(snapshot));
+        }
+
+        if (snapshot.LegalActions is null)
+        {
+            throw new ArgumentException("Snapshot legal actions cannot be null.", nameof(snapshot));
+        }
     }
 
     public static GameEventDto ToEvent(GameEvent gameEvent, int turn, string phase)
@@ -195,35 +252,51 @@ public static class EngineProjectionAdapter
 
     public static string ToEntityId(long entityId) => $"entity_{entityId:D12}";
 
+    public static CardDto ToCardDto(CardInstance card)
+    {
+        if (card is null)
+        {
+            throw new ArgumentNullException(nameof(card));
+        }
+
+        return new CardDto
+        {
+            EntityId = ToEntityId(card.InstanceId),
+            CardId = card.Definition.Id,
+            Name = card.Definition.Name,
+            Type = card.Definition.IsMinion ? "MINION" : "CARD",
+            IsMinion = card.IsMinion,
+            IsLeader = card.IsLeader,
+            IsLeaderEntity = card.IsLeaderEntity,
+            OwnerPlayer = card.OwnerPlayerIndex,
+            Faction = card.Definition.Faction,
+            Text = card.Definition.Text,
+            Flavor = card.Definition.Flavor,
+            Cost = card.Definition.Cost,
+            Rarity = card.Definition.Rarity,
+            ArtId = card.Definition.ArtId,
+            DefinitionAttack = card.Definition.Attack,
+            DefinitionHealth = card.Definition.Health,
+            GrantLife = card.Definition.GrantLife,
+            KingSlayer = card.Definition.KingSlayer,
+            Vulnerabilities = new List<string>(card.Definition.Vulnerabilities),
+            Attack = card.Attack,
+            Health = card.Health,
+            MaxHealth = card.MaxHealth,
+            Shield = card.Shield,
+            AttacksUsed = card.AttacksUsed,
+            SummonedThisTurn = card.SummonedThisTurn,
+            Keywords = new List<string>(card.Keywords),
+            Tags = new List<string>(card.Definition.Tags),
+        };
+    }
+
     private static IReadOnlyList<CardDto> ToCards(IEnumerable<CardInstance> cards)
     {
         var result = new List<CardDto>();
         foreach (var card in cards)
         {
-            result.Add(new CardDto
-            {
-                EntityId = ToEntityId(card.InstanceId),
-                CardId = card.Definition.Id,
-                Name = card.Definition.Name,
-                Type = card.Definition.IsMinion ? "MINION" : "CARD",
-                IsMinion = card.IsMinion,
-                IsLeader = card.IsLeader,
-                IsLeaderEntity = card.IsLeaderEntity,
-                OwnerPlayer = card.OwnerPlayerIndex,
-                DefinitionAttack = card.Definition.Attack,
-                DefinitionHealth = card.Definition.Health,
-                GrantLife = card.Definition.GrantLife,
-                KingSlayer = card.Definition.KingSlayer,
-                Vulnerabilities = new List<string>(card.Definition.Vulnerabilities),
-                Attack = card.Attack,
-                Health = card.Health,
-                MaxHealth = card.MaxHealth,
-                Shield = card.Shield,
-                AttacksUsed = card.AttacksUsed,
-                SummonedThisTurn = card.SummonedThisTurn,
-                Keywords = new List<string>(card.Keywords),
-                Tags = Array.Empty<string>(),
-            });
+            result.Add(ToCardDto(card));
         }
 
         return result;

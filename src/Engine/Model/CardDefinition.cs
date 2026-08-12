@@ -7,6 +7,7 @@ namespace DominionWars.Engine.Model
 public sealed class CardDefinition
 {
     private readonly IReadOnlyCollection<string> _keywords;
+    private readonly IReadOnlyCollection<string> _tags;
 
     public CardDefinition(
         string id,
@@ -18,7 +19,17 @@ public sealed class CardDefinition
         int grantLife = 0,
         bool kingSlayer = false,
         IEnumerable<string>? keywords = null,
-        IEnumerable<string>? vulnerabilities = null)
+        IEnumerable<string>? vulnerabilities = null,
+        string faction = "",
+        string text = "",
+        string? flavor = null,
+        int cost = 0,
+        string rarity = "",
+        string? artId = null,
+        IEnumerable<string>? tags = null,
+        bool punishActivatable = false,
+        int punishCost = 0,
+        bool hasLeaderAbility = false)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -45,6 +56,16 @@ public sealed class CardDefinition
             throw new ArgumentOutOfRangeException(nameof(grantLife));
         }
 
+        if (cost < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(cost));
+        }
+
+        if (punishCost < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(punishCost));
+        }
+
         Id = id;
         Name = name;
         Attack = attack;
@@ -52,6 +73,15 @@ public sealed class CardDefinition
         IsMinion = isMinion;
         IsLeader = isLeader;
         GrantLife = grantLife;
+        Faction = faction ?? string.Empty;
+        Text = text ?? string.Empty;
+        Flavor = flavor;
+        Cost = cost;
+        Rarity = rarity ?? string.Empty;
+        ArtId = artId;
+        PunishActivatable = punishActivatable;
+        PunishCost = punishCost;
+        HasLeaderAbility = hasLeaderAbility;
         // Legacy compatibility only. New data should mark the individual EffectSpec.
         KingSlayer = kingSlayer;
 
@@ -68,6 +98,20 @@ public sealed class CardDefinition
         }
 
         _keywords = keywordSet;
+
+        var tagSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (tags is not null)
+        {
+            foreach (var tag in tags)
+            {
+                if (!string.IsNullOrWhiteSpace(tag))
+                {
+                    tagSet.Add(tag);
+                }
+            }
+        }
+
+        _tags = tagSet;
 
         var vulnerabilitySet = new HashSet<string>(StringComparer.Ordinal);
         if (vulnerabilities is not null)
@@ -91,9 +135,19 @@ public sealed class CardDefinition
     public bool IsMinion { get; }
     public bool IsLeader { get; }
     public int GrantLife { get; }
+    public string Faction { get; }
+    public string Text { get; }
+    public string? Flavor { get; }
+    public int Cost { get; }
+    public string Rarity { get; }
+    public string? ArtId { get; }
+    public bool PunishActivatable { get; }
+    public int PunishCost { get; }
+    public bool HasLeaderAbility { get; }
     /// <summary>Legacy card-level fallback. EffectSpec.KingSlayer takes precedence when present.</summary>
     public bool KingSlayer { get; }
     public IReadOnlyCollection<string> Keywords => _keywords;
+    public IReadOnlyCollection<string> Tags => _tags;
     public IReadOnlyCollection<string> Vulnerabilities { get; }
 }
 }

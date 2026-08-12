@@ -210,5 +210,73 @@ public sealed class SnapshotMapperTests
             Assert.That(mapped[1].Data["source"], Is.EqualTo(7L));
         });
     }
+
+    [Test]
+    public void ValidateSnapshotRejectsUnsupportedContractVersion()
+    {
+        var snapshot = CreateValidSnapshot();
+        snapshot.ContractVersion = 2;
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void ValidateSnapshotRejectsNegativeTurn()
+    {
+        var snapshot = CreateValidSnapshot();
+        snapshot.Turn = -1;
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void ValidateSnapshotRejectsUnknownPhase()
+    {
+        var snapshot = CreateValidSnapshot();
+        snapshot.Phase = "UNKNOWN";
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void ValidateSnapshotRejectsInvalidCurrentPlayer()
+    {
+        var snapshot = CreateValidSnapshot();
+        snapshot.CurrentPlayer = 2;
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void ValidateSnapshotRejectsWrongPlayerCount()
+    {
+        var snapshot = CreateValidSnapshot();
+        snapshot.Players = System.Array.Empty<PlayerDto>();
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void ValidateSnapshotRejectsNegativeCastleHealth()
+    {
+        var snapshot = CreateValidSnapshot();
+        snapshot.Castle.Health = -1;
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void ValidateSnapshotRejectsNullLegalActions()
+    {
+        var snapshot = CreateValidSnapshot();
+        snapshot.LegalActions = null!;
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void ToSnapshotRejectsNegativeTurnAtEntry()
+    {
+        Assert.Throws<System.ArgumentException>(() =>
+            EngineProjectionAdapter.ToSnapshot(new GameState(), "match_invalid", -1, "ACTION"));
+    }
+
+    private static SnapshotDto CreateValidSnapshot()
+    {
+        return EngineProjectionAdapter.ToSnapshot(new GameState(), "match_valid", 0, "ACTION");
+    }
 }
 }
