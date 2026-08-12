@@ -4,7 +4,11 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DominionWars.Engine.Tests", "src\Engine\Tests\DominionWars.Engine.Tests.csproj", "{A1D4F1A7-8E1B-4A1C-9A31-6C7E2B3D4F50}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DominionWars.Engine", "src\Engine\DominionWars.Engine.csproj", "{D4A7B4DA-1B4E-4D4F-CC64-9F0A5E6A7C83}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DominionWars.Data", "src\Data\DominionWars.Data.csproj", "{B2E5F2B8-9F2C-4B2D-AA42-7D8F3C4E5A61}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DominionWars.Adapters", "src\Adapters\DominionWars.Adapters.csproj", "{C3F6A3C9-0A3D-4C3E-BB53-8E9F4D5F6B72}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -16,10 +20,18 @@ Global
 		{A1D4F1A7-8E1B-4A1C-9A31-6C7E2B3D4F50}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1D4F1A7-8E1B-4A1C-9A31-6C7E2B3D4F50}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1D4F1A7-8E1B-4A1C-9A31-6C7E2B3D4F50}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4A7B4DA-1B4E-4D4F-CC64-9F0A5E6A7C83}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4A7B4DA-1B4E-4D4F-CC64-9F0A5E6A7C83}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4A7B4DA-1B4E-4D4F-CC64-9F0A5E6A7C83}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4A7B4DA-1B4E-4D4F-CC64-9F0A5E6A7C83}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B2E5F2B8-9F2C-4B2D-AA42-7D8F3C4E5A61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B2E5F2B8-9F2C-4B2D-AA42-7D8F3C4E5A61}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B2E5F2B8-9F2C-4B2D-AA42-7D8F3C4E5A61}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B2E5F2B8-9F2C-4B2D-AA42-7D8F3C4E5A61}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3F6A3C9-0A3D-4C3E-BB53-8E9F4D5F6B72}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3F6A3C9-0A3D-4C3E-BB53-8E9F4D5F6B72}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3F6A3C9-0A3D-4C3E-BB53-8E9F4D5F6B72}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3F6A3C9-0A3D-4C3E-BB53-8E9F4D5F6B72}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
