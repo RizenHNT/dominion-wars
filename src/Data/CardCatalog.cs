@@ -77,6 +77,9 @@ namespace DominionWars.Data
             var text = RequiredString(element, "text", source, 0, 256);
             var isMinion = type == "MINION";
             // AMBUSH has no CardDefinition slot in this batch; it is deliberately validated then discarded.
+            if (isMinion && (!element.TryGetProperty("attack", out _) || !element.TryGetProperty("health", out _))) throw Invalid(source, "MINION cards require attack and health");
+            if (type == "PUNISH" && (!element.TryGetProperty("punish", out var punishValue) || !punishValue.TryGetInt32(out var punishAmount) || punishAmount < 1)) throw Invalid(source, "PUNISH cards require punish >= 1");
+            if (element.TryGetProperty("leader", out var leaderValue) && (leaderValue.ValueKind != JsonValueKind.True)) throw Invalid(source, "leader must be true when present");
             var isLeader = OptionalBool(element, "leader", false, source);
             var attack = OptionalInt(element, "attack", 0, 0, 99, source);
             var health = OptionalInt(element, "health", isMinion ? 1 : 1, 1, 99, source);
