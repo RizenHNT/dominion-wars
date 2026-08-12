@@ -48,6 +48,10 @@ public static class EngineProjectionAdapter
         foreach (var player in state.Players)
         {
             var fieldIds = new List<string>(player.Field.Count);
+            var deck = ToCards(player.Deck);
+            var hand = ToCards(player.Hand);
+            var field = ToCards(player.Field);
+            var graveyard = ToCards(player.Graveyard);
             foreach (var card in player.Field)
             {
                 fieldIds.Add(ToEntityId(card.InstanceId));
@@ -60,6 +64,20 @@ public static class EngineProjectionAdapter
                 DeckCount = player.Deck.Count,
                 HandCount = player.Hand.Count,
                 FieldEntityIds = fieldIds,
+                Deck = deck,
+                Hand = hand,
+                Field = field,
+                Graveyard = graveyard,
+                PunishDeltaThisTurn = player.PunishDeltaThisTurn,
+                PunishToSelfDiscardThisTurn = player.PunishToSelfDiscardThisTurn,
+                ProtectedThisTurn = player.ProtectedThisTurn,
+                EffectsNegatedThisTurn = player.EffectsNegatedThisTurn,
+                SkipReshuffleCredits = player.SkipReshuffleCredits,
+                ReshuffleCount = player.ReshuffleCount,
+                CycleWinCount = player.CycleWinCount,
+                TotalDiscarded = player.TotalDiscarded,
+                PunishDrawnThisTurn = player.PunishDrawnThisTurn,
+                DamagedThisCycle = player.DamagedThisCycle,
             });
         }
 
@@ -78,6 +96,49 @@ public static class EngineProjectionAdapter
             },
             LegalActions = legalActions ?? Array.Empty<LegalActionDto>(),
         };
+    }
+
+    public static SnapshotDto ToSnapshot(
+        GameState state,
+        string matchId,
+        int turn,
+        string phase,
+        IReadOnlyList<LegalAction> legalActions)
+    {
+        return ToSnapshot(state, matchId, turn, phase, ToLegalActionDtos(legalActions));
+    }
+
+    public static IReadOnlyList<LegalActionDto> ToLegalActionDtos(
+        IEnumerable<LegalAction> actions)
+    {
+        if (actions is null)
+        {
+            throw new ArgumentNullException(nameof(actions));
+        }
+
+        var result = new List<LegalActionDto>();
+        foreach (var action in actions)
+        {
+            if (action is null)
+            {
+                throw new ArgumentException("Legal action entries cannot be null.", nameof(actions));
+            }
+
+            result.Add(new LegalActionDto
+            {
+                ContractVersion = 1,
+                ActionId = action.ActionId,
+                Type = action.Type,
+                Actor = action.Actor,
+                SourceId = action.SourceId.HasValue ? ToEntityId(action.SourceId.Value) : null,
+                TargetId = action.TargetId.HasValue ? ToEntityId(action.TargetId.Value) : null,
+                CardId = action.CardId,
+                ReasonKey = action.ReasonKey,
+                Payload = action.Payload,
+            });
+        }
+
+        return result;
     }
 
     public static GameEventDto ToEvent(GameEvent gameEvent, int turn, string phase)
@@ -111,9 +172,62 @@ public static class EngineProjectionAdapter
         };
     }
 
+    public static IReadOnlyList<GameEventDto> ToEvents(
+        IEnumerable<GameEvent> gameEvents,
+        int turn,
+        string phase)
+    {
+        if (gameEvents is null)
+        {
+            throw new ArgumentNullException(nameof(gameEvents));
+        }
+
+        var result = new List<GameEventDto>();
+        foreach (var gameEvent in gameEvents)
+        {
+            result.Add(ToEvent(gameEvent, turn, phase));
+        }
+
+        return result;
+    }
+
     public static string ToEventId(long eventId) => $"evt_{eventId:D12}";
 
     public static string ToEntityId(long entityId) => $"entity_{entityId:D12}";
+
+    private static IReadOnlyList<CardDto> ToCards(IEnumerable<CardInstance> cards)
+    {
+        var result = new List<CardDto>();
+        foreach (var card in cards)
+        {
+            result.Add(new CardDto
+            {
+                EntityId = ToEntityId(card.InstanceId),
+                CardId = card.Definition.Id,
+                Name = card.Definition.Name,
+                Type = card.Definition.IsMinion ? "MINION" : "CARD",
+                IsMinion = card.IsMinion,
+                IsLeader = card.IsLeader,
+                IsLeaderEntity = card.IsLeaderEntity,
+                OwnerPlayer = card.OwnerPlayerIndex,
+                DefinitionAttack = card.Definition.Attack,
+                DefinitionHealth = card.Definition.Health,
+                GrantLife = card.Definition.GrantLife,
+                KingSlayer = card.Definition.KingSlayer,
+                Vulnerabilities = new List<string>(card.Definition.Vulnerabilities),
+                Attack = card.Attack,
+                Health = card.Health,
+                MaxHealth = card.MaxHealth,
+                Shield = card.Shield,
+                AttacksUsed = card.AttacksUsed,
+                SummonedThisTurn = card.SummonedThisTurn,
+                Keywords = new List<string>(card.Keywords),
+                Tags = Array.Empty<string>(),
+            });
+        }
+
+        return result;
+    }
 
     private static IReadOnlyList<string> ReadTargets(IReadOnlyDictionary<string, object?> data)
     {

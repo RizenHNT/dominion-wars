@@ -26,6 +26,45 @@ public sealed class PlayerDto
     public int DeckCount { get; set; }
     public int HandCount { get; set; }
     public IReadOnlyList<string> FieldEntityIds { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<CardDto> Deck { get; set; } = Array.Empty<CardDto>();
+    public IReadOnlyList<CardDto> Hand { get; set; } = Array.Empty<CardDto>();
+    public IReadOnlyList<CardDto> Field { get; set; } = Array.Empty<CardDto>();
+    public IReadOnlyList<CardDto> Graveyard { get; set; } = Array.Empty<CardDto>();
+    public int PunishDeltaThisTurn { get; set; }
+    public bool PunishToSelfDiscardThisTurn { get; set; }
+    public bool ProtectedThisTurn { get; set; }
+    public bool EffectsNegatedThisTurn { get; set; }
+    public int SkipReshuffleCredits { get; set; }
+    public int ReshuffleCount { get; set; }
+    public int CycleWinCount { get; set; }
+    public int TotalDiscarded { get; set; }
+    public int PunishDrawnThisTurn { get; set; }
+    public bool DamagedThisCycle { get; set; }
+}
+
+public sealed class CardDto
+{
+    public string EntityId { get; set; } = string.Empty;
+    public string CardId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public bool IsMinion { get; set; }
+    public bool IsLeader { get; set; }
+    public bool IsLeaderEntity { get; set; }
+    public int OwnerPlayer { get; set; }
+    public int DefinitionAttack { get; set; }
+    public int DefinitionHealth { get; set; }
+    public int GrantLife { get; set; }
+    public bool KingSlayer { get; set; }
+    public IReadOnlyList<string> Vulnerabilities { get; set; } = Array.Empty<string>();
+    public int Attack { get; set; }
+    public int Health { get; set; }
+    public int MaxHealth { get; set; }
+    public bool Shield { get; set; }
+    public int AttacksUsed { get; set; }
+    public bool SummonedThisTurn { get; set; }
+    public IReadOnlyList<string> Keywords { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
 }
 
 public sealed class CastleDto
@@ -43,11 +82,25 @@ public sealed class LegalActionDto
     public string? SourceId { get; set; }
     public string? TargetId { get; set; }
     public string? CardId { get; set; }
+    public string? ReasonKey { get; set; }
     public IReadOnlyDictionary<string, object?> Payload { get; set; }
         = new Dictionary<string, object?>();
 }
 
-public sealed class GameEventDto
+public sealed class LegalAction
+{
+    public string ActionId { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public int Actor { get; set; }
+    public long? SourceId { get; set; }
+    public long? TargetId { get; set; }
+    public string? CardId { get; set; }
+    public string? ReasonKey { get; set; }
+    public IReadOnlyDictionary<string, object?> Payload { get; set; }
+        = new Dictionary<string, object?>();
+}
+
+public class UiEventDto
 {
     public int ContractVersion { get; set; } = 1;
     public string EventId { get; set; } = string.Empty;
@@ -61,5 +114,9 @@ public sealed class GameEventDto
     public string? ReasonKey { get; set; }
     public IReadOnlyDictionary<string, object?> Data { get; set; }
         = new Dictionary<string, object?>();
+}
+
+public sealed class GameEventDto : UiEventDto
+{
 }
 }
