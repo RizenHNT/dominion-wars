@@ -96,6 +96,18 @@ public class Game {
         return source != null && source.def.kingSlayer;
     }
 
+    /** 效果级弑君优先；未声明时回退到旧的卡级字段。 */
+    public boolean canAffectLeader(CardInstance source, CardDef.EffectSpec effect, CardInstance leader) {
+        if (leader == null) return false;
+        if (effect == null) return canAffectLeader(source, leader);
+        boolean slayer = effect != null && effect.kingSlayer != null
+                ? effect.kingSlayer
+                : source != null && source.def.kingSlayer;
+        return slayer
+                && leader.def.leaderDef != null
+                && leader.def.leaderDef.vulnerabilities.contains(effect.action);
+    }
+
     /** 护卫：随从型统领有其他非统领随从护驾时，不能被普通攻击指定；弑君攻击者可绕过。 */
     public boolean isLeaderGuarded(CardInstance leader, CardInstance attacker) {
         if (leader == null || !leader.isLeaderEntity || !leader.def.guard) return false;
@@ -116,12 +128,16 @@ public class Game {
     }
 
     public List<CoreTarget> legalEnemyCoreTargets(int srcIdx, CardInstance source, boolean includeMinionLeader) {
+        return legalEnemyCoreTargets(srcIdx, source, null, includeMinionLeader);
+    }
+
+    public List<CoreTarget> legalEnemyCoreTargets(int srcIdx, CardInstance source, CardDef.EffectSpec effect, boolean includeMinionLeader) {
         List<CoreTarget> r = new ArrayList<>();
         PlayerState enemy = opponentOf(srcIdx);
         if (castleActive()) r.add(CoreTarget.ROYAL_CASTLE);
         if (enemy.leaderOnField != null) {
             boolean minionLeader = enemy.leaderOnField.def.isMinion();
-            if ((!minionLeader || includeMinionLeader) && canAffectLeader(source, enemy.leaderOnField)) r.add(CoreTarget.LEADER);
+            if ((!minionLeader || includeMinionLeader) && canAffectLeader(source, effect, enemy.leaderOnField)) r.add(CoreTarget.LEADER);
         } else if (enemy.life != null) {
             r.add(CoreTarget.LIFE);
         }
@@ -134,18 +150,22 @@ public class Game {
     }
 
     public void resolveSingleEnemyDamage(int srcIdx, CardInstance source, int amt, String reason, boolean includeMinions, boolean includeCore) {
+        resolveSingleEnemyDamage(srcIdx, source, null, amt, reason, includeMinions, includeCore);
+    }
+
+    public void resolveSingleEnemyDamage(int srcIdx, CardInstance source, CardDef.EffectSpec effect, int amt, String reason, boolean includeMinions, boolean includeCore) {
         if (amt <= 0 || over()) return;
         PlayerState enemy = opponentOf(srcIdx);
         List<SingleDamageTarget> opts = new ArrayList<>();
         if (includeMinions) {
             for (CardInstance m : enemy.minions()) {
                 if (m.has(CardDef.KW_WARD)) continue;
-                if (m.isLeaderEntity && !canAffectLeader(source, m)) continue;
+                if (m.isLeaderEntity && !canAffectLeader(source, effect, m)) continue;
                 opts.add(new SingleDamageTarget(m));
             }
         }
         if (includeCore) {
-            for (CoreTarget c : legalEnemyCoreTargets(srcIdx, source, true)) opts.add(new SingleDamageTarget(c));
+            for (CoreTarget c : legalEnemyCoreTargets(srcIdx, source, effect, true)) opts.add(new SingleDamageTarget(c));
         }
         if (opts.isEmpty()) {
             log(enemy.name + " 没有可选择的单体伤害目标");
@@ -171,9 +191,17 @@ public class Game {
         damageEnemyCore(srcIdx, source, amt, reason, choose, true);
     }
 
+    public void damageEnemyCore(int srcIdx, CardInstance source, CardDef.EffectSpec effect, int amt, String reason, boolean choose) {
+        damageEnemyCore(srcIdx, source, effect, amt, reason, choose, true);
+    }
+
     public void damageEnemyCore(int srcIdx, CardInstance source, int amt, String reason, boolean choose, boolean includeMinionLeader) {
+        damageEnemyCore(srcIdx, source, null, amt, reason, choose, includeMinionLeader);
+    }
+
+    public void damageEnemyCore(int srcIdx, CardInstance source, CardDef.EffectSpec effect, int amt, String reason, boolean choose, boolean includeMinionLeader) {
         if (amt <= 0 || over()) return;
-        List<CoreTarget> opts = legalEnemyCoreTargets(srcIdx, source, includeMinionLeader);
+        List<CoreTarget> opts = legalEnemyCoreTargets(srcIdx, source, effect, includeMinionLeader);
         if (opts.isEmpty()) {
             log(opponentOf(srcIdx).name + " 的统领尚未登场，伤害落空");
             return;

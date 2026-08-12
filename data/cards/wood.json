@@ -12,6 +12,7 @@
   "leaderDef": {
    "durability": 20,
    "winCondition": "NO_DAMAGE_TURNS_GE",
+   "vulnerabilities": ["DAMAGE"],
    "winParam": 7,
    "winText": "连续7个己方回合未受任何伤害",
    "enterEffects": [
@@ -40,7 +41,8 @@
   ],
   "punish": 0,
   "attack": 1,
-  "health": 2
+  "health": 2,
+  "text": ""
  },
  {
   "id": "wood_guard",
@@ -274,11 +276,11 @@
    {
     "action": "DAMAGE",
     "target": "ENEMY_TARGET",
-    "amount": 4
+    "amount": 4,
+    "kingSlayer": true
    }
   ],
-  "text": "对一个敌方目标造成4点伤害。",
-  "kingSlayer": true
+  "text": "对一个敌方目标造成4点伤害。"
  },
  {
   "id": "wood_warden",

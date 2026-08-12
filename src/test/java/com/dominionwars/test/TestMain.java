@@ -2,6 +2,7 @@ package com.dominionwars.test;
 
 import com.dominionwars.data.Balance;
 import com.dominionwars.engine.CardInstance;
+import com.dominionwars.engine.Effects;
 import com.dominionwars.engine.Game;
 import com.dominionwars.engine.PlayerAgent;
 import com.dominionwars.engine.PlayerState;
@@ -116,6 +117,7 @@ public class TestMain {
     static CardDef leaderMinion(String id, int atk, int hp) {
         CardDef c = minion(id, atk, hp, 0);
         c.leader = true;
+        c.leaderDef.vulnerabilities.add("DAMAGE");
         return c;
     }
 
@@ -130,6 +132,37 @@ public class TestMain {
             g.playFromHand(c);
             eq(3, g.players[1].hand.size(), "对方手牌");
             eq(7, g.players[1].deck.size(), "对方卡组");
+        });
+
+        test("负攻击 Buff：结算时 clamp 到0", () -> {
+            Game g = freshGame(bal(), new TestAgent(), new TestAgent());
+            CardInstance target = toField(g, 0, minion("攻击目标", 2, 5, 0));
+            Effects.resolve(g, 0, null,
+                    Arrays.asList(fx("BUFF", "FRIENDLY_MINION", -99, "atk")), new Effects.Ctx());
+            eq(0, target.attack, "攻击力不能为负");
+        });
+
+        test("延迟死亡：同一效果链中负血后回血可以存活", () -> {
+            Game g = freshGame(bal(), new TestAgent(), new TestAgent());
+            CardInstance target = toField(g, 0, minion("濒死目标", 2, 5, 0));
+            target.health = 1; target.maxHealth = 5;
+            Effects.resolve(g, 0, null, Arrays.asList(
+                    fx("BUFF", "FRIENDLY_MINION", -3, "hp"),
+                    fx("HEAL", "FRIENDLY_MINION", 3, "")
+            ), new Effects.Ctx());
+            check(g.players[0].field.contains(target), "效果链结束前回血，随从留场");
+            eq(1, target.health, "回血后的生命值");
+            eq(2, target.maxHealth, "最大生命值同步 clamp");
+        });
+
+        test("延迟死亡：效果链结束仍为负血则进入墓地", () -> {
+            Game g = freshGame(bal(), new TestAgent(), new TestAgent());
+            CardInstance target = toField(g, 0, minion("死亡目标", 2, 5, 0));
+            target.health = 1;
+            Effects.resolve(g, 0, null,
+                    Arrays.asList(fx("BUFF", "FRIENDLY_MINION", -3, "hp")), new Effects.Ctx());
+            check(!g.players[0].field.contains(target), "负血随从离场");
+            check(g.players[0].graveyard.contains(target), "负血随从进入墓地");
         });
 
         test("裁决③：惩罚值超出对方卡组余量→空发并强制结束回合", () -> {
@@ -415,10 +448,24 @@ public class TestMain {
             CardInstance normal = toHand(g, 0, spell("普通冲击", 0, fx("DAMAGE", "ENEMY_MINION", 4, "")));
             g.playFromHand(normal);
             eq(8, leader.health, "普通效果无法影响统领");
-            CardInstance slayer = toHand(g, 0, spell("弑君冲击", 0, fx("DAMAGE", "ENEMY_MINION", 4, "")));
-            slayer.def.kingSlayer = true;
+            EffectSpec slayerEffect = fx("DAMAGE", "ENEMY_MINION", 4, "");
+            slayerEffect.kingSlayer = true;
+            CardInstance slayer = toHand(g, 0, spell("弑君冲击", 0, slayerEffect));
             g.playFromHand(slayer);
             eq(4, leader.health, "弑君效果可以伤害统领");
+
+            CardDef immuneDef = leaderMinion("免疫王", 5, 8);
+            immuneDef.leaderDef.vulnerabilities.clear();
+            CardInstance immune = new CardInstance(immuneDef, 1);
+            immune.isLeaderEntity = true;
+            g.players[1].field.clear();
+            g.players[1].leaderOnField = immune;
+            g.players[1].field.add(immune);
+            EffectSpec blockedEffect = fx("DAMAGE", "ENEMY_MINION", 4, "");
+            blockedEffect.kingSlayer = true;
+            CardInstance blocked = toHand(g, 0, spell("被拦截的弑君", 0, blockedEffect));
+            g.playFromHand(blocked);
+            eq(8, immune.health, "弑君仍需匹配统领 vulnerabilities 白名单");
         });
 
         test("洗牌：无卡可抽时场外卡牌洗回；达阈值判负", () -> {

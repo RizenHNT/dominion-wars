@@ -49,6 +49,8 @@ public class CardDef {
         public String target = "NONE";       // ENEMY_MINION / ALL_ENEMY_MINIONS / FRIENDLY_MINION / ALL_FRIENDLY_MINIONS / ENEMY_FACE / SELF_PLAYER / ENEMY_PLAYER / ALL_MINIONS / SELF / NONE
         public int amount = 0;
         public String param = "";            // 附加参数(关键词名/召唤卡id/胜利提示等)
+        /** 该具体效果是否可以绕过统领抗性；null 表示回退到旧的卡级字段。 */
+        public Boolean kingSlayer = null;
         public Map<String, Object> extra = new LinkedHashMap<>();
 
         public static EffectSpec fromMap(Map<String, Object> m) {
@@ -57,8 +59,9 @@ public class CardDef {
             e.target = Json.str(m, "target", "NONE");
             e.amount = Json.integer(m, "amount", 0);
             e.param = Json.str(m, "param", "");
+            if (m.containsKey("kingSlayer")) e.kingSlayer = Json.bool(m, "kingSlayer", false);
             for (Map.Entry<String, Object> en : m.entrySet())
-                if (!en.getKey().matches("action|target|amount|param")) e.extra.put(en.getKey(), en.getValue());
+                if (!en.getKey().matches("action|target|amount|param|kingSlayer")) e.extra.put(en.getKey(), en.getValue());
             return e;
         }
         public Map<String, Object> toMap() {
@@ -67,6 +70,7 @@ public class CardDef {
             if (!"NONE".equals(target)) m.put("target", target);
             if (amount != 0) m.put("amount", (long) amount);
             if (!param.isEmpty()) m.put("param", param);
+            if (kingSlayer != null) m.put("kingSlayer", kingSlayer);
             m.putAll(extra);
             return m;
         }
@@ -80,6 +84,8 @@ public class CardDef {
         public int grantLife = 0;        // >0: 给玩家生命，归0该方落败
         public int durability = 0;       // >0: 非随从统领自身耐久，归0被击败（随从统领用攻/血）
         public String winCondition = "NONE";
+        /** 统领允许被弑君效果命中的动作白名单；空集合表示全免疫。 */
+        public Set<String> vulnerabilities = new LinkedHashSet<>();
         // 特殊胜利条件: NONE / OPP_DISCARD_TOTAL_GE / NO_DAMAGE_TURNS_GE / OPP_PUNISH_DRAW_TURN_GE / AMBUSH_TRIGGER_WIN / 自定义
         public int winParam = 0;
         public String winText = "";
@@ -93,6 +99,7 @@ public class CardDef {
             l.grantLife = Json.integer(m, "grantLife", 0);
             l.durability = Json.integer(m, "durability", 0);
             l.winCondition = Json.str(m, "winCondition", "NONE");
+            l.vulnerabilities = new LinkedHashSet<>(Json.strList(m, "vulnerabilities"));
             l.winParam = Json.integer(m, "winParam", 0);
             l.winText = Json.str(m, "winText", "");
             for (Object o : Json.list(m, "punishEffects")) l.punishEffects.add(EffectSpec.fromMap(castMap(o)));
@@ -105,6 +112,7 @@ public class CardDef {
             if (grantLife > 0) m.put("grantLife", (long) grantLife);
             if (durability > 0) m.put("durability", (long) durability);
             m.put("winCondition", winCondition);
+            if (!vulnerabilities.isEmpty()) m.put("vulnerabilities", new ArrayList<Object>(vulnerabilities));
             if (winParam != 0) m.put("winParam", (long) winParam);
             if (!winText.isEmpty()) m.put("winText", winText);
             m.put("punishEffects", specs(punishEffects));
@@ -156,7 +164,7 @@ public class CardDef {
     public boolean leader = false;
     /** 护卫：本卡作为随从型统领时，若己方有其他非统领随从，敌方不能攻击本统领。 */
     public boolean guard = false;
-    /** 弑君：本卡的单体/群体效果与攻击可以绕过统领抗性，对统领生效。 */
+    /** 旧版兼容字段：整张卡的弑君标记。新卡应在具体 EffectSpec 上声明。 */
     public boolean kingSlayer = false;
     public LeaderDef leaderDef = new LeaderDef();
 
@@ -254,6 +262,23 @@ public class CardDef {
     }
 
     public boolean isMinion() { return type == CardType.MINION; }
+
+    /** UI/审计用：卡级兼容标记或任一具体效果带有弑君标记。 */
+    public boolean hasKingSlayer() {
+        if (kingSlayer) return true;
+        return hasKingSlayer(onPlayEffects)
+                || hasKingSlayer(chantEffects)
+                || hasKingSlayer(ambushEffects)
+                || hasKingSlayer(punishEffects)
+                || hasKingSlayer(onOpponentDiscardEffects)
+                || leaderDef != null && (hasKingSlayer(leaderDef.enterEffects)
+                    || hasKingSlayer(leaderDef.punishEffects));
+    }
+
+    private static boolean hasKingSlayer(List<EffectSpec> effects) {
+        for (EffectSpec effect : effects) if (Boolean.TRUE.equals(effect.kingSlayer)) return true;
+        return false;
+    }
 
     @Override public String toString() { return name + "(" + faction + "·" + type.cn + " 惩罚" + punish + ")"; }
 }

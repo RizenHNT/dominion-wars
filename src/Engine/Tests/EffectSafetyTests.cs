@@ -161,7 +161,7 @@ public sealed class EffectSafetyTests
     {
         var game = new EffectTestFixture();
         var kingSlayerDefinition = new CardDefinition(
-            "king_slayer", "King Slayer", 1, 2, isMinion: true, kingSlayer: true);
+            "king_slayer", "King Slayer", 1, 2, isMinion: true);
         var kingSlayer = new CardInstance(20, 0, kingSlayerDefinition);
         var friendlyLeader = new CardInstance(21, 0, game.LeaderDefinition) { IsLeaderEntity = true };
         var enemyLeader = new CardInstance(22, 1, game.LeaderDefinition) { IsLeaderEntity = true };
@@ -175,12 +175,60 @@ public sealed class EffectSafetyTests
             kingSlayer,
             playedCard: kingSlayer,
             selectedCoreTarget: CoreTarget.Leader);
-        game.Dispatcher.Apply(new EffectSpec(EffectNames.Damage, "ENEMY_FACE", 99), context);
+        game.Dispatcher.Apply(new EffectSpec(EffectNames.Damage, "ENEMY_FACE", 99, kingSlayer: true), context);
         Assert.Multiple(() =>
         {
             Assert.That(game.State.WinnerPlayerIndex, Is.Zero);
             Assert.That(game.State.Players[1].Field, Does.Contain(enemyLeader));
             Assert.That(game.State.Players[1].Graveyard, Does.Not.Contain(enemyLeader));
+        });
+    }
+
+    [Test]
+    public void LegacyCardLevelKingSlayerRemainsACompatibilityFallback()
+    {
+        var game = new EffectTestFixture();
+        var legacyDefinition = new CardDefinition(
+            "legacy_king_slayer", "Legacy King Slayer", 1, 2, isMinion: true, kingSlayer: true);
+        var legacy = new CardInstance(30, 0, legacyDefinition);
+        var friendlyLeader = new CardInstance(32, 0, game.LeaderDefinition) { IsLeaderEntity = true };
+        var enemyLeader = new CardInstance(31, 1, game.LeaderDefinition) { IsLeaderEntity = true };
+        game.State.Players[0].Field.Add(legacy);
+        game.State.Players[0].Field.Add(friendlyLeader);
+        game.State.Players[1].Field.Add(enemyLeader);
+        var root = game.State.Events.Append("CARD_PLAYED");
+        var context = new EffectContext(
+            0,
+            root.EventId,
+            legacy,
+            playedCard: legacy,
+            selectedCoreTarget: CoreTarget.Leader);
+        game.Dispatcher.Apply(new EffectSpec(EffectNames.Damage, "ENEMY_FACE", 99), context);
+        Assert.That(game.State.WinnerPlayerIndex, Is.Zero);
+    }
+
+    [Test]
+    public void KingSlayerStillRequiresLeaderVulnerabilityWhitelist()
+    {
+        var game = new EffectTestFixture();
+        var immuneDefinition = new CardDefinition(
+            "immune_leader", "Immune Leader", 3, 8, isMinion: true, isLeader: true);
+        var friendlyLeader = new CardInstance(40, 0, game.LeaderDefinition) { IsLeaderEntity = true };
+        var enemyLeader = new CardInstance(41, 1, immuneDefinition) { IsLeaderEntity = true };
+        game.State.Players[0].Field.Add(friendlyLeader);
+        game.State.Players[1].Field.Add(enemyLeader);
+        var root = game.State.Events.Append("CARD_PLAYED");
+        var context = new EffectContext(
+            0,
+            root.EventId,
+            game.Source,
+            playedCard: game.Source,
+            selectedCoreTarget: CoreTarget.Leader);
+        game.Dispatcher.Apply(new EffectSpec(EffectNames.Damage, "ENEMY_FACE", 99, kingSlayer: true), context);
+        Assert.Multiple(() =>
+        {
+            Assert.That(enemyLeader.Health, Is.EqualTo(8));
+            Assert.That(game.State.WinnerPlayerIndex, Is.Null);
         });
     }
 

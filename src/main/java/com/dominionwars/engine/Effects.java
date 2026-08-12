@@ -20,6 +20,7 @@ public final class Effects {
         public CardInstance attacker;            // 攻击者（OPPONENT_ATTACKS）
         public List<CardInstance> drawnCards;    // 刚抽到的牌（OPPONENT_DRAWS）
         public boolean negated = false;          // 被反制
+        boolean deferDeaths = false;             // 一条效果链结束前暂不清理负血随从
     }
 
     /** 额外发动条件（惩罚发动等） */
@@ -52,13 +53,19 @@ public final class Effects {
             g.log("【" + (srcCard.def.name) + "】的效果在本回合被无效化");
             return;
         }
-        for (EffectSpec e : effects) {
-            if (g.over()) return;
-            apply(g, srcIdx, srcCard, e, ctx);
+        ctx.deferDeaths = true;
+        try {
+            for (EffectSpec e : effects) {
+                if (g.over()) return;
+                apply(g, srcIdx, srcCard, e, ctx, false);
+            }
+        } finally {
+            ctx.deferDeaths = false;
+            g.checkAll();
         }
     }
 
-    private static void apply(Game g, int srcIdx, CardInstance srcCard, EffectSpec e, Ctx ctx) {
+    private static void apply(Game g, int srcIdx, CardInstance srcCard, EffectSpec e, Ctx ctx, boolean checkAll) {
         PlayerState self = g.players[srcIdx];
         PlayerState enemy = g.opponentOf(srcIdx);
         boolean leaderSource = srcCard != null && srcCard.def.leader;
@@ -66,18 +73,18 @@ public final class Effects {
 
             case "DAMAGE": {
                 if (isSingleEnemyTarget(e.target)) {
-                    g.resolveSingleEnemyDamage(srcIdx, srcCard, e.amount, "造成 " + e.amount + " 点单体伤害", true, true);
+                    g.resolveSingleEnemyDamage(srcIdx, srcCard, e, e.amount, "造成 " + e.amount + " 点单体伤害", true, true);
                 } else {
-                    for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, "造成 " + e.amount + " 点伤害")) g.dealDamage(t, e.amount);
-                    if (isFaceTarget(e.target)) hitFace(g, srcIdx, srcCard, enemy, e.amount);
+                    for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, ctx, "造成 " + e.amount + " 点伤害")) g.dealDamage(t, e.amount);
+                    if (isFaceTarget(e.target)) hitFace(g, srcIdx, srcCard, enemy, e.amount, e);
                     if ("ENEMY_PLAYER".equals(e.target)) g.damagePlayerLife(enemy, e.amount);
                     if ("SELF_PLAYER".equals(e.target)) g.damagePlayerLife(self, e.amount);
-                    g.cleanupDeaths();
+                    if (!ctx.deferDeaths) g.cleanupDeaths();
                 }
                 break;
             }
             case "HEAL": {
-                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, "恢复 " + e.amount + " 点生命")) {
+                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, ctx, "恢复 " + e.amount + " 点生命")) {
                     if (t.def.isMinion()) {
                         t.health = Math.min(t.maxHealth, t.health + e.amount);
                         g.log("【" + t.def.name + "】恢复至 " + t.health);
@@ -109,7 +116,7 @@ public final class Effects {
                 break;
             }
             case "DESTROY": {
-                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, "破坏目标")) {
+                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, ctx, "破坏目标")) {
                     if (t.isLeaderEntity) { g.log("统领【" + t.def.name + "】免疫离场效果！"); continue; }
                     PlayerState owner = g.players[t.ownerIdx];
                     if (owner.protectedThisTurn) { g.log("【" + t.def.name + "】受庇护，无法被破坏"); continue; }
@@ -120,16 +127,17 @@ public final class Effects {
                 break;
             }
             case "BUFF": {
-                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, "强化")) {
+                if (e.amount == 0) { g.log("强化效果 amount=0 无效"); break; }
+                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, ctx, "强化")) {
                     String mode = e.param.isEmpty() ? "both" : e.param;
-                    if (mode.contains("atk") || mode.equals("both")) t.attack += e.amount;
-                    if (mode.contains("hp") || mode.equals("both")) { t.health += e.amount; t.maxHealth += e.amount; }
+                    if (mode.contains("atk") || mode.equals("both")) t.attack = Math.max(0, t.attack + e.amount);
+                    if (mode.contains("hp") || mode.equals("both")) { t.health += e.amount; t.maxHealth = Math.max(0, t.maxHealth + e.amount); }
                     g.log("【" + t.def.name + "】获得强化 → " + t.attack + "/" + t.health);
                 }
                 break;
             }
             case "GRANT_KEYWORD": {
-                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, "赋予【" + e.param + "】")) {
+                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, ctx, "赋予【" + e.param + "】")) {
                     t.keywords.add(e.param);
                     if (CardDef.KW_SHIELD.equals(e.param)) t.shield = true;
                     g.log("【" + t.def.name + "】获得【" + e.param + "】");
@@ -205,7 +213,7 @@ public final class Effects {
                 break;
             }
             case "RESTORE_ATTACKS": {
-                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, "恢复攻击机会")) {
+                for (CardInstance t : pickTargets(g, srcIdx, srcCard, e, ctx, "恢复攻击机会")) {
                     t.attacksUsed = 0;
                     t.summonedThisTurn = false;
                     g.log("【" + t.def.name + "】的攻击机会恢复了");
@@ -233,7 +241,7 @@ public final class Effects {
             default:
                 g.log("（未知效果动作 " + e.action + "，已跳过——可在编辑器中自定义后由引擎扩展）");
         }
-        g.checkAll();
+        if (checkAll) g.checkAll();
     }
 
     private static boolean isFaceTarget(String t) { return "ENEMY_FACE".equals(t); }
@@ -241,13 +249,13 @@ public final class Effects {
         return "ENEMY_TARGET".equals(t) || "ENEMY_SINGLE".equals(t) || "SINGLE_ENEMY".equals(t);
     }
 
-    private static void hitFace(Game g, int srcIdx, CardInstance srcCard, PlayerState enemy, int amt) {
+    private static void hitFace(Game g, int srcIdx, CardInstance srcCard, PlayerState enemy, int amt, EffectSpec effect) {
         // 单体核心伤害：王城存在时不再无脑吸收，由玩家/AI 在王城与已登场核心之间选择；统领抗性由【弑君】绕过。
-        g.damageEnemyCore(srcIdx, srcCard, amt, "对统领/玩家伤害", true);
+        g.damageEnemyCore(srcIdx, srcCard, effect, amt, "对统领/玩家伤害", true);
     }
 
     /** 目标解析。扰魔(WARD)随从不能成为指定型效果的目标；ALL_* 群体效果无视扰魔，但默认不伤害统领。 */
-    private static List<CardInstance> pickTargets(Game g, int srcIdx, CardInstance srcCard, EffectSpec e, String prompt) {
+    private static List<CardInstance> pickTargets(Game g, int srcIdx, CardInstance srcCard, EffectSpec e, Ctx ctx, String prompt) {
         PlayerState self = g.players[srcIdx];
         PlayerState enemy = g.opponentOf(srcIdx);
         List<CardInstance> r = new ArrayList<>();
@@ -255,14 +263,14 @@ public final class Effects {
             case "SELF": {
                 // 效果来源卡自身（须为己方场上存活随从）
                 if (srcCard != null && self.field.contains(srcCard)
-                        && srcCard.def.isMinion() && srcCard.health > 0) r.add(srcCard);
+                        && srcCard.def.isMinion() && (srcCard.health > 0 || ctx.deferDeaths)) r.add(srcCard);
                 break;
             }
             case "ENEMY_MINION": {
                 List<CardInstance> opts = new ArrayList<>();
-                for (CardInstance m : enemy.minions()) {
+                for (CardInstance m : fieldMinions(enemy, ctx)) {
                     if (m.has(CardDef.KW_WARD)) continue;
-                    if (m.isLeaderEntity && !g.canAffectLeader(srcCard, m)) continue;
+                    if (m.isLeaderEntity && !g.canAffectLeader(srcCard, e, m)) continue;
                     opts.add(m);
                 }
                 CardInstance t = choose(g, srcIdx, opts, prompt);
@@ -270,15 +278,15 @@ public final class Effects {
                 break;
             }
             case "FRIENDLY_MINION": {
-                CardInstance t = choose(g, srcIdx, self.minions(), prompt);
+                CardInstance t = choose(g, srcIdx, fieldMinions(self, ctx), prompt);
                 if (t != null) r.add(t);
                 break;
             }
             case "ANY_MINION": {
-                List<CardInstance> opts = new ArrayList<>(self.minions());
-                for (CardInstance m : enemy.minions()) {
+                List<CardInstance> opts = new ArrayList<>(fieldMinions(self, ctx));
+                for (CardInstance m : fieldMinions(enemy, ctx)) {
                     if (m.has(CardDef.KW_WARD)) continue;
-                    if (m.isLeaderEntity && !g.canAffectLeader(srcCard, m)) continue;
+                    if (m.isLeaderEntity && !g.canAffectLeader(srcCard, e, m)) continue;
                     opts.add(m);
                 }
                 CardInstance t = choose(g, srcIdx, opts, prompt);
@@ -286,16 +294,24 @@ public final class Effects {
                 break;
             }
             case "ALL_ENEMY_MINIONS":
-                for (CardInstance m : enemy.minions()) if (!m.isLeaderEntity || g.canAffectLeader(srcCard, m)) r.add(m);
+                for (CardInstance m : fieldMinions(enemy, ctx)) if (!m.isLeaderEntity || g.canAffectLeader(srcCard, e, m)) r.add(m);
                 break;
-            case "ALL_FRIENDLY_MINIONS": r.addAll(self.minions()); break;
+            case "ALL_FRIENDLY_MINIONS": r.addAll(fieldMinions(self, ctx)); break;
             case "ALL_MINIONS":
-                r.addAll(self.minions());
-                for (CardInstance m : enemy.minions()) if (!m.isLeaderEntity || g.canAffectLeader(srcCard, m)) r.add(m);
+                r.addAll(fieldMinions(self, ctx));
+                for (CardInstance m : fieldMinions(enemy, ctx)) if (!m.isLeaderEntity || g.canAffectLeader(srcCard, e, m)) r.add(m);
                 break;
             default: break;
         }
         return r;
+    }
+
+    private static List<CardInstance> fieldMinions(PlayerState player, Ctx ctx) {
+        List<CardInstance> result = new ArrayList<>();
+        for (CardInstance card : player.field) {
+            if (card.def.isMinion() && (card.health > 0 || ctx.deferDeaths)) result.add(card);
+        }
+        return result;
     }
 
     private static CardInstance choose(Game g, int srcIdx, List<CardInstance> opts, String prompt) {

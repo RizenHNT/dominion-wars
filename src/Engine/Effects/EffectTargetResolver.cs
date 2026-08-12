@@ -24,31 +24,31 @@ internal sealed class EffectTargetResolver
         switch (target)
         {
             case "SELF":
-                return ResolveSelf(self, context.SourceCard);
+                return ResolveSelf(self, context.SourceCard, context);
             case "ENEMY_TARGET":
                 if (!context.SelectedTargetId.HasValue)
                 {
                     return Array.Empty<CardInstance>();
                 }
 
-                return ResolveSingle(FilterEnemy(enemy.Field, context), context.SelectedTargetId);
+                return ResolveSingle(FilterEnemy(enemy.Field, spec, context), context.SelectedTargetId);
             case "ENEMY_MINION":
             case "ENEMY_SINGLE":
             case "SINGLE_ENEMY":
-                return ResolveSingle(FilterEnemy(enemy.Field, context), context.SelectedTargetId);
+                return ResolveSingle(FilterEnemy(enemy.Field, spec, context), context.SelectedTargetId);
             case "FRIENDLY_MINION":
-                return ResolveSingle(FilterFriendly(self.Field), context.SelectedTargetId);
+                return ResolveSingle(FilterFriendly(self.Field, context), context.SelectedTargetId);
             case "ANY_MINION":
-                var any = FilterFriendly(self.Field);
-                any.AddRange(FilterEnemy(enemy.Field, context));
+                var any = FilterFriendly(self.Field, context);
+                any.AddRange(FilterEnemy(enemy.Field, spec, context));
                 return ResolveSingle(any, context.SelectedTargetId);
             case "ALL_ENEMY_MINIONS":
-                return FilterEnemy(enemy.Field, context, ignoreWard: true);
+                return FilterEnemy(enemy.Field, spec, context, ignoreWard: true);
             case "ALL_FRIENDLY_MINIONS":
-                return FilterFriendly(self.Field);
+                return FilterFriendly(self.Field, context);
             case "ALL_MINIONS":
-                var all = FilterFriendly(self.Field);
-                all.AddRange(FilterEnemy(enemy.Field, context, ignoreWard: true));
+                var all = FilterFriendly(self.Field, context);
+                all.AddRange(FilterEnemy(enemy.Field, spec, context, ignoreWard: true));
                 return all;
             default:
                 return Array.Empty<CardInstance>();
@@ -57,9 +57,12 @@ internal sealed class EffectTargetResolver
 
     private static IReadOnlyList<CardInstance> ResolveSelf(
         PlayerState owner,
-        CardInstance? source)
+        CardInstance? source,
+        EffectContext context)
     {
-        if (source is not null && source.IsMinion && source.IsAlive && owner.Field.Contains(source))
+        if (source is not null && source.IsMinion
+            && (source.IsAlive || context.DeferDeaths)
+            && owner.Field.Contains(source))
         {
             return new[] { source };
         }
@@ -87,12 +90,14 @@ internal sealed class EffectTargetResolver
         return options.Count == 1 ? new[] { options[0] } : Array.Empty<CardInstance>();
     }
 
-    private static List<CardInstance> FilterFriendly(IEnumerable<CardInstance> cards)
+    private static List<CardInstance> FilterFriendly(
+        IEnumerable<CardInstance> cards,
+        EffectContext context)
     {
         var result = new List<CardInstance>();
         foreach (var card in cards)
         {
-            if (card.IsMinion && card.IsAlive)
+            if (card.IsMinion && (card.IsAlive || context.DeferDeaths))
             {
                 result.Add(card);
             }
@@ -103,13 +108,14 @@ internal sealed class EffectTargetResolver
 
     private static List<CardInstance> FilterEnemy(
         IEnumerable<CardInstance> cards,
+        EffectSpec spec,
         EffectContext context,
         bool ignoreWard = false)
     {
         var result = new List<CardInstance>();
         foreach (var card in cards)
         {
-            if (!card.IsMinion || !card.IsAlive)
+            if (!card.IsMinion || (!card.IsAlive && !context.DeferDeaths))
             {
                 continue;
             }
@@ -119,7 +125,7 @@ internal sealed class EffectTargetResolver
                 continue;
             }
 
-            if (card.IsLeaderEntity && !(context.SourceCard?.Definition.KingSlayer ?? false))
+            if (card.IsLeaderEntity && !CanAffectLeader(card, spec, context))
             {
                 continue;
             }
@@ -133,6 +139,25 @@ internal sealed class EffectTargetResolver
     private static bool HasWard(CardInstance card)
     {
         return card.HasKeyword(WardKeyword) || card.HasKeyword("WARD");
+    }
+
+    private static bool CanAffectLeader(CardInstance leader, EffectSpec spec, EffectContext context)
+    {
+        var sourceCanSlay = spec.KingSlayer ?? context.SourceCard?.Definition.KingSlayer ?? false;
+        if (!sourceCanSlay)
+        {
+            return false;
+        }
+
+        foreach (var vulnerability in leader.Definition.Vulnerabilities)
+        {
+            if (string.Equals(vulnerability, spec.Action, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 }

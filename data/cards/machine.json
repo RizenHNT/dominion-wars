@@ -18,6 +18,7 @@
   ],
   "leaderDef": {
    "winCondition": "NONE",
+   "vulnerabilities": ["DAMAGE"],
    "winText": "吟唱2回合后召唤【上古极神Alpha】取代本卡成为统领",
    "punishEffects": [
     {
@@ -52,6 +53,7 @@
   ],
   "leaderDef": {
    "winCondition": "OPP_PUNISH_DRAW_TURN_GE",
+   "vulnerabilities": ["DAMAGE"],
    "winParam": 15,
    "winText": "对方在单个回合内因惩罚抽牌≥15张",
    "punishEffects": [
@@ -93,7 +95,8 @@
   ],
   "punish": 2,
   "attack": 3,
-  "health": 4
+  "health": 4,
+  "text": ""
  },
  {
   "id": "machine_wall",
@@ -393,11 +396,11 @@
    {
     "action": "DAMAGE",
     "target": "ENEMY_TARGET",
-    "amount": 7
+    "amount": 7,
+    "kingSlayer": true
    }
   ],
-  "text": "对一个敌方目标造成7点伤害。",
-  "kingSlayer": true
+  "text": "对一个敌方目标造成7点伤害。"
  },
  {
   "id": "machine_recycler",

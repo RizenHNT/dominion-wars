@@ -16,6 +16,7 @@
   ],
   "leaderDef": {
    "winCondition": "NONE",
+   "vulnerabilities": ["DAMAGE"],
    "winText": "击败对方统领即获胜",
    "persistentEffects": [
     {
@@ -52,6 +53,7 @@
   ],
   "leaderDef": {
    "winCondition": "AMBUSH_TRIGGER_WIN",
+   "vulnerabilities": ["DAMAGE"],
    "winText": "本伏击触发即获胜（若双方统领未齐则失败，本卡以自身之力洗回卡组）"
   },
   "text": "伏击统领：登场即盖放。对方使用卡牌时触发——若胜利之门已开（双方统领均已登场过且在场）则你立即获胜；否则本卡洗回你的卡组。",
@@ -67,7 +69,8 @@
   ],
   "punish": 2,
   "attack": 3,
-  "health": 3
+  "health": 3,
+  "text": ""
  },
  {
   "id": "neutral_mage",

@@ -12,6 +12,7 @@
   "leaderDef": {
    "grantLife": 25,
    "winCondition": "OPP_DISCARD_TOTAL_GE",
+   "vulnerabilities": ["DAMAGE"],
    "winParam": 18,
    "winText": "对方累计弃牌达到18张（弃牌阶段的强制弃牌不计入）",
    "enterEffects": [
@@ -82,7 +83,8 @@
   ],
   "punish": 3,
   "attack": 5,
-  "health": 6
+  "health": 6,
+  "text": ""
  },
  {
   "id": "sea_mistwalker",
@@ -184,11 +186,11 @@
    {
     "action": "DAMAGE",
     "target": "ENEMY_TARGET",
-    "amount": 3
+    "amount": 3,
+    "kingSlayer": true
    }
   ],
-  "text": "对一个敌方目标造成3点伤害。",
-  "kingSlayer": true
+  "text": "对一个敌方目标造成3点伤害。"
  },
  {
   "id": "sea_ink",

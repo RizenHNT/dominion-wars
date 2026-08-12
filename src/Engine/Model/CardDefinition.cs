@@ -17,7 +17,8 @@ public sealed class CardDefinition
         bool isLeader = false,
         int grantLife = 0,
         bool kingSlayer = false,
-        IEnumerable<string>? keywords = null)
+        IEnumerable<string>? keywords = null,
+        IEnumerable<string>? vulnerabilities = null)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -51,6 +52,7 @@ public sealed class CardDefinition
         IsMinion = isMinion;
         IsLeader = isLeader;
         GrantLife = grantLife;
+        // Legacy compatibility only. New data should mark the individual EffectSpec.
         KingSlayer = kingSlayer;
 
         var keywordSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -66,6 +68,20 @@ public sealed class CardDefinition
         }
 
         _keywords = keywordSet;
+
+        var vulnerabilitySet = new HashSet<string>(StringComparer.Ordinal);
+        if (vulnerabilities is not null)
+        {
+            foreach (var vulnerability in vulnerabilities)
+            {
+                if (!string.IsNullOrWhiteSpace(vulnerability))
+                {
+                    vulnerabilitySet.Add(vulnerability);
+                }
+            }
+        }
+
+        Vulnerabilities = vulnerabilitySet;
     }
 
     public string Id { get; }
@@ -75,7 +91,9 @@ public sealed class CardDefinition
     public bool IsMinion { get; }
     public bool IsLeader { get; }
     public int GrantLife { get; }
+    /// <summary>Legacy card-level fallback. EffectSpec.KingSlayer takes precedence when present.</summary>
     public bool KingSlayer { get; }
     public IReadOnlyCollection<string> Keywords => _keywords;
+    public IReadOnlyCollection<string> Vulnerabilities { get; }
 }
 }

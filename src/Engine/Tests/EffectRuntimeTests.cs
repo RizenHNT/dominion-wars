@@ -93,6 +93,120 @@ public sealed class EffectRuntimeTests
     }
 
     [Test]
+    public void NegativeAttackBuffClampsAtZero()
+    {
+        var game = new EffectTestFixture();
+        game.Dispatcher.Apply(
+            new EffectSpec(EffectNames.Buff, "FRIENDLY_MINION", -99, "atk"),
+            game.Context(game.Friendly.InstanceId));
+
+        Assert.That(game.Friendly.Attack, Is.Zero);
+    }
+
+    [Test]
+    public void PendingDeathCanBeReversedByLaterHealInSameBatch()
+    {
+        var game = new EffectTestFixture();
+        game.Friendly.Health = 1;
+        game.Friendly.MaxHealth = 5;
+        var context = game.Context(game.Friendly.InstanceId);
+
+        game.Dispatcher.ApplyAll(
+            new[]
+            {
+                new EffectSpec(EffectNames.Buff, "FRIENDLY_MINION", -3, "hp"),
+                new EffectSpec(EffectNames.Heal, "FRIENDLY_MINION", 3),
+            },
+            context);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.Players[0].Field, Does.Contain(game.Friendly));
+            Assert.That(game.Friendly.Health, Is.EqualTo(1));
+            Assert.That(game.Friendly.MaxHealth, Is.EqualTo(2));
+        });
+    }
+
+    [Test]
+    public void PendingDeathIsCleanedUpAfterBatchResolves()
+    {
+        var game = new EffectTestFixture();
+        game.Friendly.Health = 1;
+        var context = game.Context(game.Friendly.InstanceId);
+
+        game.Dispatcher.ApplyAll(
+            new[] { new EffectSpec(EffectNames.Buff, "FRIENDLY_MINION", -3, "hp") },
+            context);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.Players[0].Field, Does.Not.Contain(game.Friendly));
+            Assert.That(game.State.Players[0].Graveyard, Does.Contain(game.Friendly));
+        });
+    }
+
+    [Test]
+    public void ZeroAmountBuffIsSkipped()
+    {
+        var game = new EffectTestFixture();
+        game.Apply(EffectNames.Buff, "FRIENDLY_MINION", 0, "both", game.Friendly.InstanceId);
+
+        Assert.That(game.Friendly.Attack, Is.EqualTo(2));
+        Assert.That(game.Friendly.Health, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void SelfTargetResolvesTheSourceMinion()
+    {
+        var game = new EffectTestFixture();
+        game.Apply(EffectNames.Buff, "SELF", 1, "both");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.Source.Attack, Is.EqualTo(2));
+            Assert.That(game.Source.Health, Is.EqualTo(5));
+        });
+    }
+
+    [Test]
+    public void AnyMinionCanResolveAnExplicitFriendlySelection()
+    {
+        var game = new EffectTestFixture();
+        game.Apply(
+            EffectNames.Buff,
+            "ANY_MINION",
+            1,
+            "atk",
+            selectedTargetId: game.Friendly.InstanceId);
+
+        Assert.That(game.Friendly.Attack, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void AnyMinionCanResolveAnExplicitEnemySelection()
+    {
+        var game = new EffectTestFixture();
+        game.Apply(
+            EffectNames.Buff,
+            "ANY_MINION",
+            1,
+            "hp",
+            selectedTargetId: game.Enemy.InstanceId);
+
+        Assert.That(game.Enemy.Health, Is.EqualTo(6));
+    }
+
+    [TestCase("ENEMY_SINGLE")]
+    [TestCase("SINGLE_ENEMY")]
+    public void EnemySingleAliasesResolveLikeEnemyMinion(string target)
+    {
+        var game = new EffectTestFixture();
+        game.Apply(EffectNames.Damage, target, 2, selectedTargetId: game.Enemy.InstanceId);
+
+        Assert.That(game.Enemy.Health, Is.EqualTo(3));
+    }
+
+    [Test]
     public void GrantKeywordAlsoActivatesShield()
     {
         var game = new EffectTestFixture();

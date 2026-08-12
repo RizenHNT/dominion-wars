@@ -29,7 +29,41 @@ public sealed class ContractBoundaryTests
         var game = new EffectTestFixture();
         var expected = ReadSchemaActions();
         Assert.That(game.Dispatcher.RegisteredActions, Is.EquivalentTo(expected));
+        Assert.That(EffectNames.All, Is.EquivalentTo(expected));
         Assert.That(game.Dispatcher.RegisteredActions, Has.Count.EqualTo(24));
+    }
+
+    [Test]
+    public void PersistentAuraIsNotAnOrdinaryDispatcherAction()
+    {
+        var game = new EffectTestFixture();
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.Dispatcher.RegisteredActions, Does.Not.Contain("DISABLE_ENEMY_LEADER"));
+            Assert.That(ReadSchemaPersistentActions(), Is.EqualTo(new[] { "DISABLE_ENEMY_LEADER" }));
+        });
+    }
+
+    [Test]
+    public void PersistentAuraHasDedicatedSchemaSlots()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(ReadSchemaArrayItemReference("LeaderDef", "persistentEffects"),
+                Is.EqualTo("#/$defs/PersistentEffectSpec"));
+            Assert.That(ReadSchemaArrayItemReference("LeaderDef", "enterEffects"),
+                Is.EqualTo("#/$defs/EffectSpec"));
+            Assert.That(ReadSchemaArrayItemReference("LeaderDef", "punishEffects"),
+                Is.EqualTo("#/$defs/EffectSpec"));
+            Assert.That(ReadSchemaArrayItemReference("Card", "punishEffects"),
+                Is.EqualTo("#/$defs/EffectSpec"));
+            Assert.That(ReadSchemaArrayItemReference("Card", "ambushEffects"),
+                Is.EqualTo("#/$defs/EffectSpec"));
+            Assert.That(ReadSchemaArrayItemReference("Card", "chantEffects"),
+                Is.EqualTo("#/$defs/EffectSpec"));
+            Assert.That(ReadSchemaArrayItemReference("Card", "onOpponentDiscardEffects"),
+                Is.EqualTo("#/$defs/EffectSpec"));
+        });
     }
 
     [Test]
@@ -64,6 +98,35 @@ public sealed class ContractBoundaryTests
             .EnumerateArray()
             .Select(value => value.GetString()!)
             .ToArray();
+    }
+
+    private static IReadOnlyList<string> ReadSchemaPersistentActions()
+    {
+        var root = FindRepositoryRoot();
+        var schemaPath = Path.Combine(root, "data", "schema", "cards.schema.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(schemaPath));
+        return document.RootElement
+            .GetProperty("$defs")
+            .GetProperty("PersistentEffectAction")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(value => value.GetString()!)
+            .ToArray();
+    }
+
+    private static string ReadSchemaArrayItemReference(string definitionName, string propertyName)
+    {
+        var root = FindRepositoryRoot();
+        var schemaPath = Path.Combine(root, "data", "schema", "cards.schema.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(schemaPath));
+        return document.RootElement
+            .GetProperty("$defs")
+            .GetProperty(definitionName)
+            .GetProperty("properties")
+            .GetProperty(propertyName)
+            .GetProperty("items")
+            .GetProperty("$ref")
+            .GetString()!;
     }
 
     private static string FindRepositoryRoot()

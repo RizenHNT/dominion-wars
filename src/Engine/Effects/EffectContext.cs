@@ -81,6 +81,12 @@ public sealed class EffectContext
         set => _window.NegationObserved = value;
     }
 
+    internal bool DeferDeaths
+    {
+        get => _window.DeferDeaths;
+        set => _window.DeferDeaths = value;
+    }
+
     public EffectContext ForSource(int sourcePlayerIndex, CardInstance? sourceCard)
     {
         return new EffectContext(
@@ -102,5 +108,6 @@ internal sealed class EffectWindowState
 {
     public bool Negated { get; set; }
     public bool NegationObserved { get; set; }
+    public bool DeferDeaths { get; set; }
 }
 }

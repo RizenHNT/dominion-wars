@@ -51,7 +51,11 @@
         "ALL_ENEMY_MINIONS",
         "ALL_FRIENDLY_MINIONS",
         "ALL_MINIONS",
-        "ENEMY_FACE"
+        "ENEMY_FACE",
+        "SELF",
+        "ANY_MINION",
+        "ENEMY_SINGLE",
+        "SINGLE_ENEMY"
       ]
     },
     "EffectSpec": {
@@ -63,7 +67,8 @@
         "target": { "$ref": "#/$defs/EffectTarget" },
         "amount": { "type": "integer", "minimum": -99, "maximum": 99 },
         "param": { "type": "string", "maxLength": 64 },
-        "condition": { "type": "string", "maxLength": 64 }
+        "condition": { "type": "string", "maxLength": 64 },
+        "kingSlayer": { "type": "boolean" }
       }
     },
     "EffectAction": {
@@ -80,15 +85,56 @@
         "GAIN_LIFE", "LOSE_LIFE", "DAMAGE_CASTLE", "WIN_GAME"
       ]
     },
+    "PersistentEffectAction": {
+      "type": "string",
+      "enum": ["DISABLE_ENEMY_LEADER"]
+    },
+    "PersistentEffectSpec": {
+      "type": "object",
+      "required": ["action"],
+      "additionalProperties": false,
+      "properties": {
+        "action": { "$ref": "#/$defs/PersistentEffectAction" }
+      }
+    },
+    "PunishCondition": {
+      "type": "string",
+      "enum": ["ALWAYS", "ENEMY_MINIONS_GE_1", "ENEMY_MINIONS_GE_2", "HAND_GE_3"]
+    },
+    "AmbushKind": {
+      "type": "string",
+      "enum": ["NORMAL", "FOCUS", "LOCKDOWN"]
+    },
+    "AmbushTrigger": {
+      "type": "string",
+      "enum": [
+        "OPPONENT_ATTACKS",
+        "OPPONENT_PLAYS_SPELL",
+        "OPPONENT_SUMMONS",
+        "OPPONENT_PLAYS_CARD",
+        "OPPONENT_DRAWS"
+      ]
+    },
     "LeaderDef": {
       "type": "object",
       "required": ["winCondition"],
       "additionalProperties": false,
       "properties": {
         "winCondition": { "$ref": "#/$defs/WinCondition" },
+        "vulnerabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/EffectAction" }
+        },
         "winText": { "type": "string", "maxLength": 64 },
         "winAmount": { "type": "integer", "minimum": 0, "maximum": 999 },
+        "winParam": { "type": "integer", "minimum": 0, "maximum": 999 },
+        "durability": { "type": "integer", "minimum": 1, "maximum": 999 },
         "grantLife": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "persistentEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PersistentEffectSpec" }
+        },
         "enterEffects": {
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }
@@ -130,6 +176,29 @@
         },
         "leader": { "type": "boolean", "const": true },
         "leaderDef": { "$ref": "#/$defs/LeaderDef" },
+        "punishActivatable": { "type": "boolean" },
+        "punishCost": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "punishCondition": { "$ref": "#/$defs/PunishCondition" },
+        "punishEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "ambushKind": { "$ref": "#/$defs/AmbushKind" },
+        "ambushTrigger": { "$ref": "#/$defs/AmbushTrigger" },
+        "ambushEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "chant": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "chantEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "attacksPerTurn": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "onOpponentDiscardEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
         "onPlayEffects": {
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }

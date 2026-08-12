@@ -23,7 +23,7 @@ public sealed partial class EffectRuntime
         {
             if (context.SelectedCoreTarget.HasValue)
             {
-                DamageCore(context.SelectedCoreTarget.Value, amount, context, spec.Action);
+                DamageCore(context.SelectedCoreTarget.Value, amount, context, spec, spec.Action);
             }
             else if (context.SelectedTargetId.HasValue)
             {
@@ -39,7 +39,7 @@ public sealed partial class EffectRuntime
 
         if (spec.Target == "ENEMY_FACE")
         {
-            DamageEnemyCore(amount, context, spec.Action);
+            DamageEnemyCore(spec, amount, context, spec.Action);
             return;
         }
 
@@ -135,6 +135,12 @@ public sealed partial class EffectRuntime
 
     public void Buff(EffectSpec spec, EffectContext context)
     {
+        if (spec.Amount == 0)
+        {
+            EmitSkipped(context, spec.Action, "effect.invalid_amount");
+            return;
+        }
+
         var mode = string.IsNullOrWhiteSpace(spec.Param) ? "both" : spec.Param!.ToLowerInvariant();
         if (mode != "atk" && mode != "hp" && mode != "both")
         {
@@ -155,13 +161,13 @@ public sealed partial class EffectRuntime
             {
                 if (mode == "atk" || mode == "both")
                 {
-                    target.Attack += spec.Amount;
+                    target.Attack = Math.Max(0, target.Attack + spec.Amount);
                 }
 
                 if (mode == "hp" || mode == "both")
                 {
                     target.Health += spec.Amount;
-                    target.MaxHealth += spec.Amount;
+                    target.MaxHealth = Math.Max(0, target.MaxHealth + spec.Amount);
                 }
             });
             Emit("BUFF_APPLIED", context, Data(
@@ -255,12 +261,12 @@ public sealed partial class EffectRuntime
             "source", context.SourceCard?.InstanceId));
     }
 
-    private void DamageEnemyCore(int amount, EffectContext context, string action)
+    private void DamageEnemyCore(EffectSpec spec, int amount, EffectContext context, string action)
     {
-        var legal = LegalEnemyCoreTargets(context);
+        var legal = LegalEnemyCoreTargets(spec, context);
         if (context.SelectedCoreTarget.HasValue)
         {
-            DamageCore(context.SelectedCoreTarget.Value, amount, context, action);
+            DamageCore(context.SelectedCoreTarget.Value, amount, context, spec, action);
             return;
         }
 
@@ -270,12 +276,12 @@ public sealed partial class EffectRuntime
             return;
         }
 
-        DamageCore(legal[0], amount, context, action);
+        DamageCore(legal[0], amount, context, spec, action);
     }
 
-    private void DamageCore(CoreTarget target, int amount, EffectContext context, string action)
+    private void DamageCore(CoreTarget target, int amount, EffectContext context, EffectSpec spec, string action)
     {
-        var legal = LegalEnemyCoreTargets(context);
+        var legal = LegalEnemyCoreTargets(spec, context);
         if (!legal.Contains(target))
         {
             EmitSkipped(context, action, "target.invalid_core");
@@ -299,7 +305,7 @@ public sealed partial class EffectRuntime
         }
     }
 
-    private List<CoreTarget> LegalEnemyCoreTargets(EffectContext context)
+    private List<CoreTarget> LegalEnemyCoreTargets(EffectSpec spec, EffectContext context)
     {
         var result = new List<CoreTarget>();
         var enemy = State.GetOpponent(context.SourcePlayerIndex);
@@ -310,7 +316,7 @@ public sealed partial class EffectRuntime
 
         if (enemy.Leader is not null)
         {
-            if (context.SourceCard is not null && context.SourceCard.Definition.KingSlayer)
+            if (CanAffectLeader(enemy.Leader, spec, context))
             {
                 result.Add(CoreTarget.Leader);
             }
@@ -321,6 +327,25 @@ public sealed partial class EffectRuntime
         }
 
         return result;
+    }
+
+    private static bool CanAffectLeader(CardInstance leader, EffectSpec spec, EffectContext context)
+    {
+        var sourceCanSlay = spec.KingSlayer ?? context.SourceCard?.Definition.KingSlayer ?? false;
+        if (!sourceCanSlay)
+        {
+            return false;
+        }
+
+        foreach (var vulnerability in leader.Definition.Vulnerabilities)
+        {
+            if (string.Equals(vulnerability, spec.Action, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void DamagePlayer(PlayerState player, int amount, EffectContext context, string action)

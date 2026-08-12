@@ -18,20 +18,23 @@ print(f'  所有关键词: {sorted(all_keywords)}')
 print()
 print('=== 卡牌效果动作统计 ===')
 all_actions = set()
-def scan_effects(effects):
+effect_king_slayer_cards = set()
+def scan_effects(card_id, effects):
     if not effects: return
     for e in effects:
         if isinstance(e, dict) and 'action' in e:
             all_actions.add(e['action'])
+            if e.get('kingSlayer') is True:
+                effect_king_slayer_cards.add(card_id)
 
 for cid, c in all_cards.items():
     for key in ['onPlayEffects','onDeathEffects','onAttackEffects','chantEffects','ambushEffects',
                 'onTurnStartEffects','onTurnEndEffects','persistentEffects','onDamageEffects',
                 'onOpponentDiscardEffects']:
-        scan_effects(c.get(key, []))
+        scan_effects(cid, c.get(key, []))
     ld = c.get('leaderDef', {})
     for key in ['enterEffects','punishEffects','persistentEffects']:
-        scan_effects(ld.get(key, []))
+        scan_effects(cid, ld.get(key, []))
 
 actions_doc = {
     'DAMAGE','HEAL','DRAW','OPP_DRAW','DISCARD_OPP_RANDOM','DISCARD_DRAWN',
@@ -68,8 +71,13 @@ for cid, c in all_cards.items():
 for t, count in sorted(tags_dist.items()):
     print(f'  {t}: {count}')
 guard_count = sum(1 for c in all_cards.values() if c.get('guard'))
-ks_count = sum(1 for c in all_cards.values() if c.get('kingSlayer'))
-print(f'  guard(护卫): {guard_count} 张, kingSlayer(弑君): {ks_count} 张')
+legacy_ks_cards = {cid for cid, c in all_cards.items() if c.get('kingSlayer') is True}
+effective_ks_cards = legacy_ks_cards | effect_king_slayer_cards
+card_only_ks = legacy_ks_cards - effect_king_slayer_cards
+print(f'  guard(护卫): {guard_count} 张, kingSlayer(弑君)有效: {len(effective_ks_cards)} 张')
+print(f'  effect-level: {len(effect_king_slayer_cards)} 张, legacy card-level: {len(legacy_ks_cards)} 张, card-level only: {len(card_only_ks)} 张')
+if card_only_ks:
+    print(f'  card-level only IDs: {sorted(card_only_ks)}')
 
 print()
 print('=== 统领胜利条件 ===')

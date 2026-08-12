@@ -16,7 +16,8 @@ internal sealed class EffectTestFixture
             "ward", "Ward", 1, 5, isMinion: true, keywords: new[] { "扰魔" });
         TokenDefinition = new CardDefinition("token", "Token", 1, 1, isMinion: true);
         LeaderDefinition = new CardDefinition(
-            "leader", "Leader", 3, 8, isMinion: true, isLeader: true, grantLife: 15);
+            "leader", "Leader", 3, 8, isMinion: true, isLeader: true, grantLife: 15,
+            vulnerabilities: new[] { EffectNames.Damage });
 
         State = new GameState(
             new PlayerState(0, 20),

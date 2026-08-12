@@ -65,6 +65,11 @@ public sealed class EffectDispatcher : IEffectDispatcher
 
     public void Apply(EffectSpec spec, EffectContext context)
     {
+        ApplyInternal(spec, context, checkAll: true);
+    }
+
+    private void ApplyInternal(EffectSpec spec, EffectContext context, bool checkAll)
+    {
         if (spec is null)
         {
             throw new ArgumentNullException(nameof(spec));
@@ -110,7 +115,10 @@ public sealed class EffectDispatcher : IEffectDispatcher
         }
 
         effect.Apply(spec, context, this);
-        Runtime.CheckAll(context);
+        if (checkAll)
+        {
+            Runtime.CheckAll(context);
+        }
     }
 
     public void ApplyAll(IEnumerable<EffectSpec> specs, EffectContext context)
@@ -120,13 +128,22 @@ public sealed class EffectDispatcher : IEffectDispatcher
             throw new ArgumentNullException(nameof(specs));
         }
 
-        foreach (var spec in specs)
+        context.DeferDeaths = true;
+        try
         {
-            Apply(spec, context);
-            if (context.Negated)
+            foreach (var spec in specs)
             {
-                break;
+                ApplyInternal(spec, context, checkAll: false);
+                if (context.Negated)
+                {
+                    break;
+                }
             }
+        }
+        finally
+        {
+            context.DeferDeaths = false;
+            Runtime.CheckAll(context);
         }
     }
 }

@@ -16,6 +16,7 @@
   "leader": true,
   "leaderDef": {
    "winCondition": "ROYAL_CASTLE_BREAK",
+   "vulnerabilities": ["DAMAGE"],
    "winText": "击破王城即获胜",
    "enterEffects": [
     {
@@ -141,12 +142,12 @@
    {
     "action": "DAMAGE",
     "target": "ENEMY_TARGET",
-    "amount": 5
+    "amount": 5,
+    "kingSlayer": true
    }
   ],
   "text": "对一个敌方目标造成5点伤害。",
-  "flavor": "规则书示例卡。",
-  "kingSlayer": true
+  "flavor": "规则书示例卡。"
  },
  {
   "id": "flame_rain",
@@ -289,7 +290,8 @@
   ],
   "punish": 3,
   "attack": 4,
-  "health": 4
+  "health": 4,
+  "text": ""
  },
  {
   "id": "flame_giant",
