@@ -149,9 +149,91 @@ public sealed class EffectsSpecContractTests
         Assert.That(game.Friendly.Attack, Is.EqualTo(3));
     }
 
+    [Test]
+    public void EffectSpecRequiresActionOnly()
+    {
+        using var document = ReadSchema();
+        var required = document.RootElement.GetProperty("$defs")
+            .GetProperty("EffectSpec").GetProperty("required");
+        Assert.That(required.EnumerateArray().Select(item => item.GetString()), Is.EquivalentTo(new[] { "action" }));
+    }
+
+    [Test]
+    public void EffectSpecRejectsUnknownProperties()
+    {
+        using var document = ReadSchema();
+        Assert.That(document.RootElement.GetProperty("$defs").GetProperty("EffectSpec")
+            .GetProperty("additionalProperties").GetBoolean(), Is.False);
+    }
+
+    [Test]
+    public void EffectSpecAmountHasLowerBound()
+    {
+        using var document = ReadSchema();
+        Assert.That(document.RootElement.GetProperty("$defs").GetProperty("EffectSpec")
+            .GetProperty("properties").GetProperty("amount").GetProperty("minimum").GetInt32(), Is.EqualTo(-99));
+    }
+
+    [Test]
+    public void EffectSpecAmountHasUpperBound()
+    {
+        using var document = ReadSchema();
+        Assert.That(document.RootElement.GetProperty("$defs").GetProperty("EffectSpec")
+            .GetProperty("properties").GetProperty("amount").GetProperty("maximum").GetInt32(), Is.EqualTo(99));
+    }
+
+    [Test]
+    public void EffectSpecSupportsEffectLevelKingSlayer()
+    {
+        using var document = ReadSchema();
+        Assert.That(document.RootElement.GetProperty("$defs").GetProperty("EffectSpec")
+            .GetProperty("properties").GetProperty("kingSlayer").GetProperty("type").GetString(), Is.EqualTo("boolean"));
+    }
+
+    [Test]
+    public void CardTypeEnumContainsFourRuntimeTypes()
+    {
+        using var document = ReadSchema();
+        Assert.That(document.RootElement.GetProperty("$defs").GetProperty("CardType")
+            .GetProperty("enum").EnumerateArray().Select(item => item.GetString()),
+            Is.EquivalentTo(new[] { "MINION", "SPELL", "AMBUSH", "PUNISH" }));
+    }
+
+    [Test]
+    public void FactionEnumContainsNeutralAndFourFactions()
+    {
+        using var document = ReadSchema();
+        Assert.That(document.RootElement.GetProperty("$defs").GetProperty("Faction")
+            .GetProperty("enum").GetArrayLength(), Is.EqualTo(5));
+    }
+
+    [Test]
+    public void TagContractHasBoundedLength()
+    {
+        using var document = ReadSchema();
+        var tag = document.RootElement.GetProperty("$defs").GetProperty("Tag");
+        Assert.That(tag.GetProperty("minLength").GetInt32(), Is.EqualTo(1));
+        Assert.That(tag.GetProperty("maxLength").GetInt32(), Is.EqualTo(8));
+    }
+
+    [Test]
+    public void LeaderSchemaCarriesVulnerabilityWhitelist()
+    {
+        using var document = ReadSchema();
+        var properties = document.RootElement.GetProperty("$defs").GetProperty("LeaderDef")
+            .GetProperty("properties");
+        Assert.That(properties.TryGetProperty("vulnerabilities", out _), Is.True);
+    }
+
     private static string ReadContract()
     {
         return File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "effects.contract.md"));
+    }
+
+    private static JsonDocument ReadSchema()
+    {
+        return JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "data", "schema", "cards.schema.json")));
     }
 
     private static string FindRepositoryRoot()
