@@ -513,3 +513,56 @@ Swing 对战界面的手牌现在会根据当前阶段显示可用状态：
 3. 设置窗口可继续加入主题、卡牌缩放比例、日志字号、动画开关；
 4. 对战窗口建议重写成专用 CardPanel，而不是继续用 JButton HTML；
 5. 编辑器应支持显示/编辑多语言文本字段。
+
+### 5.4 数值结算规则与统领 × 效果交互模型（2026-08-12）
+
+本节对应 docs/RULES.md §11.1 - §11.2，由人类项目负责人 2026-08-12 18:28 拍板、PL（MiniMax M3）在 19:15-19:22 落地的设计变更。
+
+**§11.1 Buff / Debuff 数值范围（Decision B）**
+
+- 允许 mount 为负数（Hearthstone 风格）。
+- 结算期按数值类型分别处理：HP 保持负数（全部结算后判定死亡）；Attack / Duration / Cost / 其他 stat clamp 到 0。
+- mount = 0 仍视为"无意义 buff"报错。
+
+**§11.2 统领 × 效果交互（Decision A，字段 Flag × 时点 二维模型）**
+
+- **字段 Flag 轴（静态）**：统领级弱点白名单 ulnerabilities: List<EffectType>（默认空 = 全免疫），与 Java Effects.java 24 个 case 一一对齐。
+- **时点轴（动态）**：4 个判定区间 — OnEnter 初始化、OnCheck 校验生效、OnMutated 改写 Flag、OnTurnEnd 清临时。
+- **三步校验链**：effect.kingSlayer → vulnerabilities 含 effect.type → （可选）4 字段 disable_resistance。
+- 替代了此前的纯 "4 字段 disable_resistance" 单一机制（爆字段风险 + 与现场时点语义混淆）。
+
+**Impact**
+
+- src/main/java/.../Effects.java 24 个 case → C# IEffect 顺序不变，但 CardDefinition.cs / CardDef.java 等数据结构需要从 Card 层级下沉为 Effect 层级（见 IMPLEMENTATION_TODO.csv L18 "kingSlayer migrate card-level → effect-level"，PL 2026-08-12 已加 P0）。
+- 4 张现有 kingSlayer 卡（flame / wood / sea / machine）需要从 card-level 迁移到 effect-level（PL 2026-08-12 19:25 启动指令）。
+
+### 5.5 kingSlayer effect-level 迁移（2026-08-12）
+
+- `EffectSpec` 支持可选 `kingSlayer`，具体效果优先于旧 Card 级兼容字段。
+- 四张现有弑君卡已迁移到具体伤害效果：`flame_strike`、`machine_cannon`、`sea_pressure`、`wood_moon`。
+- Java 与 C# 目标解析均已对齐，旧 Card 级字段仍可读取但不再出现在现有卡牌数据中。
+- Java 35/35、C# 66/66 回归通过。
+
+### 5.6 `vulnerabilities` 统领弱点白名单（2026-08-12）
+
+- `LeaderDef` 增加 `vulnerabilities`；空白名单默认免疫外部效果。
+- 现有统领显式声明 `DAMAGE`，保持原有弑君伤害行为。
+- Java/C# 均按具体效果的 `kingSlayer` 与统领弱点白名单共同判定，旧 Card 级字段保留兼容回退。
+
+### 5.7 Buff/Debuff 负值与延迟死亡（2026-08-12）
+
+- 允许 Buff 使用负 `amount`；攻击力与最大生命值 clamp 到 0，零值 Buff 跳过。
+- 效果链结束前暂不清理负血随从；后续回血可以救回，结算后仍为负血才进入墓地。
+- Java 38/38、C# 71/71 回归通过。
+
+### 5.8 Batch 3 适配层与测试矩阵（2026-08-12）
+
+- `CardDefinition` → `CardDto` 已补齐 Faction/Text/Flavor/Cost/Rarity/ArtId/Tags 数据映射。
+- 新增 LegalActionGenerator、快照防御性校验、效果链/序列化测试及 Java→C# 24 项 EffectAction 回归矩阵。
+- 提交：`e1b53d2`、`cbc270f`、`fde2acd`；C# 225/225、Java 38/38、Schema 91/91。
+
+### 5.9 Batch 5 测试与本地化基线（2026-08-12）
+
+- 提交 `1ec8f26`：EventLogTests 4 个测试；提交 `a34450b`：EdgeCase/Stress/EffectsSpecContract 测试补齐。
+- 提交 `ae33fad`：引擎内置 en/zh/jp 三语 Localization，20 个 key × 3 语言，含 fallback 和线程安全测试。
+- 当前 C# 测试 264/264；覆盖率基线见 `docs/COVERAGE.md`，不设置门禁阈值。

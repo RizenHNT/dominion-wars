@@ -19,16 +19,18 @@
 6. **结算顺序 = 数组顺序**。卡 JSON 里 effect 数组 = 严格顺序；引擎不重排
 7. **失败必须可观测**：目标不存在 / 条件不满足 / 超上限 → 写一个 log 事件，**不算 bug**
 
-## 2. 动作清单（24 个，21 张卡实际引用）
+## 2. 动作清单（24 个，20 个动作被卡数据实际引用）
 
 枚举定义：`data/schema/cards.schema.json` → `$defs/EffectAction`
-91 卡扫描结果（leaderDef.enterEffects + .punishEffects + onPlayEffects 全集）：
-**已用 21 个**：`DAMAGE / HEAL / DRAW / OPP_DRAW / DISCARD_OPP_RANDOM / DISCARD_DRAWN / BUFF / GRANT_KEYWORD / SUMMON / SUMMON_LEADER / END_TURN / ADD_OPP_PUNISH_TURN / ADD_SELF_PUNISH_TURN / CONVERT_PUNISH_TO_DISCARD / PROTECT_TURN / NEGATE_ENEMY_EFFECTS_TURN / SKIP_RESHUFFLE / GAIN_LIFE / LOSE_LIFE / DAMAGE_CASTLE / WIN_GAME`
-**预留 3 个**：`DESTROY / NEGATE / RESTORE_ATTACKS`（Effects.java 实现了但当前 91 张卡无引用）
+91 卡扫描结果（所有普通 `*Effects` 数组）：
+**已用 20 个**：`DAMAGE / HEAL / DRAW / DISCARD_OPP_RANDOM / DISCARD_DRAWN / DESTROY / BUFF / GRANT_KEYWORD / SUMMON / SUMMON_LEADER / END_TURN / ADD_OPP_PUNISH_TURN / CONVERT_PUNISH_TO_DISCARD / PROTECT_TURN / NEGATE / NEGATE_ENEMY_EFFECTS_TURN / SKIP_RESHUFFLE / RESTORE_ATTACKS / DAMAGE_CASTLE / WIN_GAME`
+**预留 4 个**：`OPP_DRAW / ADD_SELF_PUNISH_TURN / GAIN_LIFE / LOSE_LIFE`（Effects.java 实现了但当前 91 张卡无引用）
 
 ## 3. 单动作合约（24 节）
 
 每节格式：**做什么 / 参数 / target 解释 / 副作用 / 反制规则 / 卡引用**
+
+> `EffectAction` 的 24 个值是普通 `IEffect` 动作。`DISABLE_ENEMY_LEADER` 不属于这 24 个动作：当前只能作为 `leaderDef.persistentEffects` 的显式光环描述；未来临时/触发型控制必须使用独立的 `*Controls` 结构，由上层规则/状态投影解释，不能注册进普通 `EffectDispatcher`。
 
 ### 3.1 DAMAGE
 - 做什么：对目标造成 N 点伤害
@@ -182,7 +184,7 @@
 
 ## 4. Target 选择语义
 
-7 种 target 字符串（`data/schema/cards.schema.json` → `EffectTarget`）：
+正式卡数据的 target 字符串（`data/schema/cards.schema.json` → `EffectTarget`）：
 
 | target | 含义 | 典型动作 |
 |---|---|---|
@@ -194,7 +196,21 @@
 | `ALL_MINIONS` | 双方场上全部随从 | DAMAGE |
 | `ENEMY_FACE` | 对方玩家本体（无核心则游戏结束） | DAMAGE |
 
+兼容 target（Java 基线已识别，现已纳入 `EffectTarget` schema 枚举）：`SELF`（源随从自身）、`ANY_MINION`（双方任意一个随从）、`ENEMY_SINGLE` / `SINGLE_ENEMY`（`ENEMY_MINION` 的单目标别名）。
+
 注：Effects.java 内部还识别 `SELF_PLAYER` / `ENEMY_PLAYER`（仅 DAMAGE/HEAL 用），由 leaderDef 内部使用，**不计入卡的 EffectTarget 枚举**。
+
+### 4.1 Persistent aura
+
+`leaderDef.persistentEffects` 是独立的持久光环数组。当前唯一允许的值是 `DISABLE_ENEMY_LEADER`，表示该统领在场时禁用对方统领效果与特殊胜利条件。它与 `leaderDef.enterEffects`、`punishEffects` 的一次性结算分离，也不计入 24 个普通动作。
+
+### 4.2 Effect-level kingSlayer
+
+`EffectSpec.kingSlayer` 是具体效果的弑君标记，不是整张卡的统一能力。默认缺省为 false；若旧数据仍有 card-level `kingSlayer`，引擎在该效果未声明时回退读取旧字段，供迁移期间兼容。效果级字段一旦存在，优先于旧卡级字段。
+
+当前四张弑君卡已迁移为 effect-level：`flame_strike`、`machine_cannon`、`sea_pressure`、`wood_moon`。因此同一张卡未来可以同时包含普通效果和能够绕过统领抗性的特殊效果。
+
+统领的 `leaderDef.vulnerabilities` 是效果动作白名单，缺省为空表示统领对外部效果全免疫。当前兼容数据为现有统领开放 `DAMAGE`，因此四张弑君伤害卡保持原行为；未来新增效果必须同时满足 effect-level `kingSlayer=true` 和目标统领白名单包含该动作。更细的 `disable_resistance` 时点规则仍属于后续批次。
 
 ## 5. 反制 / 触发窗口（ctx）
 
@@ -241,9 +257,9 @@ public sealed class EffectDispatcher {
 
 ## 9. 待办（移交 Codex）
 
-1. ⏳ C# 侧把 Effects.java 24 个动作完整平移为 24 个 IEffect 实现
-2. ⏳ 写 EffectDispatcher 单测：spec.action 不在表 → fail-closed
-3. ⏳ 写反制窗口单测：DAMAGE + NEGATE 顺序 → DAMAGE 不结算 + emit NEGATED
+1. ✅ C# 侧已把 Effects.java 24 个动作平移为 24 个 IEffect 实现（`src/Engine/Effects/`）
+2. ✅ `ContractBoundaryTests` 覆盖未知 action fail-closed 与 dispatcher/schema 数量对齐
+3. ✅ `EffectRuntimeTests` / `EffectSafetyTests` 覆盖 DAMAGE + NEGATE 顺序与无效结算事件
 4. ⏳ SPEC.md §10 适配器签名定稿
 
 ---

@@ -1,13 +1,22 @@
-﻿priority,area,task,exit
-P0,Adapter,Implement snapshot/action/event adapters against current Java engine,No UI rule duplication
-P0,Renderer,Implement normalized layout + components,1440x900/1280x720 stable
-P0,Assets,Resolve logical asset IDs to SVG/PNG,No hardcoded file paths
-P0,Motion,Map semantic motion primitives to native engine animations,Reduced motion works
-P0,Battle,Implement phase UI from battle_state_machine.json,Phase parity
-P0,Targeting,All targets use legalActions / reason,Click and drag same GameAction
-P0,Punish,Render parentEventId causal chain,Cause understandable without log
-P1,Deck Builder,Use CardView + deck validation contract,No renderer-coupled deck data
-P1,Localization,All UI strings use keys,JP/ZH/EN safe
-P1,Skin,Load skin manifest,Skin swap without code edit
-P2,Content Art,Produce ship card art,No layout code changes
-P3,Runtime QA,sim/regression/a11y/input/perf,Release gate
+﻿priority,area,task,exit,status,owner,completed_at,evidence
+P0,Adapter,Implement snapshot/action/event adapters against current Java engine,No UI rule duplication,done,Codex,2026-08-12,e1b53d2 + cbc270f + 225/225 tests
+P0,Unity MVP,Create Unity vertical slice and Windows package,Friend can launch a Windows .exe with one faction one leader cards turn flow and victory,pending,Codex+Human,,Blocked: Unity 6 LTS project/editor not installed
+P0,Data,Implement C# JSON card/deck loader against cards.schema.json,All 91 cards load or fail closed with actionable validation,pending,Codex,,C# loader not yet implemented
+P0,Engine,Implement Unity MVP turn/match controller,One faction one leader basic turn flow and victory,pending,Codex,,C# full turn controller not yet implemented
+P0,Renderer,Implement normalized layout + components,1440x900/1280x720 stable,pending,Codex,,Blocked: requires Unity Editor
+P0,Assets,Resolve logical asset IDs to SVG/PNG,No hardcoded file paths,pending,Codex,,Blocked: requires Unity Editor + asset bake
+P0,Motion,Map semantic motion primitives to native engine animations,Reduced motion works,pending,Codex,,Blocked: requires Unity Editor
+P0,Battle,Implement phase UI from battle_state_machine.json,Phase parity,pending,Codex,,Blocked: requires Unity Editor
+P0,Targeting,All targets use legalActions / reason,Click and drag same GameAction,pending,Codex,,Blocked: requires Unity Editor
+P0,Punish,Render parentEventId causal chain,Cause understandable without log,pending,Codex,,Blocked: requires Unity Editor
+P1,Deck Builder,Use CardView + deck validation contract,No renderer-coupled deck data,pending,Codex,,
+P1,Localization,All UI strings use keys,JP/ZH/EN safe,done,Codex,2026-08-12,ae33fad + LocalizationTests 10/10
+P1,Skin,Load skin manifest,Skin swap without code edit,pending,Codex,,
+P2,Content Art,Produce ship card art,No layout code changes,pending,Human+Art,,Blocked: external dependency
+P3,Runtime QA,sim/regression/a11y/input/perf,Release gate,pending,DeepSeek,,
+P0,Leader,Schema: leader 4-field model + vulnerabilities + disable_resistance flag (Decision A 2026-08-12),Single source = Java Effects.java + RULES §11.2,done,Codex+PL,2026-08-12,commit 507f45d + RULES §11.2
+P0,Effects,EffectResolver: clamp dispatcher + HP deferred death (Decision B 2026-08-12),Hearthstone-style per RULES §11.1,done,Codex+PL,2026-08-12,commit 507f45d + RULES §11.1
+P0,QA,DeepSeek Batch 2: validate Decision A/B + run C# tests on .NET 8 SDK,.NET 8 SDK 8.0.424 installed 2026-08-12,done,DeepSeek,2026-08-12,AI_MAILBOX.md L225-291 cards schema/effects/SPEC §8
+P1,Tests,C# counter-window-test + effect-dispatch-table + effects-spec-test (Batch 1 顺延),.NET 8 SDK ready,done,Codex,2026-08-12,dd0aeae + 225/225 tests
+P0,Leader,kingSlayer: migrate card-level → effect-level (DeepSeek 2026-08-12 proposal),Acceptance: 4 卡迁移 + schema + align_check + engine 一处 + 双引擎对齐,done,Codex+PL,2026-08-12,commit 507f45d (4 cards migrated: wood_moon/sea_pressure/machine_cannon/flame_strike)
+P1,Docs,RULES.md Castle v4 sync: 统领默认抗性 + guard + kingSlayer,QA P2 漂移修复（独立批次）,done,PL,2026-08-12,RULES §11.1 + §11.2 rewritten (字段 Flag × 时点 二维模型)

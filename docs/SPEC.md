@@ -24,8 +24,8 @@
 
 - MVP 一回合（START → AMBUSH → ACTION → DISCARD → END）
 - 1 卡 + 1 统领 + 1 惩罚卡的最小对局可视化
-- 21 个动作（IEffect）通过 `EffectDispatcher` 单一入口派发
-- 21 动作之外的实现可以留 stub（占位实现 + 注释 + 单测覆盖），但不能"未实现 + 通过"
+- 24 个动作（IEffect）通过 `EffectDispatcher` 单一入口派发
+- 24 动作之外的实现可以留 stub（占位实现 + 注释 + 单测覆盖），但不能"未实现 + 通过"
 - 引擎可纯 .NET 跑测试；Unity EditMode 跑同一组用例做对照
 
 **非目标（out）**
@@ -44,7 +44,7 @@
 dominion-wars/
 ├── src/
 │   ├── Engine/                          # 引擎核心（纯 .NET，无 UnityEngine 引用）
-│   │   ├── Effects/                     # IEffect + EffectDispatcher + 21 动作
+│   │   ├── Effects/                     # IEffect + EffectDispatcher + 24 动作
 │   │   ├── Model/                       # Game, Player, Card, Phase, IdAllocator
 │   │   ├── Command/                     # ICommandBuffer + 本地实现
 │   │   ├── Id/                          # IRandomSource / SnapshotRevision / EventLog
@@ -96,7 +96,7 @@ dominion-wars/
 
 ### 4.3 IEffect + EffectDispatcher
 
-- **实现**：每个 21 动作 = 一个 `class XxxEffect : IEffect`；`EffectDispatcher` 用 lookup table `<string actionName, IEffect>` 派发。
+- **实现**：每个 24 动作 = 一个 `class XxxEffect : IEffect`；`EffectDispatcher` 用 lookup table `<string actionName, IEffect>` 派发。
 - **验证**：新增动作如果绕过 dispatcher（直接 `new XxxEffect()`） = 测试失败。
 
 ### 4.4 CommandBuffer 接口
@@ -494,6 +494,11 @@ python scripts/java_compare/run_dual.py \
 - [ ] Java 仓库最小对照场景的具体列表（DeepSeek 提供）
 - [ ] §6.3 空发裁决 5 子事件哪些归"事件流"哪些归"event.data"哪个键（待 Codex 实现定）
 - [ ] Unity EditMode 测试是否进 CI（人类拍板）
+
+### 本轮 Batch 1 QA 跟进记录（2026-08-12）
+
+- EventLog 根事件、父子事件关系和 `eventId` 单调递增已由 `src/Engine/Tests/EventLogTests.cs` 覆盖。
+- Pioneer pressure 的 Java 基线入口是 `Game.effectivePunish(...)`，依赖 Java 的回合/惩罚结算与 `Balance` 数据；当前 C# Batch 1 尚未暴露等价的回合结算 API。为避免在没有已批准规则迁移设计时复制规则，本轮将其记录为环境/架构阻塞，不宣称 C# 行为已通过；Java 对照测试仍待后续双跑工具可用后补齐。
 - [ ] .NET 工程文件 + `global.json` 版本钉死方案
 - [ ] §10 适配器 API 与 `design/runtime-kit-v1.30/contracts/` 完整字段对齐表
 
