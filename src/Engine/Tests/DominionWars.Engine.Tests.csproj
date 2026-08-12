@@ -27,5 +27,6 @@
   <ItemGroup>
     <ProjectReference Include="..\DominionWars.Engine.csproj" />
     <ProjectReference Include="..\..\Adapters\DominionWars.Adapters.csproj" />
+    <ProjectReference Include="..\..\Data\DominionWars.Data.csproj" />
   </ItemGroup>
 </Project>
