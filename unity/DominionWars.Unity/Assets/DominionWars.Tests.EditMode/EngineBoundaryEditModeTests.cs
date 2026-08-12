@@ -2,7 +2,7 @@
 using DominionWars.Engine.Effects;
 using NUnit.Framework;
 
-namespace DominionWars.Tests.EditMode
+namespace DominionWars.Unity.EditMode
 {
     public sealed class EngineBoundaryEditModeTests
     {

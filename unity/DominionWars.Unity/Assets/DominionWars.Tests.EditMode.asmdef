@@ -1,6 +1,6 @@
 {
-  "name": "DominionWars.Tests.EditMode",
-  "rootNamespace": "DominionWars.Tests.EditMode",
+  "name": "DominionWars.Unity.EditMode",
+  "rootNamespace": "DominionWars.Unity.EditMode",
   "references": [
     "DominionWars.Engine",
     "DominionWars.Adapters",

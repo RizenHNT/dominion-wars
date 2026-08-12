@@ -5,7 +5,7 @@ using DominionWars.Engine.Model;
 using NUnit.Framework;
 using System.Linq;
 
-namespace DominionWars.Tests.EditMode
+namespace DominionWars.Unity.EditMode
 {
     public sealed class EngineMatchSmokeEditModeTests
     {
