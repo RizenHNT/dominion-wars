@@ -1,0 +1,9 @@
+{
+  "name": "com.dominionwars.adapters",
+  "version": "0.1.0",
+  "displayName": "Dominion Wars Adapters",
+  "description": "Engine-to-runtime-kit adapter boundary.",
+  "unity": "6000.3",
+  "dependencies": { "com.dominionwars.engine": "0.1.0" },
+  "author": { "name": "Dominion Wars" }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "com.dominionwars.engine",
+  "version": "0.1.0",
+  "displayName": "Dominion Wars Engine",
+  "description": "Authoritative, renderer-independent game engine.",
+  "unity": "6000.3",
+  "author": { "name": "Dominion Wars" }
+}
