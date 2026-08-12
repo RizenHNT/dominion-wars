@@ -2,9 +2,7 @@
   "name": "DominionWars.Tests.EditMode",
   "rootNamespace": "DominionWars.Tests.EditMode",
   "references": [
-    "DominionWars.Engine",
-    "DominionWars.Adapters",
-    "DominionWars.Data"
+    "DominionWars.Engine"
   ],
   "includePlatforms": [
     "Editor"
