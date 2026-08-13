@@ -95,10 +95,16 @@ if (-not (Get-Command $configuredMiniMax -ErrorAction SilentlyContinue)) {
     }
 }
 
-if (-not (Get-Command $configuredCodex -ErrorAction SilentlyContinue)) {
-    $codexCandidate = Get-ChildItem -Path (Join-Path $env:USERPROFILE '.vscode\extensions\openai.chatgpt-*-win32-x64\bin\windows-x86_64\codex.exe') -File -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
+$codexCandidate = Get-ChildItem -Path (Join-Path $env:USERPROFILE '.vscode\extensions\openai.chatgpt-*-win32-x64\bin\windows-x86_64\codex.exe') -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if ($codexCandidate -and [string]$configuredCodex -eq 'codex') {
+    # The Store app execution alias can resolve even when it cannot use the
+    # backend initialized by `codex sandbox setup`. Prefer the VS Code CLI
+    # whose elevated sandbox setup is explicitly provisioned for this user.
+    $config.developer.command = $codexCandidate.FullName
+}
+elseif (-not (Get-Command $configuredCodex -ErrorAction SilentlyContinue)) {
     if ($codexCandidate) { $config.developer.command = $codexCandidate.FullName }
 }
 $pythonCommand = $null
@@ -1410,7 +1416,7 @@ trap {
     $failureMessage = $_.Exception.Message
     [Console]::Error.WriteLine("Night shift error at $($script:currentStage): $failureMessage")
     if ($script:runStarted) {
-        try { Write-EmergencyReport -Message $failureMessage } catch {}
+        if (-not $SandboxPreflightOnly) { try { Write-EmergencyReport -Message $failureMessage } catch {} }
         try { Update-RunLedger -Status 'FAILED' -Message $failureMessage } catch {}
     }
     if ($Scheduled) { try { Add-SchedulerLog -Message "FAILED stage=$($script:currentStage) message=$failureMessage report=$reportPath" } catch {} }
