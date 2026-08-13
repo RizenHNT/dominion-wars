@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using DominionWars.Adapters;
 using DominionWars.Engine.Events;
 using DominionWars.Engine.Model;
+using DominionWars.Engine.Turns;
 using NUnit.Framework;
 
 namespace DominionWars.Engine.Tests
@@ -76,6 +78,78 @@ public sealed class AdapterContractTests
         var gameEvent = new GameEvent(1, null, "BUFF_APPLIED");
         Assert.Throws<NotSupportedException>(() =>
             EngineProjectionAdapter.ToEvent(gameEvent, 1, "ACTION"));
+    }
+
+    [Test]
+    public void EventBatchFiltersInternalEventsAndPreservesProjectableAncestry()
+    {
+        var state = new GameState(new PlayerState(0, 20), new PlayerState(1, 20));
+        var played = new CardInstance(700, 0, new CardDefinition(
+            "played", "Played", 1, 2, isMinion: true));
+        state.GetPlayer(0).Deck.Add(played);
+        state.GetPlayer(0).Field.Add(new CardInstance(701, 0, new CardDefinition(
+            "attacker", "Attacker", 2, 3, isMinion: true)));
+        state.GetPlayer(1).Field.Add(new CardInstance(702, 1, new CardDefinition(
+            "defender", "Defender", 1, 2, isMinion: true)));
+        var flow = TurnFlow.CreateDefault();
+        var router = TurnActionRouter.CreateDefault(flow);
+
+        flow.Advance(state, 0);
+        router.Execute(state, new GameActionRequest(0, TurnAction.SkipAmbush));
+        Assert.That(router.Execute(state, new GameActionRequest(
+            0, LegalActionGenerator.PlayCard, sourceEntityId: played.InstanceId)).Accepted, Is.True);
+        Assert.That(router.Execute(state, new GameActionRequest(
+            0,
+            LegalActionGenerator.Attack,
+            sourceEntityId: 701,
+            targetId: "entity_000000000702")).Accepted, Is.True);
+        Assert.That(router.Execute(state, new GameActionRequest(0, LegalActionGenerator.EndTurn)).Accepted, Is.True);
+        Assert.That(router.Execute(state, new GameActionRequest(
+            0, TurnAction.DiscardComplete, selectedEntityIds: Array.Empty<long>())).Accepted, Is.True);
+
+        var projected = EngineProjectionAdapter.ToEvents(
+            state.Events.Items,
+            state.Turn.Number,
+            state.Turn.PhaseId);
+        var ids = new System.Collections.Generic.HashSet<string>(
+            projected.Select(item => item.EventId),
+            StringComparer.Ordinal);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(projected, Is.Not.Empty);
+            Assert.That(projected.Select(item => item.Type), Does.Contain("TURN_CHANGED"));
+            Assert.That(projected.Select(item => item.Type), Does.Contain("CARD_PLAYED"));
+            Assert.That(projected.Select(item => item.Type), Does.Contain("ATTACK_DECLARED"));
+            Assert.That(projected.Select(item => item.Type), Does.Contain("DAMAGE_APPLIED"));
+            Assert.That(projected.All(item => item.ParentEventId is null || ids.Contains(item.ParentEventId)), Is.True);
+            Assert.That(projected.Any(item => item.Type == "MINION_SUMMONED"), Is.False);
+        });
+    }
+
+    [Test]
+    public void EventBatchRejectsDuplicateMissingAndCyclicGraphs()
+    {
+        var duplicate = new[]
+        {
+            new GameEvent(1, null, "CARD_PLAYED"),
+            new GameEvent(1, null, "ATTACK_DECLARED"),
+        };
+        var missing = new[] { new GameEvent(2, 1, "DAMAGE_DEALT") };
+        var selfCycle = new[] { new GameEvent(1, 1, "CARD_PLAYED") };
+        var twoNodeCycle = new[]
+        {
+            new GameEvent(1, 2, "CARD_PLAYED"),
+            new GameEvent(2, 1, "ATTACK_DECLARED"),
+        };
+
+        Assert.Multiple(() =>
+        {
+            Assert.Throws<ArgumentException>(() => EngineProjectionAdapter.ToEvents(duplicate, 1, "ACTION"));
+            Assert.Throws<ArgumentException>(() => EngineProjectionAdapter.ToEvents(missing, 1, "ACTION"));
+            Assert.Throws<ArgumentException>(() => EngineProjectionAdapter.ToEvents(selfCycle, 1, "ACTION"));
+            Assert.Throws<ArgumentException>(() => EngineProjectionAdapter.ToEvents(twoNodeCycle, 1, "ACTION"));
+        });
     }
 
     [TestCase(null)]

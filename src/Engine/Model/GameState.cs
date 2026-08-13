@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using DominionWars.Engine.Command;
 using DominionWars.Engine.Events;
 using DominionWars.Engine.Randomness;
+using DominionWars.Engine.Rules;
 
 namespace DominionWars.Engine.Model
 {
@@ -31,13 +32,15 @@ public sealed class GameState
         IRandomSource? random = null,
         IEnumerable<CardDefinition>? cardLibrary = null,
         ICommandBuffer? commandBuffer = null,
-        EventLog? eventLog = null)
+        EventLog? eventLog = null,
+        MatchRules? rules = null)
         : this(
             new[] { player0, player1 },
             random,
             cardLibrary,
             commandBuffer,
-            eventLog)
+            eventLog,
+            rules)
     {
     }
 
@@ -46,7 +49,8 @@ public sealed class GameState
         IRandomSource? random = null,
         IEnumerable<CardDefinition>? cardLibrary = null,
         ICommandBuffer? commandBuffer = null,
-        EventLog? eventLog = null)
+        EventLog? eventLog = null,
+        MatchRules? rules = null)
     {
         if (players is null)
         {
@@ -75,6 +79,7 @@ public sealed class GameState
         Random = random ?? new Xoshiro256StarStar(1);
         Commands = commandBuffer ?? new LocalCommandBuffer();
         Events = eventLog ?? new EventLog();
+        Rules = rules ?? new MatchRules();
         Turn = new TurnState();
         CastleEnabled = false;
         _castleHealth = 75;
@@ -99,6 +104,7 @@ public sealed class GameState
     public ICommandBuffer Commands { get; }
     public EventLog Events { get; }
     public EventLog EventLog => Events;
+    public MatchRules Rules { get; }
     public TurnState Turn { get; }
     public IReadOnlyDictionary<string, CardDefinition> CardLibrary => _readOnlyCardLibrary;
 

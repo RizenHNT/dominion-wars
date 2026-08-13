@@ -16,6 +16,7 @@ public static class EngineProjectionAdapter
             ["CARD_PLAYED"] = "CARD_PLAYED",
             ["PHASE_CHANGED"] = "PHASE_CHANGED",
             ["TURN_CHANGED"] = "TURN_CHANGED",
+            ["TURN_STARTED"] = "TURN_CHANGED",
             ["ATTACK_DECLARED"] = "ATTACK_DECLARED",
             ["AMBUSH_TRIGGERED"] = "AMBUSH_TRIGGERED",
             ["PUNISH_TRIGGERED"] = "PUNISH_TRIGGERED",
@@ -29,6 +30,7 @@ public static class EngineProjectionAdapter
             ["LEADER_REPLACED"] = "LEADER_MANIFESTED",
             ["DECK_CYCLED"] = "DECK_CYCLED",
             ["GAME_WON"] = "GAME_OVER",
+            ["VICTORY_PROGRESS"] = "VICTORY_PROGRESS",
         };
 
     public static SnapshotDto ToSnapshot(
@@ -82,6 +84,7 @@ public static class EngineProjectionAdapter
                 TotalDiscarded = player.TotalDiscarded,
                 PunishDrawnThisTurn = player.PunishDrawnThisTurn,
                 DamagedThisCycle = player.DamagedThisCycle,
+                NoDamageTurns = player.NoDamageTurns,
             });
         }
 
@@ -268,13 +271,102 @@ public static class EngineProjectionAdapter
             throw new ArgumentNullException(nameof(gameEvents));
         }
 
-        var result = new List<GameEventDto>();
-        foreach (var gameEvent in gameEvents)
+        var source = new List<GameEvent>(gameEvents);
+        var byId = new Dictionary<long, GameEvent>();
+        foreach (var gameEvent in source)
         {
-            result.Add(ToEvent(gameEvent, turn, phase));
+            if (!byId.TryAdd(gameEvent.EventId, gameEvent))
+            {
+                throw new ArgumentException("Event stream contains duplicate event ids.", nameof(gameEvents));
+            }
+        }
+
+        ValidateEventGraph(source, byId);
+
+        var result = new List<GameEventDto>();
+        foreach (var gameEvent in source)
+        {
+            if (!EventTypeMap.ContainsKey(gameEvent.EventType))
+            {
+                continue;
+            }
+
+            var projected = ToEvent(gameEvent, turn, phase);
+            projected.ParentEventId = FindProjectableParent(gameEvent, byId);
+            result.Add(projected);
         }
 
         return result;
+    }
+
+    private static string? FindProjectableParent(
+        GameEvent gameEvent,
+        IReadOnlyDictionary<long, GameEvent> byId)
+    {
+        var parentId = gameEvent.ParentEventId;
+        var visited = new HashSet<long>();
+        while (parentId.HasValue)
+        {
+            if (!visited.Add(parentId.Value) || !byId.TryGetValue(parentId.Value, out var parent))
+            {
+                throw new ArgumentException("Event stream contains a missing or cyclic parent reference.", nameof(gameEvent));
+            }
+
+            if (EventTypeMap.ContainsKey(parent.EventType))
+            {
+                return ToEventId(parent.EventId);
+            }
+
+            parentId = parent.ParentEventId;
+        }
+
+        return null;
+    }
+
+    private static void ValidateEventGraph(
+        IReadOnlyList<GameEvent> source,
+        IReadOnlyDictionary<long, GameEvent> byId)
+    {
+        var complete = new HashSet<long>();
+        foreach (var gameEvent in source)
+        {
+            if (complete.Contains(gameEvent.EventId))
+            {
+                continue;
+            }
+
+            var path = new HashSet<long>();
+            var current = gameEvent;
+            while (true)
+            {
+                if (!path.Add(current.EventId))
+                {
+                    throw new ArgumentException("Event stream contains a cyclic parent reference.", nameof(source));
+                }
+
+                if (!current.ParentEventId.HasValue)
+                {
+                    break;
+                }
+
+                if (!byId.TryGetValue(current.ParentEventId.Value, out var parent))
+                {
+                    throw new ArgumentException("Event stream contains a missing parent reference.", nameof(source));
+                }
+
+                if (complete.Contains(parent.EventId))
+                {
+                    break;
+                }
+
+                current = parent;
+            }
+
+            foreach (var id in path)
+            {
+                complete.Add(id);
+            }
+        }
     }
 
     public static string ToEventId(long eventId) => $"evt_{eventId:D12}";
@@ -309,6 +401,8 @@ public static class EngineProjectionAdapter
             GrantLife = card.Definition.GrantLife,
             DefinitionDurability = card.Definition.LeaderDurability,
             Durability = card.Durability,
+            LeaderWinCondition = card.Definition.LeaderWinCondition,
+            LeaderWinParam = card.Definition.LeaderWinParam,
             KingSlayer = card.Definition.KingSlayer,
             Vulnerabilities = new List<string>(card.Definition.Vulnerabilities),
             Attack = card.Attack,

@@ -40,6 +40,7 @@ public sealed class TurnActionRouter
         {
             new PlayCardActionHandler(targetPolicy, punishResponses),
             new AttackActionHandler(),
+            new DiscardPhaseHandler(),
         });
     }
 

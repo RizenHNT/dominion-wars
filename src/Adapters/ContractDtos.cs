@@ -40,6 +40,7 @@ public sealed class PlayerDto
     public int TotalDiscarded { get; set; }
     public int PunishDrawnThisTurn { get; set; }
     public bool DamagedThisCycle { get; set; }
+    public int NoDamageTurns { get; set; }
 }
 
 public sealed class CardDto
@@ -63,6 +64,8 @@ public sealed class CardDto
     public int GrantLife { get; set; }
     public int DefinitionDurability { get; set; }
     public int Durability { get; set; }
+    public string? LeaderWinCondition { get; set; }
+    public int LeaderWinParam { get; set; }
     public bool KingSlayer { get; set; }
     public IReadOnlyList<string> Vulnerabilities { get; set; } = Array.Empty<string>();
     public int Attack { get; set; }

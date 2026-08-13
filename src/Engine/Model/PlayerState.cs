@@ -45,6 +45,7 @@ public sealed class PlayerState
     public int TotalDiscarded { get; set; }
     public int PunishDrawnThisTurn { get; set; }
     public bool DamagedThisCycle { get; set; }
+    public int NoDamageTurns { get; set; }
 
     public CardInstance? Leader
     {

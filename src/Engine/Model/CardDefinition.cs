@@ -55,7 +55,8 @@ public sealed class CardDefinition
         IEnumerable<EffectSpec>? leaderPunishEffects = null,
         string? leaderWinCondition = null,
         string? leaderWinText = null,
-        int leaderDurability = 0)
+        int leaderDurability = 0,
+        int leaderWinParam = 0)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -102,6 +103,11 @@ public sealed class CardDefinition
             throw new ArgumentOutOfRangeException(nameof(leaderDurability));
         }
 
+        if (leaderWinParam < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(leaderWinParam));
+        }
+
         Id = id;
         Name = name;
         Attack = attack;
@@ -129,6 +135,7 @@ public sealed class CardDefinition
         LeaderWinCondition = leaderWinCondition;
         LeaderWinText = leaderWinText;
         LeaderDurability = leaderDurability;
+        LeaderWinParam = leaderWinParam;
         // Legacy compatibility only. New data should mark the individual EffectSpec.
         KingSlayer = kingSlayer;
 
@@ -209,6 +216,7 @@ public sealed class CardDefinition
     public string? LeaderWinCondition { get; }
     public string? LeaderWinText { get; }
     public int LeaderDurability { get; }
+    public int LeaderWinParam { get; }
     /// <summary>Legacy card-level fallback. EffectSpec.KingSlayer takes precedence when present.</summary>
     public bool KingSlayer { get; }
     public IReadOnlyCollection<string> Keywords => _keywords;

@@ -78,8 +78,8 @@ public sealed class TurnFlow
                 new StartPhaseHandler(),
                 new DelegatePhaseHandler(TurnPhase.Ambush, CreateAmbushActions),
                 new DelegatePhaseHandler(TurnPhase.Action, actions.Generate),
-                new DelegatePhaseHandler(TurnPhase.Discard, EmptyActions),
-                new DelegatePhaseHandler(TurnPhase.End, EmptyActions),
+                new DiscardPhaseHandler(),
+                new EndPhaseHandler(),
                 new DelegatePhaseHandler(TurnPhase.Over, EmptyActions),
             },
             new[] { TurnPhase.Start, TurnPhase.Ambush, TurnPhase.Action, TurnPhase.Discard, TurnPhase.End });

@@ -122,6 +122,18 @@ public sealed partial class EffectRuntime
 
     private bool TryDeclareWinner(int playerIndex, string reasonKey, EffectContext context)
     {
+        if (State.CastleEnabled)
+        {
+            foreach (var player in State.Players)
+            {
+                ForceLeaderOut(player, context);
+                if (IsGameOver)
+                {
+                    return State.WinnerPlayerIndex == playerIndex;
+                }
+            }
+        }
+
         if (State.Players[0].Leader is null || State.Players[1].Leader is null)
         {
             EmitSkipped(context, EffectNames.WinGame, "rule.leader_gate");

@@ -106,6 +106,7 @@ namespace DominionWars.Data
             string? leaderWinCondition = null;
             string? leaderWinText = null;
             var leaderDurability = 0;
+            var leaderWinParam = 0;
             if (element.TryGetProperty("leaderDef", out var leaderDef))
             {
                 if (leaderDef.ValueKind != JsonValueKind.Object) throw Invalid(source, "leaderDef must be an object");
@@ -128,6 +129,13 @@ namespace DominionWars.Data
                 ValidateLeaderDef(leaderDef, source);
                 grantLife = OptionalInt(leaderDef, "grantLife", 0, 1, 99, source);
                 leaderDurability = OptionalInt(leaderDef, "durability", 0, 1, 999, source);
+                leaderWinParam = OptionalInt(
+                    leaderDef,
+                    leaderDef.TryGetProperty("winParam", out _) ? "winParam" : "winAmount",
+                    0,
+                    0,
+                    999,
+                    source);
                 leaderEnterEffects = MapEffects(leaderDef, "enterEffects", source);
                 leaderPunishEffects = MapEffects(leaderDef, "punishEffects", source);
             }
@@ -161,7 +169,8 @@ namespace DominionWars.Data
                 leaderPunishEffects: leaderPunishEffects,
                 leaderWinCondition: leaderWinCondition,
                 leaderWinText: leaderWinText,
-                leaderDurability: leaderDurability);
+                leaderDurability: leaderDurability,
+                leaderWinParam: leaderWinParam);
         }
 
         private static void ValidateLeaderDef(JsonElement value, string source)
