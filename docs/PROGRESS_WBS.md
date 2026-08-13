@@ -124,7 +124,7 @@
 | ID | 未完成交付 | 负责人 | 依赖/验收证据 | 状态 | Codex自动执行 |
 |---|---|---|---|---|---|
 | 10.1.1 | 将 WBS、IMPLEMENTATION_TODO、CURRENT_IMPLEMENTATION_STATUS 的过期状态统一 | PL + Codex | 三份文档数字一致，保留历史证据 | ready | 是（仅文档核对） |
-| 10.1.2 | 建立 91 卡 `id → artId → asset path` 映射清单 | Codex | 缺失/重复/越界 ID 检查全通过 | ready | 是 |
+| 10.1.2 | 建立 91 卡 `id → artId → asset path` 映射清单 | Codex | `scripts/report-card-art-map.ps1`；91 卡、7 个 leader 记录、4 个现有 fallback、87 个缺图、0 个 artId | done (`019cf1e`) | 是 |
 | 10.1.3 | 为现有卡牌补齐正式 `artId` 字段或记录迁移方案 | PL + 人类 | schema、loader、旧 Java 数据一致 | human_required | 否 |
 | 10.1.4 | 4 套牌组加载、数量、阵营和领袖约束的发布前检查 | Codex + DeepSeek | `scripts/validate-decks.ps1`；4 套、91 卡；`DECK_VALIDATION pass=4 fail=0` | done (`a92b151`) | 是 |
 | 10.1.5 | 确认 C# 与 Java 的字段/效果/目标差异清单 | Codex + DeepSeek | 可逐项追踪的 alignment 报告 | ready | 是 |
