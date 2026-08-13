@@ -3,6 +3,7 @@
     "com.dominionwars.engine": "file:../../../src/Engine",
     "com.dominionwars.data": "file:../../../src/Data",
     "com.dominionwars.adapters": "file:../../../src/Adapters",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.test-framework": "1.4.5",
     "com.unity.multiplayer.center": "1.0.1",
     "com.unity.modules.accessibility": "1.0.0",

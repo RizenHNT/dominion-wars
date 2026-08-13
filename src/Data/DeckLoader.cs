@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace DominionWars.Data
 {
@@ -33,25 +34,30 @@ namespace DominionWars.Data
             if (!File.Exists(file)) throw new FileNotFoundException("Deck JSON file is missing.", file);
             try
             {
-                using (var document = JsonDocument.Parse(File.ReadAllText(file)))
-                {
-                    var root = document.RootElement;
-                    if (root.ValueKind != JsonValueKind.Object) throw Invalid(file, "root must be an object");
-                    var known = new HashSet<string>(new[] { "name", "faction", "leader", "cards" }, StringComparer.Ordinal);
-                    if (warning != null) foreach (var property in root.EnumerateObject()) if (!known.Contains(property.Name)) warning(file + ": unknown field " + property.Name);
-                    var name = Required(root, "name", file);
-                    var faction = Required(root, "faction", file);
-                    var leader = Required(root, "leader", file);
-                    if (!Factions.Contains(faction)) throw Invalid(file, "invalid faction");
-                    if (!root.TryGetProperty("cards", out var cardObject) || cardObject.ValueKind != JsonValueKind.Object || cardObject.EnumerateObject().Any(property => !property.Value.TryGetInt32(out var count) || count < 1)) throw Invalid(file, "cards must map ids to positive counts");
-                    var cards = cardObject.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.GetInt32(), StringComparer.Ordinal);
-                    return new DeckDefinition(name, faction, leader, cards);
-                }
+                var root = JToken.Parse(File.ReadAllText(file));
+                if (root.Type != JTokenType.Object) throw Invalid(file, "root must be an object");
+                var known = new HashSet<string>(new[] { "name", "faction", "leader", "cards" }, StringComparer.Ordinal);
+                if (warning != null) foreach (var property in root.Children<JProperty>()) if (!known.Contains(property.Name)) warning(file + ": unknown field " + property.Name);
+                var name = Required(root, "name", file);
+                var faction = Required(root, "faction", file);
+                var leader = Required(root, "leader", file);
+                if (!Factions.Contains(faction)) throw Invalid(file, "invalid faction");
+                if (!TryGetProperty(root, "cards", out var cardObject) || cardObject.Type != JTokenType.Object || cardObject.Children<JProperty>().Any(property => !TryReadInt64(property.Value, out var count) || count < 1 || count > int.MaxValue)) throw Invalid(file, "cards must map ids to positive counts");
+                var cards = cardObject.Children<JProperty>().ToDictionary(property => property.Name, property => property.Value.Value<int>(), StringComparer.Ordinal);
+                return new DeckDefinition(name, faction, leader, cards);
             }
             catch (JsonException exception) { throw Invalid(file, "invalid JSON", exception); }
         }
 
-        private static string Required(JsonElement root, string property, string file) { if (!root.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString())) throw Invalid(file, property + " is required"); return value.GetString()!; }
+        private static bool TryGetProperty(JToken parent, string property, out JToken value) { value = parent.Type == JTokenType.Object ? parent[property]! : null!; return value != null; }
+        private static bool TryReadInt64(JToken value, out long number)
+        {
+            number = 0;
+            if (value.Type != JTokenType.Integer) return false;
+            try { number = value.Value<long>(); return true; }
+            catch (Exception exception) when (exception is FormatException || exception is OverflowException || exception is InvalidCastException) { return false; }
+        }
+        private static string Required(JToken root, string property, string file) { if (!TryGetProperty(root, property, out var value) || value.Type != JTokenType.String || string.IsNullOrWhiteSpace(value.Value<string>())) throw Invalid(file, property + " is required"); return value.Value<string>()!; }
         private static InvalidDataException Invalid(string file, string message, Exception? inner = null) { return new InvalidDataException(file + ": " + message, inner); }
     }
 }

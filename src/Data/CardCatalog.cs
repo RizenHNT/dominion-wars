@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using DominionWars.Engine.Effects;
 using DominionWars.Engine.Model;
 
@@ -39,14 +40,12 @@ namespace DominionWars.Data
             var cards = new Dictionary<string, CardDefinition>(StringComparer.Ordinal);
             foreach (var file in files)
             {
-                using (var document = ParseFile(file))
+                var document = ParseFile(file);
+                if (document.Type != JTokenType.Array) throw Invalid(file, "root must be an array");
+                foreach (var element in document.Children())
                 {
-                    if (document.RootElement.ValueKind != JsonValueKind.Array) throw Invalid(file, "root must be an array");
-                    foreach (var element in document.RootElement.EnumerateArray())
-                    {
-                        var card = MapCard(element, file, warning);
-                        if (!cards.TryAdd(card.Id, card)) throw Invalid(file, "duplicate card id: " + card.Id);
-                    }
+                    var card = MapCard(element, file, warning);
+                    if (!cards.TryAdd(card.Id, card)) throw Invalid(file, "duplicate card id: " + card.Id);
                 }
             }
             return new CardCatalog(cards);
@@ -55,19 +54,19 @@ namespace DominionWars.Data
         public static CardDefinition LoadFile(string file, Action<string>? warning = null)
         {
             if (file is null) throw new ArgumentNullException(nameof(file));
-            using (var document = ParseFile(file)) return MapCard(document.RootElement, file, warning);
+            return MapCard(ParseFile(file), file, warning);
         }
 
-        private static JsonDocument ParseFile(string file)
+        private static JToken ParseFile(string file)
         {
             if (!File.Exists(file)) throw new FileNotFoundException("Card JSON file is missing.", file);
-            try { return JsonDocument.Parse(File.ReadAllText(file)); }
+            try { return JToken.Parse(File.ReadAllText(file)); }
             catch (JsonException exception) { throw Invalid(file, "invalid JSON", exception); }
         }
 
-        private static CardDefinition MapCard(JsonElement element, string source, Action<string>? warning)
+        private static CardDefinition MapCard(JToken element, string source, Action<string>? warning)
         {
-            if (element.ValueKind != JsonValueKind.Object) throw Invalid(source, "card must be an object");
+            if (element.Type != JTokenType.Object) throw Invalid(source, "card must be an object");
             WarnUnknown(element, KnownCardFields, source, warning);
             var id = RequiredString(element, "id", source, 3, 64);
             var name = RequiredString(element, "name", source, 1, 32);
@@ -77,9 +76,10 @@ namespace DominionWars.Data
             if (!CardTypes.Contains(type)) throw Invalid(source, "invalid card type: " + type);
             var text = RequiredString(element, "text", source, 0, 256);
             var isMinion = type == "MINION";
-            if (isMinion && (!element.TryGetProperty("attack", out _) || !element.TryGetProperty("health", out _))) throw Invalid(source, "MINION cards require attack and health");
-            if (type == "PUNISH" && (!element.TryGetProperty("punish", out var punishValue) || !punishValue.TryGetInt32(out var punishAmount) || punishAmount < 1)) throw Invalid(source, "PUNISH cards require punish >= 1");
-            if (element.TryGetProperty("leader", out var leaderValue) && (leaderValue.ValueKind != JsonValueKind.True)) throw Invalid(source, "leader must be true when present");
+            if (isMinion && (!TryGetProperty(element, "attack", out _) || !TryGetProperty(element, "health", out _))) throw Invalid(source, "MINION cards require attack and health");
+            if (type == "PUNISH" && (!TryGetProperty(element, "punish", out var punishValue) || !TryReadInt64(punishValue, out var punishAmount) || punishAmount < 1)) throw Invalid(source, "PUNISH cards require punish >= 1");
+            if (TryGetProperty(element, "leader", out var leaderValue) &&
+                (leaderValue.Type != JTokenType.Boolean || !leaderValue.Value<bool>())) throw Invalid(source, "leader must be true when present");
             var isLeader = OptionalBool(element, "leader", false, source);
             var attack = OptionalInt(element, "attack", 0, 0, 99, source);
             var health = OptionalInt(element, "health", isMinion ? 1 : 1, 1, 99, source);
@@ -107,19 +107,19 @@ namespace DominionWars.Data
             string? leaderWinText = null;
             var leaderDurability = 0;
             var leaderWinParam = 0;
-            if (element.TryGetProperty("leaderDef", out var leaderDef))
+            if (TryGetProperty(element, "leaderDef", out var leaderDef))
             {
-                if (leaderDef.ValueKind != JsonValueKind.Object) throw Invalid(source, "leaderDef must be an object");
+                if (leaderDef.Type != JTokenType.Object) throw Invalid(source, "leaderDef must be an object");
                 WarnUnknown(leaderDef, KnownLeaderFields, source + ": leaderDef", warning);
-                if (!leaderDef.TryGetProperty("winCondition", out var winCondition)) throw Invalid(source, "leaderDef.winCondition is required");
+                if (!TryGetProperty(leaderDef, "winCondition", out var winCondition)) throw Invalid(source, "leaderDef.winCondition is required");
                 var win = ReadString(winCondition, source, "leaderDef.winCondition");
                 if (!WinConditions.Contains(win)) throw Invalid(source, "invalid win condition: " + win);
                 leaderWinCondition = win;
                 leaderWinText = OptionalString(leaderDef, "winText", source, 64);
-                if (leaderDef.TryGetProperty("vulnerabilities", out var vulnerabilityArray))
+                if (TryGetProperty(leaderDef, "vulnerabilities", out var vulnerabilityArray))
                 {
-                    if (vulnerabilityArray.ValueKind != JsonValueKind.Array) throw Invalid(source, "leaderDef.vulnerabilities must be an array");
-                    foreach (var item in vulnerabilityArray.EnumerateArray())
+                    if (vulnerabilityArray.Type != JTokenType.Array) throw Invalid(source, "leaderDef.vulnerabilities must be an array");
+                    foreach (var item in vulnerabilityArray.Children())
                     {
                         var value = ReadString(item, source, "leaderDef.vulnerabilities");
                         if (!EffectActions.Contains(value)) throw Invalid(source, "invalid vulnerability action: " + value);
@@ -131,7 +131,7 @@ namespace DominionWars.Data
                 leaderDurability = OptionalInt(leaderDef, "durability", 0, 1, 999, source);
                 leaderWinParam = OptionalInt(
                     leaderDef,
-                    leaderDef.TryGetProperty("winParam", out _) ? "winParam" : "winAmount",
+                    TryGetProperty(leaderDef, "winParam", out _) ? "winParam" : "winAmount",
                     0,
                     0,
                     999,
@@ -173,68 +173,76 @@ namespace DominionWars.Data
                 leaderWinParam: leaderWinParam);
         }
 
-        private static void ValidateLeaderDef(JsonElement value, string source)
+        private static void ValidateLeaderDef(JToken value, string source)
         {
-            foreach (var property in value.EnumerateObject())
+            foreach (var property in value.Children<JProperty>())
             {
                 if (property.Name == "vulnerabilities" || property.Name == "winCondition" || property.Name == "winText") continue;
                 if (property.Name == "winAmount" || property.Name == "winParam" || property.Name == "durability" || property.Name == "grantLife") OptionalInt(value, property.Name, 0, 0, 999, source);
                 else if (property.Name == "persistentEffects") ValidateEffects(value, property.Name, source, PersistentActions);
                 else if (property.Name == "enterEffects" || property.Name == "punishEffects") ValidateEffects(value, property.Name, source);
             }
-            if (value.TryGetProperty("winText", out var winText) && (winText.ValueKind != JsonValueKind.String || winText.GetString()!.Length > 64)) throw Invalid(source, "leaderDef.winText is invalid");
+            if (TryGetProperty(value, "winText", out var winText) && (winText.Type != JTokenType.String || winText.Value<string>()!.Length > 64)) throw Invalid(source, "leaderDef.winText is invalid");
         }
 
-        private static void ValidateEffects(JsonElement parent, string property, string source, HashSet<string>? actionSet = null)
+        private static void ValidateEffects(JToken parent, string property, string source, HashSet<string>? actionSet = null)
         {
-            if (!parent.TryGetProperty(property, out var array)) return;
-            if (array.ValueKind != JsonValueKind.Array) throw Invalid(source, property + " must be an array");
-            foreach (var effect in array.EnumerateArray())
+            if (!TryGetProperty(parent, property, out var array)) return;
+            if (array.Type != JTokenType.Array) throw Invalid(source, property + " must be an array");
+            foreach (var effect in array.Children())
             {
-                if (effect.ValueKind != JsonValueKind.Object || !effect.TryGetProperty("action", out var action)) throw Invalid(source, property + " entries require action");
+                if (effect.Type != JTokenType.Object || !TryGetProperty(effect, "action", out var action)) throw Invalid(source, property + " entries require action");
                 var actionValue = ReadString(action, source, property + ".action");
                 if (!(actionSet ?? EffectActions).Contains(actionValue)) throw Invalid(source, "invalid effect action: " + actionValue);
-                if (effect.TryGetProperty("target", out var target) && !EffectTargets.Contains(ReadString(target, source, property + ".target"))) throw Invalid(source, "invalid effect target");
-                if (effect.TryGetProperty("amount", out var amount)) ValidateInt(amount, source, property + ".amount", -99, 99);
-                if (effect.TryGetProperty("param", out var param) && (param.ValueKind != JsonValueKind.String || param.GetString()!.Length > 64)) throw Invalid(source, "invalid effect param");
+                if (TryGetProperty(effect, "target", out var target) && !EffectTargets.Contains(ReadString(target, source, property + ".target"))) throw Invalid(source, "invalid effect target");
+                if (TryGetProperty(effect, "amount", out var amount)) ValidateInt(amount, source, property + ".amount", -99, 99);
+                if (TryGetProperty(effect, "param", out var param) && (param.Type != JTokenType.String || param.Value<string>()!.Length > 64)) throw Invalid(source, "invalid effect param");
             }
         }
 
-        private static List<EffectSpec> MapEffects(JsonElement parent, string property, string source)
+        private static List<EffectSpec> MapEffects(JToken parent, string property, string source)
         {
             ValidateEffects(parent, property, source);
             var result = new List<EffectSpec>();
-            if (!parent.TryGetProperty(property, out var array)) return result;
-            foreach (var effect in array.EnumerateArray())
+            if (!TryGetProperty(parent, property, out var array)) return result;
+            foreach (var effect in array.Children())
             {
                 result.Add(new EffectSpec(
                     RequiredString(effect, "action", source, 1, 64),
                     OptionalString(effect, "target", source, 64),
                     OptionalInt(effect, "amount", 0, -99, 99, source),
                     OptionalString(effect, "param", source, 64),
-                    effect.TryGetProperty("kingSlayer", out _) ? OptionalBool(effect, "kingSlayer", false, source) : (bool?)null,
+                    TryGetProperty(effect, "kingSlayer", out _) ? OptionalBool(effect, "kingSlayer", false, source) : (bool?)null,
                     OptionalString(effect, "condition", source, 64)));
             }
             return result;
         }
 
-        private static List<string> ValidateArrayStrings(JsonElement parent, string property, string source, int maxItems, int minLength, int maxLength, HashSet<string>? allowed)
+        private static List<string> ValidateArrayStrings(JToken parent, string property, string source, int maxItems, int minLength, int maxLength, HashSet<string>? allowed)
         {
             var values = new List<string>();
-            if (!parent.TryGetProperty(property, out var array)) return values;
-            if (array.ValueKind != JsonValueKind.Array || array.GetArrayLength() > maxItems) throw Invalid(source, property + " is invalid");
-            foreach (var item in array.EnumerateArray()) { var value = ReadString(item, source, property); if (value.Length < minLength || value.Length > maxLength || (allowed != null && !allowed.Contains(value))) throw Invalid(source, "invalid " + property + " value"); values.Add(value); }
+            if (!TryGetProperty(parent, property, out var array)) return values;
+            if (array.Type != JTokenType.Array || array.Count() > maxItems) throw Invalid(source, property + " is invalid");
+            foreach (var item in array.Children()) { var value = ReadString(item, source, property); if (value.Length < minLength || value.Length > maxLength || (allowed != null && !allowed.Contains(value))) throw Invalid(source, "invalid " + property + " value"); values.Add(value); }
             return values;
         }
 
-        private static void WarnUnknown(JsonElement element, HashSet<string> known, string source, Action<string>? warning) { if (warning == null) return; foreach (var property in element.EnumerateObject()) if (!known.Contains(property.Name)) warning(source + ": unknown field " + property.Name); }
-        private static void ValidateEnum(JsonElement parent, string property, HashSet<string> allowed, string source) { if (parent.TryGetProperty(property, out var value) && !allowed.Contains(ReadString(value, source, property))) throw Invalid(source, "invalid " + property); }
-        private static string RequiredString(JsonElement parent, string property, string source, int min, int max) { if (!parent.TryGetProperty(property, out var value)) throw Invalid(source, property + " is required"); var result = ReadString(value, source, property); if (result.Length < min || result.Length > max) throw Invalid(source, property + " length is invalid"); return result; }
-        private static string? OptionalString(JsonElement parent, string property, string source, int max) { if (!parent.TryGetProperty(property, out var value)) return null; var result = ReadString(value, source, property); if (result.Length > max) throw Invalid(source, property + " is too long"); return result; }
-        private static bool OptionalBool(JsonElement parent, string property, bool fallback, string source) { if (!parent.TryGetProperty(property, out var value)) return fallback; if (value.ValueKind != JsonValueKind.True && value.ValueKind != JsonValueKind.False) throw Invalid(source, property + " must be boolean"); return value.GetBoolean(); }
-        private static int OptionalInt(JsonElement parent, string property, int fallback, int min, int max, string source) { if (!parent.TryGetProperty(property, out var value)) return fallback; ValidateInt(value, source, property, min, max); return value.GetInt32(); }
-        private static void ValidateInt(JsonElement value, string source, string property, int min, int max) { if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var number) || number < min || number > max) throw Invalid(source, property + " is outside its allowed range"); }
-        private static string ReadString(JsonElement value, string source, string property) { if (value.ValueKind != JsonValueKind.String || value.GetString() == null) throw Invalid(source, property + " must be a string"); return value.GetString()!; }
+        private static void WarnUnknown(JToken element, HashSet<string> known, string source, Action<string>? warning) { if (warning == null) return; foreach (var property in element.Children<JProperty>()) if (!known.Contains(property.Name)) warning(source + ": unknown field " + property.Name); }
+        private static bool TryGetProperty(JToken parent, string property, out JToken value) { value = parent.Type == JTokenType.Object ? parent[property]! : null!; return value != null; }
+        private static void ValidateEnum(JToken parent, string property, HashSet<string> allowed, string source) { if (TryGetProperty(parent, property, out var value) && !allowed.Contains(ReadString(value, source, property))) throw Invalid(source, "invalid " + property); }
+        private static string RequiredString(JToken parent, string property, string source, int min, int max) { if (!TryGetProperty(parent, property, out var value)) throw Invalid(source, property + " is required"); var result = ReadString(value, source, property); if (result.Length < min || result.Length > max) throw Invalid(source, property + " length is invalid"); return result; }
+        private static string? OptionalString(JToken parent, string property, string source, int max) { if (!TryGetProperty(parent, property, out var value)) return null; var result = ReadString(value, source, property); if (result.Length > max) throw Invalid(source, property + " is too long"); return result; }
+        private static bool OptionalBool(JToken parent, string property, bool fallback, string source) { if (!TryGetProperty(parent, property, out var value)) return fallback; if (value.Type != JTokenType.Boolean) throw Invalid(source, property + " must be boolean"); return value.Value<bool>(); }
+        private static int OptionalInt(JToken parent, string property, int fallback, int min, int max, string source) { if (!TryGetProperty(parent, property, out var value)) return fallback; ValidateInt(value, source, property, min, max); return value.Value<int>(); }
+        private static void ValidateInt(JToken value, string source, string property, int min, int max) { if (!TryReadInt64(value, out var number) || number < min || number > max) throw Invalid(source, property + " is outside its allowed range"); }
+        private static bool TryReadInt64(JToken value, out long number)
+        {
+            number = 0;
+            if (value.Type != JTokenType.Integer) return false;
+            try { number = value.Value<long>(); return true; }
+            catch (Exception exception) when (exception is FormatException || exception is OverflowException || exception is InvalidCastException) { return false; }
+        }
+        private static string ReadString(JToken value, string source, string property) { if (value.Type != JTokenType.String || value.Value<string>() == null) throw Invalid(source, property + " must be a string"); return value.Value<string>()!; }
         private static InvalidDataException Invalid(string source, string message, Exception? inner = null) { return new InvalidDataException(source + ": " + message, inner); }
     }
 }
