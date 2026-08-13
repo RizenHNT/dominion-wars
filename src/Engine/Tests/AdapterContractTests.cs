@@ -121,5 +121,29 @@ public sealed class AdapterContractTests
         });
         Assert.That(mapped[0].ActionId, Is.EqualTo("public_action"));
     }
+
+    [Test]
+    public void NullLegalActionEntryFailsClosed()
+    {
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ToLegalActionDtos(
+            new DominionWars.Engine.LegalAction[] { null! }));
+    }
+
+    [TestCase(-1)]
+    [TestCase(2)]
+    public void SnapshotWithInvalidCurrentPlayerIsRejected(int player)
+    {
+        var snapshot = EngineProjectionAdapter.ToSnapshot(new GameState(), "invalid_player", 0, "START");
+        snapshot.CurrentPlayer = player;
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
+
+    [Test]
+    public void SnapshotWithUnknownPhaseIsRejected()
+    {
+        var snapshot = EngineProjectionAdapter.ToSnapshot(new GameState(), "invalid_phase", 0, "START");
+        snapshot.Phase = "UNKNOWN";
+        Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
+    }
 }
 }
