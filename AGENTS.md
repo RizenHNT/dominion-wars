@@ -73,7 +73,14 @@ The owner grants standing approval for routine model calls and agent-to-agent ha
 
 Use `docs/AI_MAILBOX.md` for short asynchronous notices and action tracking. Formal plans, implementation handoffs, and test reports still follow `docs/AI_WORKFLOW.md`.
 
-For an already approved daytime goal, `scripts/auto-relay/start-relay.ps1` is the handoff entry. It invokes the real local MiniMax, Codex, test, and DeepSeek processes through the audited controller; a VS Code custom-agent mention or GitHub comment alone is never proof that another agent started. Relay transport does not expand any role's write authority or remove the existing human gates.
+For an already approved daytime goal, `scripts/auto-relay/start-relay.ps1` is the handoff entry. It invokes the real DeepSeek V4 Flash PL, Codex, allowlisted tests, and DeepSeek V4 Pro QA through the audited controller; a VS Code custom-agent mention or GitHub comment alone is never proof that another agent started. Relay transport does not expand any role's write authority or remove the existing human gates.
+
+## Mobile / Remote Codex trigger
+
+- A mobile message received through a supported ChatGPT Remote connection to this desktop Codex session may start automation only when the human explicitly asks to execute the already approved `Status: READY` goal (for example, “执行今天的 READY 目标”).
+- On that explicit command, Codex must first run `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ValidateOnly`; only if it passes may Codex run the same entry with `-ApprovedByHuman`.
+- The relay calls DeepSeek V4 Flash PL and DeepSeek V4 Pro QA directly through the audited controller. Do not try to wake an Agents Window with `@` mentions or `code chat`.
+- A request to inspect status, probe providers, or explain the workflow must not start a live development run. If the Remote host is offline, signed out, asleep, or unavailable, report that instead of claiming execution.
 
 The owner authorizes routine Codex-to-PL handoffs inside an approved goal without repeated confirmation, but transport must prove the actual recipient. `code chat` targets the ordinary Chat view and must never be described as delivery to the Agents Window or to MiniMax PL. `scripts/auto-relay/notify-vscode-pl.ps1` is disabled until VS Code exposes a supported route that can select and verify the Agents Window recipient. Use the audited headless relay for unattended work; do not claim an interactive handoff succeeded merely because a window or chat opened.
 

@@ -25,6 +25,16 @@ After that command starts, no chat-window handoff is required. The computer must
 
 The entry point refuses to start when the relay is disabled, the private DeepSeek credential is missing or unsafe, the goal is not `READY`, or the isolated night-shift branch does not contain current `main`.
 
+## Mobile / Remote use
+
+From the ChatGPT mobile app, open the supported Remote connection to the desktop Codex session and explicitly ask Codex to execute the already approved `READY` goal. Codex must first run the no-model validation command:
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ValidateOnly
+```
+
+If that passes, Codex runs the live entry with `-ApprovedByHuman`. This single relay invokes DeepSeek V4 Flash PL, Codex, tests, DeepSeek V4 Pro QA, bounded repairs, and PL final review. A status question or provider probe never starts development, and a mobile message outside a connected Remote Codex session cannot access this local repository.
+
 ## Status and stop switch
 
 ```powershell
