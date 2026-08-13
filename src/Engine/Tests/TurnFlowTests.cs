@@ -42,6 +42,72 @@ public sealed class TurnFlowTests
     }
 
     [Test]
+    public void StartPhaseRefreshesBoardAndDrawsOneCard()
+    {
+        var state = new GameState();
+        var definition = new CardDefinition("unit", "Unit", 2, 3, isMinion: true);
+        var field = new CardInstance(1, 0, definition) { AttacksUsed = 1, SummonedThisTurn = true };
+        state.GetPlayer(0).Field.Add(field);
+        state.GetPlayer(0).Deck.Add(new CardInstance(2, 0, definition));
+
+        TurnFlow.CreateDefault().Advance(state, 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(field.AttacksUsed, Is.Zero);
+            Assert.That(field.SummonedThisTurn, Is.False);
+            Assert.That(state.GetPlayer(0).Deck, Is.Empty);
+            Assert.That(state.GetPlayer(0).Hand.Select(card => card.InstanceId), Is.EqualTo(new[] { 2L }));
+            Assert.That(state.Turn.PhaseId, Is.EqualTo(TurnPhase.Ambush));
+            Assert.That(state.Events.Items.Any(item => item.EventType == "TURN_STARTED"), Is.True);
+            Assert.That(state.Events.Items.Any(item => item.EventType == "CARDS_DRAWN"), Is.True);
+        });
+    }
+
+    [Test]
+    public void StartPhaseReshufflesGraveyardBeforeDrawing()
+    {
+        var state = new GameState();
+        var definition = new CardDefinition("unit", "Unit", 2, 3, isMinion: true);
+        state.GetPlayer(0).Graveyard.Add(new CardInstance(3, 0, definition) { Health = 1, AttacksUsed = 1 });
+
+        TurnFlow.CreateDefault().Advance(state, 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.GetPlayer(0).Hand.Single().InstanceId, Is.EqualTo(3));
+            Assert.That(state.GetPlayer(0).ReshuffleCount, Is.EqualTo(1));
+            Assert.That(state.GetPlayer(1).CycleWinCount, Is.EqualTo(1));
+            Assert.That(state.Events.Items.Any(item => item.EventType == "DECK_CYCLED"), Is.True);
+        });
+    }
+
+    [Test]
+    public void SecondPlayerFirstTurnDrawsTwoCards()
+    {
+        var state = new GameState();
+        var definition = new CardDefinition("unit", "Unit", 2, 3, isMinion: true);
+        state.GetPlayer(1).Deck.Add(new CardInstance(4, 1, definition));
+        state.GetPlayer(1).Deck.Add(new CardInstance(5, 1, definition));
+        var flow = TurnFlow.CreateDefault();
+
+        flow.Advance(state, 0);
+        flow.Advance(state, 0);
+        flow.Advance(state, 0);
+        flow.Advance(state, 0);
+        flow.Advance(state, 0);
+        flow.Advance(state, 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.CurrentPlayerIndex, Is.EqualTo(1));
+            Assert.That(state.Turn.Number, Is.EqualTo(2));
+            Assert.That(state.GetPlayer(1).Hand, Has.Count.EqualTo(2));
+            Assert.That(state.Turn.PhaseId, Is.EqualTo(TurnPhase.Ambush));
+        });
+    }
+
+    [Test]
     public void AmbushSkipAndActionEndTurnUsePhaseOnlyExecutionPath()
     {
         var state = new GameState();
@@ -166,7 +232,10 @@ public sealed class TurnFlowTests
         flow.Advance(state, 0);
 
         var snapshot = EngineProjectionAdapter.ToSnapshot(state, "match_turn", flow);
-        var phaseEvent = EngineProjectionAdapter.ToEvent(state.Events.Items.Single(), state.Turn.Number, state.Turn.PhaseId);
+        var phaseEvent = EngineProjectionAdapter.ToEvent(
+            state.Events.Items.Single(item => item.EventType == "PHASE_CHANGED"),
+            state.Turn.Number,
+            state.Turn.PhaseId);
         Assert.Multiple(() =>
         {
             Assert.That(snapshot.Turn, Is.EqualTo(1));

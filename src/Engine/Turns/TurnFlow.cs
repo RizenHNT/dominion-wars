@@ -75,7 +75,7 @@ public sealed class TurnFlow
         return new TurnFlow(
             new IPhaseHandler[]
             {
-                new DelegatePhaseHandler(TurnPhase.Start, EmptyActions),
+                new StartPhaseHandler(),
                 new DelegatePhaseHandler(TurnPhase.Ambush, CreateAmbushActions),
                 new DelegatePhaseHandler(TurnPhase.Action, actions.Generate),
                 new DelegatePhaseHandler(TurnPhase.Discard, EmptyActions),
@@ -113,6 +113,16 @@ public sealed class TurnFlow
         }
 
         var currentIndex = IndexOfRoutePhase(state.Turn.PhaseId);
+        if (GetHandler(state.Turn.PhaseId) is IPhaseLifecycleHandler lifecycle)
+        {
+            lifecycle.BeforeAdvance(state);
+            if (state.WinnerPlayerIndex.HasValue)
+            {
+                Transition(state, TurnPhase.Over, "game_over");
+                return;
+            }
+        }
+
         if (currentIndex + 1 < _route.Count)
         {
             Transition(state, _route[currentIndex + 1], "advance");

@@ -11,4 +11,10 @@ public interface IPhaseHandler
 
     IReadOnlyList<LegalAction> GetLegalActions(GameState state, int playerIndex);
 }
+
+/// <summary>Optional lifecycle hook used by locked, engine-resolved phases.</summary>
+public interface IPhaseLifecycleHandler
+{
+    void BeforeAdvance(GameState state);
+}
 }

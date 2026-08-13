@@ -7,6 +7,26 @@ namespace DominionWars.Engine.Effects
 
 public sealed partial class EffectRuntime
 {
+    internal void DrawForTurn(int playerIndex, int amount, long rootEventId)
+    {
+        if (playerIndex is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(playerIndex));
+        }
+
+        if (amount < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        }
+
+        if (!State.Events.IsRootEvent(rootEventId))
+        {
+            throw new InvalidOperationException("Turn draw needs an existing root event.");
+        }
+
+        DrawCards(State.GetPlayer(playerIndex), amount, new EffectContext(playerIndex, rootEventId));
+    }
+
     public void Draw(EffectSpec spec, EffectContext context)
     {
         DrawCards(State.GetPlayer(context.SourcePlayerIndex), Math.Max(1, spec.Amount), context);
