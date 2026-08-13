@@ -104,6 +104,7 @@ public sealed partial class EffectRuntime
         {
             state.WinnerPlayerIndex = playerIndex;
             state.WinReason = reasonKey;
+            state.Turn.SetPhase("OVER");
         });
         Emit("GAME_WON", context, Data("player", playerIndex, "reasonKey", reasonKey));
     }

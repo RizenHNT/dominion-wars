@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using DominionWars.Engine.Events;
 using DominionWars.Engine.Model;
+using DominionWars.Engine.Turns;
 
 namespace DominionWars.Adapters
 {
@@ -13,6 +14,8 @@ public static class EngineProjectionAdapter
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["CARD_PLAYED"] = "CARD_PLAYED",
+            ["PHASE_CHANGED"] = "PHASE_CHANGED",
+            ["TURN_CHANGED"] = "TURN_CHANGED",
             ["ATTACK_DECLARED"] = "ATTACK_DECLARED",
             ["AMBUSH_TRIGGERED"] = "AMBUSH_TRIGGERED",
             ["PUNISH_TRIGGERED"] = "PUNISH_TRIGGERED",
@@ -99,6 +102,30 @@ public static class EngineProjectionAdapter
 
         ValidateSnapshot(snapshot);
         return snapshot;
+    }
+
+    /// <summary>Projects the engine-owned turn metadata instead of accepting a caller-supplied phase.</summary>
+    public static SnapshotDto ToSnapshot(
+        GameState state,
+        string matchId,
+        TurnFlow turnFlow)
+    {
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
+
+        if (turnFlow is null)
+        {
+            throw new ArgumentNullException(nameof(turnFlow));
+        }
+
+        return ToSnapshot(
+            state,
+            matchId,
+            state.Turn.Number,
+            state.Turn.PhaseId,
+            turnFlow.GetLegalActions(state, state.CurrentPlayerIndex));
     }
 
     public static SnapshotDto ToSnapshot(

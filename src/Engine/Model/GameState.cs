@@ -73,6 +73,7 @@ public sealed class GameState
         Random = random ?? new Xoshiro256StarStar(1);
         Commands = commandBuffer ?? new LocalCommandBuffer();
         Events = eventLog ?? new EventLog();
+        Turn = new TurnState();
         CastleEnabled = false;
         _castleHealth = 75;
 
@@ -96,6 +97,7 @@ public sealed class GameState
     public ICommandBuffer Commands { get; }
     public EventLog Events { get; }
     public EventLog EventLog => Events;
+    public TurnState Turn { get; }
     public IReadOnlyDictionary<string, CardDefinition> CardLibrary => _readOnlyCardLibrary;
 
     public int CurrentPlayerIndex
