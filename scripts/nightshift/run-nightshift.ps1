@@ -1021,7 +1021,7 @@ function Get-TestSandboxArguments {
 }
 
 function Get-SandboxCodexConfigText {
-    param([Parameter(Mandatory)][string[]]$AllowedPaths)
+    param([Parameter(Mandatory)][AllowEmptyCollection()][string[]]$AllowedPaths)
     $developerWorkspaceRules = New-Object System.Collections.Generic.List[string]
     $developerWorkspaceRules.Add('"." = "read"')
     $developerWorkspaceRules.Add('"nightshift-agent-tmp" = "write"')
@@ -1047,7 +1047,7 @@ network = { enabled = false }
 }
 
 function Get-SandboxCodexEnvironment {
-    param([Parameter(Mandatory)][string[]]$AllowedPaths)
+    param([Parameter(Mandatory)][AllowEmptyCollection()][string[]]$AllowedPaths)
     $sandboxCodexHome = Join-Path $stateRoot 'codex-sandbox-home'
     $trustedRoot = if ($Simulation) { $repoRoot } else { $env:LOCALAPPDATA }
     Initialize-SafeDirectory -TrustedRoot $trustedRoot -Path $sandboxCodexHome
@@ -1381,6 +1381,7 @@ if ($SafetySelfTest) {
     $developerControlArgs = @(Get-DeveloperSandboxArguments -AllowedPaths @('docs/FILE_INDEX.md') -ScratchOutput (Join-Path $agentTempRoot 'self-test.txt') -Prompt 'self-test')
     $developerControlText = $developerControlArgs -join ' '
     $developerConfigText = Get-SandboxCodexConfigText -AllowedPaths @('docs/FILE_INDEX.md')
+    $testConfigText = Get-SandboxCodexConfigText -AllowedPaths @()
     if ($developerControlText -match '(?:--dangerously-bypass|--approve-for-me|--sandbox\s)') {
         throw 'Developer invocation unexpectedly selected a bypass, legacy sandbox, or auto-escalation flag.'
     }
@@ -1390,13 +1391,16 @@ if ($SafetySelfTest) {
     foreach ($requiredControl in @('approval_policy = "never"', 'default_permissions = "nightshift-test"', '[permissions.nightshift-developer]', 'network = { enabled = false }', '"nightshift-agent-tmp" = "write"', '"docs/FILE_INDEX.md" = "write"')) {
         if (-not $developerConfigText.Contains($requiredControl)) { throw "Developer sandbox configuration omitted safety control: $requiredControl" }
     }
+    if (-not $testConfigText.Contains('[permissions.nightshift-test]')) {
+        throw 'Test sandbox configuration rejected an intentionally empty developer-write scope.'
+    }
     [pscustomobject]@{
         Status = 'PASS'
         DeniedPathAttacks = $deniedPaths.Count
         AcceptedPathControls = $acceptedPaths.Count
         RejectedMalformedPlans = 2
         VerifiedFinalStatusCombinations = $finalStatusCases.Count
-        VerifiedDeveloperProfileControls = 6
+        VerifiedDeveloperProfileControls = 7
     } | ConvertTo-Json
     exit 0
 }
