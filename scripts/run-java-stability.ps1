@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [int[]]$Runs = @(20, 100, 1000),
+    [string]$Runs = '20,100,1000',
     [int]$TimeoutSeconds = 300,
     [switch]$SkipBuild,
     [string]$OutputPath
@@ -10,7 +10,15 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repoRoot
 try {
-    if ($Runs.Count -eq 0 -or @($Runs | Where-Object { $_ -lt 1 -or $_ -gt 10000 }).Count -gt 0) {
+    $runValues = @($Runs -split ',' | ForEach-Object {
+        $value = $_.Trim()
+        $parsed = 0
+        if ([string]::IsNullOrWhiteSpace($value) -or -not [int]::TryParse($value, [Globalization.NumberStyles]::Integer, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) {
+            throw "Runs must be a comma-separated list of integers: $Runs"
+        }
+        $parsed
+    })
+    if ($runValues.Count -eq 0 -or @($runValues | Where-Object { $_ -lt 1 -or $_ -gt 10000 }).Count -gt 0) {
         throw 'Runs must contain values from 1 through 10000.'
     }
     if ($TimeoutSeconds -lt 1 -or $TimeoutSeconds -gt 3600) {
@@ -75,7 +83,7 @@ try {
         if ($build.status -ne 'PASS') { throw "Java build did not pass: $($build.status) exit=$($build.exitCode)" }
     }
 
-    foreach ($run in $Runs) {
+    foreach ($run in $runValues) {
         $result = Invoke-ProcessWithTimeout -FilePath 'java' -ArgumentList @('-Dfile.encoding=UTF-8', '-cp', 'build\classes;build\test-classes', 'com.dominionwars.test.SimMain', [string]$run) -Timeout $TimeoutSeconds -Label ("java-sim-{0}" -f $run)
         $results.Add($result)
         if ($result.status -eq 'PASS') {
