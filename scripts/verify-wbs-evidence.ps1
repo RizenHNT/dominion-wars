@@ -16,10 +16,16 @@ foreach ($line in $rows) {
     if ($cells.Count -lt 5) { continue }
     $id = $cells[0]
     $statusCell = $cells[4]
-    if ($statusCell -notmatch '^done\s*\(`?([0-9a-f]{7,40})`?\)') { continue }
-    $hash = $matches[1]
-    $commitType = (& git -C $repoRoot cat-file -t $hash 2>$null)
-    $commitOk = ($LASTEXITCODE -eq 0 -and $commitType -eq 'commit')
+    if ($statusCell -notmatch '^done\s*\(') { continue }
+    $tokens = @([regex]::Matches($statusCell, '[^`(),\s]+') | ForEach-Object { $_.Value })
+    $hashes = @($tokens | Where-Object { $_ -match '^[0-9a-f]{7,40}$' })
+    $invalidTokens = @($tokens | Where-Object { $_ -notmatch '^[0-9a-f]{7,40}$' -and $_ -ne 'done' })
+    $commitChecks = @($hashes | ForEach-Object {
+        $commitType = (& git -C $repoRoot cat-file -t $_ 2>$null)
+        [pscustomobject]@{ hash = $_; ok = ($LASTEXITCODE -eq 0 -and $commitType -eq 'commit') }
+    })
+    $commitOk = ($hashes.Count -gt 0 -and $invalidTokens.Count -eq 0 -and @($commitChecks | Where-Object { -not $_.ok }).Count -eq 0)
+    $hash = if ($hashes.Count) { $hashes -join ',' } else { '-' }
     $evidenceCell = $cells[3]
     $paths = @([regex]::Matches($evidenceCell, '(?:scripts|docs|design|src|data|unity)/[A-Za-z0-9_./-]+') | ForEach-Object { $_.Value.TrimEnd('`', '.', ',', ';') } | Sort-Object -Unique)
     $missing = [Collections.Generic.List[string]]::new()
