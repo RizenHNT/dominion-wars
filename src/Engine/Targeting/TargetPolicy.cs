@@ -57,7 +57,7 @@ public sealed class TargetPolicy
             result.Add(TargetReference.ForSharedCore(CoreTarget.RoyalCastle));
         }
 
-        if (AllowEnemyLife && enemy.Life.HasValue)
+        if (AllowEnemyLife && enemy.Leader is null && enemy.Life.HasValue)
         {
             result.Add(TargetReference.ForCore(CoreTarget.Life, enemy.PlayerIndex));
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace DominionWars.Engine.Turns
 {
@@ -14,7 +15,8 @@ public sealed class GameActionRequest
         string actionType,
         string? actionId = null,
         long? sourceEntityId = null,
-        string? targetId = null)
+        string? targetId = null,
+        IReadOnlyList<long>? selectedEntityIds = null)
     {
         if (actorPlayerIndex is < 0 or > 1)
         {
@@ -31,6 +33,7 @@ public sealed class GameActionRequest
         ActionId = actionId;
         SourceEntityId = sourceEntityId;
         TargetId = targetId;
+        SelectedEntityIds = selectedEntityIds ?? Array.Empty<long>();
     }
 
     public int ActorPlayerIndex { get; }
@@ -38,6 +41,7 @@ public sealed class GameActionRequest
     public string? ActionId { get; }
     public long? SourceEntityId { get; }
     public string? TargetId { get; }
+    public IReadOnlyList<long> SelectedEntityIds { get; }
 }
 
 public sealed class GameActionResult

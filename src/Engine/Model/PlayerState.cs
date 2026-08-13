@@ -24,6 +24,7 @@ public sealed class PlayerState
         Hand = new List<CardInstance>();
         Field = new List<CardInstance>();
         Graveyard = new List<CardInstance>();
+        UsedTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public int PlayerIndex { get; }
@@ -32,6 +33,7 @@ public sealed class PlayerState
     public IList<CardInstance> Hand { get; }
     public IList<CardInstance> Field { get; }
     public IList<CardInstance> Graveyard { get; }
+    public ISet<string> UsedTags { get; }
 
     public int PunishDeltaThisTurn { get; set; }
     public bool PunishToSelfDiscardThisTurn { get; set; }

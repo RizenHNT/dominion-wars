@@ -37,6 +37,8 @@ public sealed class CardInstance
     public bool Shield { get; set; }
     public int AttacksUsed { get; set; }
     public bool SummonedThisTurn { get; set; }
+    public bool PunishActivated { get; set; }
+    public int ChantRemaining { get; set; }
     public ISet<string> Keywords { get; }
 
     public bool IsMinion => Definition.IsMinion;
@@ -57,6 +59,8 @@ public sealed class CardInstance
         Shield = false;
         AttacksUsed = 0;
         SummonedThisTurn = false;
+        PunishActivated = false;
+        ChantRemaining = 0;
         IsLeaderEntity = false;
         Keywords.Clear();
         foreach (var keyword in Definition.Keywords)

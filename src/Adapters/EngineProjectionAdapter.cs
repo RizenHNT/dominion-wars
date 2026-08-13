@@ -19,6 +19,7 @@ public static class EngineProjectionAdapter
             ["ATTACK_DECLARED"] = "ATTACK_DECLARED",
             ["AMBUSH_TRIGGERED"] = "AMBUSH_TRIGGERED",
             ["PUNISH_TRIGGERED"] = "PUNISH_TRIGGERED",
+            ["PUNISH_DRAW"] = "PUNISH_DRAW",
             ["DAMAGE_DEALT"] = "DAMAGE_APPLIED",
             ["HEALED"] = "HEAL_APPLIED",
             ["CARDS_DISCARDED"] = "CARD_DISCARDED",

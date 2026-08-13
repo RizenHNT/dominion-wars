@@ -78,16 +78,17 @@ public sealed class PunishAndBuffContractTests
     }
 
     [Test]
-    public void PunishCardUsesLegalActivationPathAndPreservesCost()
+    public void PunishCardUsesCanonicalPlayPathAndPreservesCost()
     {
         var state = new GameState();
         state.GetPlayer(0).Hand.Add(new CardInstance(90, 0, new CardDefinition(
             "punish-contract", "Punish Contract", punishActivatable: true, punishCost: 3)));
 
+        state.GetPlayer(0).Hand[0].PunishActivated = true;
         var action = new LegalActionGenerator().Generate(state, 0)
-            .Single(item => item.Type == LegalActionGenerator.ActivatePunish);
+            .Single(item => item.Type == LegalActionGenerator.PlayCard);
 
-        Assert.That(action.Payload["cost"], Is.EqualTo(3));
+        Assert.That(action.Payload["punish"], Is.EqualTo(3));
     }
 
     [Test]

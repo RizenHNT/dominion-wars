@@ -182,7 +182,7 @@ public sealed class TurnFlowTests
 
         Assert.That(policy.GetEnemyCandidates(state, 0).Select(item => item.Kind), Is.EquivalentTo(new[]
         {
-            TargetKind.EnemyLeader, TargetKind.EnemyMinion, TargetKind.RoyalCastle, TargetKind.EnemyLife,
+            TargetKind.EnemyLeader, TargetKind.EnemyMinion, TargetKind.RoyalCastle,
         }));
 
         Assert.Multiple(() =>
@@ -205,6 +205,13 @@ public sealed class TurnFlowTests
         Assert.That(policy.GetEnemyCandidates(state, 0).Select(item => item.Kind), Is.EquivalentTo(new[]
         {
             TargetKind.EnemyLeader, TargetKind.EnemyMinion,
+        }));
+
+        state.GetPlayer(1).Field.RemoveAt(0);
+        policy.AllowEnemyLife = true;
+        Assert.That(policy.GetEnemyCandidates(state, 0).Select(item => item.Kind), Is.EquivalentTo(new[]
+        {
+            TargetKind.EnemyMinion, TargetKind.EnemyLife,
         }));
     }
 

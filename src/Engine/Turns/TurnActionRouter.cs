@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DominionWars.Engine.Model;
+using DominionWars.Engine.Targeting;
 
 namespace DominionWars.Engine.Turns
 {
@@ -29,6 +30,17 @@ public sealed class TurnActionRouter
     }
 
     public TurnFlow Flow { get; }
+
+    public static TurnActionRouter CreateDefault(
+        TurnFlow flow,
+        TargetPolicy? targetPolicy = null,
+        IPunishResponsePolicy? punishResponses = null)
+    {
+        return new TurnActionRouter(flow, new ITurnActionHandler[]
+        {
+            new PlayCardActionHandler(targetPolicy, punishResponses),
+        });
+    }
 
     public GameActionResult Execute(GameState state, GameActionRequest request)
     {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DominionWars.Engine.Model;
+using DominionWars.Engine.Turns;
 
 namespace DominionWars.Engine
 {
@@ -40,6 +41,32 @@ public sealed class LegalActionGenerator
 
         foreach (var card in player.Hand)
         {
+            if (!CardPlayRules.CanPlay(player, card, out _))
+            {
+                continue;
+            }
+
+            var playPayload = new Dictionary<string, object?>
+            {
+                ["punish"] = CardPlayRules.EffectivePunish(player, card),
+            };
+            if (player.PunishToSelfDiscardThisTurn && CardPlayRules.EffectivePunish(player, card) > 0)
+            {
+                var candidates = new List<long>();
+                foreach (var discard in player.Hand)
+                {
+                    if (discard != card)
+                    {
+                        candidates.Add(discard.InstanceId);
+                    }
+                }
+
+                playPayload["discardRequired"] = Math.Min(
+                    CardPlayRules.EffectivePunish(player, card),
+                    candidates.Count);
+                playPayload["discardCandidateIds"] = candidates;
+            }
+
             actions.Add(new LegalAction
             {
                 ActionId = $"play_{card.InstanceId}",
@@ -48,24 +75,9 @@ public sealed class LegalActionGenerator
                 SourceId = card.InstanceId,
                 CardId = card.Definition.Id,
                 ReasonKey = "action.play_card",
+                Payload = playPayload,
             });
 
-            if (card.Definition.PunishActivatable)
-            {
-                actions.Add(new LegalAction
-                {
-                    ActionId = $"punish_{card.InstanceId}",
-                    Type = ActivatePunish,
-                    Actor = playerIdx,
-                    SourceId = card.InstanceId,
-                    CardId = card.Definition.Id,
-                    ReasonKey = "action.activate_punish",
-                    Payload = new Dictionary<string, object?>
-                    {
-                        ["cost"] = card.Definition.PunishCost,
-                    },
-                });
-            }
         }
 
         foreach (var source in player.Field)

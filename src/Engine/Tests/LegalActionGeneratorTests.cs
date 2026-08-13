@@ -113,15 +113,19 @@ public sealed class LegalActionGeneratorTests
     }
 
     [Test]
-    public void PunishCardProducesActivationAction()
+    public void PunishCardUsesCanonicalPlayActionInsteadOfUnsupportedTransportType()
     {
         var state = new GameState();
         state.GetPlayer(0).Hand.Add(new CardInstance(4, 0, new CardDefinition(
             "punish", "Punish", punishActivatable: true, punishCost: 2)));
 
-        var action = new LegalActionGenerator().Generate(state, 0)
-            .Single(item => item.Type == LegalActionGenerator.ActivatePunish);
-        Assert.That(action.Payload["cost"], Is.EqualTo(2));
+        state.GetPlayer(0).Hand[0].PunishActivated = true;
+        var actions = new LegalActionGenerator().Generate(state, 0);
+        Assert.Multiple(() =>
+        {
+            Assert.That(actions.Any(item => item.Type == LegalActionGenerator.ActivatePunish), Is.False);
+            Assert.That(actions.Single(item => item.Type == LegalActionGenerator.PlayCard).Payload["punish"], Is.EqualTo(2));
+        });
     }
 
     [Test]

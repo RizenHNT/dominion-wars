@@ -102,6 +102,7 @@ namespace DominionWars.Data
             var leaderEnterEffects = new List<EffectSpec>();
             var leaderPunishEffects = new List<EffectSpec>();
             var vulnerabilities = new List<string>();
+            var grantLife = 0;
             if (element.TryGetProperty("leaderDef", out var leaderDef))
             {
                 if (leaderDef.ValueKind != JsonValueKind.Object) throw Invalid(source, "leaderDef must be an object");
@@ -120,12 +121,13 @@ namespace DominionWars.Data
                     }
                 }
                 ValidateLeaderDef(leaderDef, source);
+                grantLife = OptionalInt(leaderDef, "grantLife", 0, 1, 99, source);
                 leaderEnterEffects = MapEffects(leaderDef, "enterEffects", source);
                 leaderPunishEffects = MapEffects(leaderDef, "punishEffects", source);
             }
             else if (isLeader) throw Invalid(source, "leader cards require leaderDef");
             return new CardDefinition(
-                id, name, attack, health, isMinion, isLeader,
+                id, name, attack, health, isMinion, isLeader, grantLife,
                 kingSlayer: OptionalBool(element, "kingSlayer", false, source),
                 faction: faction,
                 text: text,

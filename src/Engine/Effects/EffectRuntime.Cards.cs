@@ -24,17 +24,41 @@ public sealed partial class EffectRuntime
             throw new InvalidOperationException("Turn draw needs an existing root event.");
         }
 
-        DrawCards(State.GetPlayer(playerIndex), amount, new EffectContext(playerIndex, rootEventId));
+        DrawCards(State.GetPlayer(playerIndex), amount, new EffectContext(playerIndex, rootEventId), false);
+    }
+
+    internal IReadOnlyList<CardInstance> DrawForPunish(int playerIndex, int amount, long rootEventId)
+    {
+        if (playerIndex is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(playerIndex));
+        }
+
+        if (amount < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        }
+
+        if (!State.Events.IsRootEvent(rootEventId))
+        {
+            throw new InvalidOperationException("Punish draw needs an existing root event.");
+        }
+
+        return DrawCards(
+            State.GetPlayer(playerIndex),
+            amount,
+            new EffectContext(playerIndex, rootEventId),
+            true);
     }
 
     public void Draw(EffectSpec spec, EffectContext context)
     {
-        DrawCards(State.GetPlayer(context.SourcePlayerIndex), Math.Max(1, spec.Amount), context);
+        DrawCards(State.GetPlayer(context.SourcePlayerIndex), Math.Max(1, spec.Amount), context, false);
     }
 
     public void OppDraw(EffectSpec spec, EffectContext context)
     {
-        DrawCards(State.GetOpponent(context.SourcePlayerIndex), Math.Max(1, spec.Amount), context);
+        DrawCards(State.GetOpponent(context.SourcePlayerIndex), Math.Max(1, spec.Amount), context, false);
     }
 
     public void DiscardOpponentRandom(EffectSpec spec, EffectContext context)
@@ -148,9 +172,14 @@ public sealed partial class EffectRuntime
             "cardId", definition.Id));
     }
 
-    private void DrawCards(PlayerState player, int amount, EffectContext context)
+    private IReadOnlyList<CardInstance> DrawCards(
+        PlayerState player,
+        int amount,
+        EffectContext context,
+        bool byPunish)
     {
         var drawn = new List<long>();
+        var drawnCards = new List<CardInstance>();
         for (var index = 0; index < amount && !IsGameOver; index++)
         {
             if (player.Deck.Count == 0 && !Reshuffle(player, context))
@@ -166,6 +195,9 @@ public sealed partial class EffectRuntime
                 if (card.Definition.IsLeader)
                 {
                     card.IsLeaderEntity = true;
+                    card.ChantRemaining = card.Definition.Chant;
+                    card.SummonedThisTurn = card.Definition.IsMinion;
+                    card.AttacksUsed = 0;
                     player.Field.Add(card);
                     if (card.Definition.GrantLife > 0)
                     {
@@ -174,8 +206,17 @@ public sealed partial class EffectRuntime
                 }
                 else
                 {
+                    card.PunishActivated = byPunish
+                        && (card.Definition.PunishActivatable
+                            || string.Equals(card.Definition.Type, "PUNISH", StringComparison.Ordinal));
                     player.Hand.Add(card);
                     drawn.Add(card.InstanceId);
+                    drawnCards.Add(card);
+                }
+
+                if (byPunish)
+                {
+                    player.PunishDrawnThisTurn++;
                 }
             });
 
@@ -184,10 +225,30 @@ public sealed partial class EffectRuntime
                 Emit("LEADER_MANIFESTED", context, Data(
                     "player", player.PlayerIndex,
                     "target", card.InstanceId));
+                var leaderContext = new EffectContext(
+                    player.PlayerIndex,
+                    context.RootEventId,
+                    sourceCard: card,
+                    playedCard: context.PlayedCard,
+                    drawnCards: context.DrawnCards);
+                var dispatcher = EffectDispatcher.CreateDefault(this);
+                if (card.Definition.LeaderEnterEffects.Count > 0)
+                {
+                    dispatcher.ApplyAll(card.Definition.LeaderEnterEffects, leaderContext);
+                }
+
+                if (byPunish && card.Definition.LeaderPunishEffects.Count > 0 && !IsGameOver)
+                {
+                    dispatcher.ApplyAll(card.Definition.LeaderPunishEffects, leaderContext);
+                }
             }
         }
 
-        Emit("CARDS_DRAWN", context, Data("player", player.PlayerIndex, "count", drawn.Count));
+        Emit(byPunish ? "PUNISH_DRAW" : "CARDS_DRAWN", context, Data(
+            "player", player.PlayerIndex,
+            "count", drawn.Count,
+            "byPunish", byPunish));
+        return drawnCards.AsReadOnly();
     }
 
     private bool Reshuffle(PlayerState player, EffectContext context)

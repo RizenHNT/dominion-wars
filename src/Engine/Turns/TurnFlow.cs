@@ -193,6 +193,8 @@ public sealed class TurnFlow
             outgoing.ProtectedThisTurn = false;
             outgoing.EffectsNegatedThisTurn = false;
             outgoing.PunishDrawnThisTurn = 0;
+            state.Players[0].UsedTags.Clear();
+            state.Players[1].UsedTags.Clear();
             item.EndTurnRequested = false;
             item.CurrentPlayerIndex = 1 - item.CurrentPlayerIndex;
             checked { item.Turn.Number++; }
