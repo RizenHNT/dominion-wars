@@ -126,7 +126,7 @@
 | 10.1.1 | 将 WBS、IMPLEMENTATION_TODO、CURRENT_IMPLEMENTATION_STATUS 的过期状态统一 | PL + Codex | 三份文档数字一致，保留历史证据 | ready | 是（仅文档核对） |
 | 10.1.2 | 建立 91 卡 `id → artId → asset path` 映射清单 | Codex | 缺失/重复/越界 ID 检查全通过 | ready | 是 |
 | 10.1.3 | 为现有卡牌补齐正式 `artId` 字段或记录迁移方案 | PL + 人类 | schema、loader、旧 Java 数据一致 | human_required | 否 |
-| 10.1.4 | 4 套牌组加载、数量、阵营和领袖约束的发布前检查 | Codex + DeepSeek | 4 套 deck fixture + fail-closed 报告 | ready | 是 |
+| 10.1.4 | 4 套牌组加载、数量、阵营和领袖约束的发布前检查 | Codex + DeepSeek | `scripts/validate-decks.ps1`；4 套、91 卡；`DECK_VALIDATION pass=4 fail=0` | done (`a92b151`) | 是 |
 | 10.1.5 | 确认 C# 与 Java 的字段/效果/目标差异清单 | Codex + DeepSeek | 可逐项追踪的 alignment 报告 | ready | 是 |
 
 ### 10.2 C# MVP 引擎闭环
@@ -179,7 +179,7 @@
 
 | ID | 未完成交付 | 负责人 | 依赖/验收证据 | 状态 | Codex自动执行 |
 |---|---|---|---|---|---|
-| 10.6.1 | 全量 .NET/Java/schema/alignment 回归脚本统一 | Codex + DeepSeek | 一条命令、固定输出、失败码正确 | ready | 是 |
+| 10.6.1 | 全量 .NET/Java/schema/alignment 回归脚本统一 | Codex + DeepSeek | `scripts/run-regression.ps1`；.NET 300/300、schema 91/91、Java 38/38；Unity 明确 BLOCKED | done (`8bb4a9b`, `a92b151`) | 是 |
 | 10.6.2 | Unity EditMode/PlayMode/Windows smoke | DeepSeek + Codex | Unity log、测试数、构建产物 hash | blocked | 否（需 Unity） |
 | 10.6.3 | 多分辨率、输入、减少动效和无障碍 QA | DeepSeek + 前端 | 1280×720/1440×900/键鼠/键盘报告 | blocked | 需 Unity/前端 |
 | 10.6.4 | 性能、内存、资源加载和长局稳定性 | DeepSeek + Codex | 20/100/1000 局、帧率/内存证据 | pending | 是（离线部分） |
