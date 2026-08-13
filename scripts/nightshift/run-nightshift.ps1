@@ -1037,9 +1037,11 @@ function Get-SandboxCodexConfigText {
     @"
 model = "$([string]$config.developer.model)"
 model_reasoning_effort = "$([string]$config.developer.reasoningEffort)"
-sandbox = "elevated"
 approval_policy = "never"
 default_permissions = "nightshift-test"
+
+[windows]
+sandbox = "elevated"
 
 [permissions.nightshift-test]
 description = "Night test isolation"
@@ -1395,7 +1397,7 @@ if ($SafetySelfTest) {
     if ($developerControlText -notmatch '(?i)--permission-profile\s+nightshift-developer') {
         throw 'Developer invocation omitted its dedicated permission profile.'
     }
-    foreach ($requiredControl in @('sandbox = "elevated"', 'approval_policy = "never"', 'default_permissions = "nightshift-test"', '[permissions.nightshift-developer]', 'network = { enabled = false }', '"nightshift-agent-tmp" = "write"', '"docs/FILE_INDEX.md" = "write"')) {
+    foreach ($requiredControl in @('[windows]', 'sandbox = "elevated"', 'approval_policy = "never"', 'default_permissions = "nightshift-test"', '[permissions.nightshift-developer]', 'network = { enabled = false }', '"nightshift-agent-tmp" = "write"', '"docs/FILE_INDEX.md" = "write"')) {
         if (-not $developerConfigText.Contains($requiredControl)) { throw "Developer sandbox configuration omitted safety control: $requiredControl" }
     }
     if (-not $testConfigText.Contains('[permissions.nightshift-test]')) {
