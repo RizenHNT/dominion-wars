@@ -179,7 +179,7 @@
 
 | ID | 未完成交付 | 负责人 | 依赖/验收证据 | 状态 | Codex自动执行 |
 |---|---|---|---|---|---|
-| 10.6.1 | 全量 .NET/Java/schema/alignment 回归脚本统一 | Codex + DeepSeek | `scripts/run-regression.ps1`；.NET 300/300、schema 91/91、deck 4/4、design manifest 320/320、Java 38/38；Unity 明确 BLOCKED | done (`8bb4a9b`, `a92b151`, `42ece24`) | 是 |
+| 10.6.1 | 全量 .NET/Java/schema/alignment 回归脚本统一 | Codex + DeepSeek | `scripts/run-regression.ps1`；默认离线门禁明确 Unity BLOCKED，`-RequireUnity` 遇 BLOCKED 返回 exit 2；.NET 300/300、schema 91/91、deck 4/4、design manifest 320/320、Java 38/38 | done (`8bb4a9b`, `a92b151`, `42ece24`, `本次补充`) | 是 |
 | 10.6.2 | Unity EditMode/PlayMode/Windows smoke | DeepSeek + Codex | Unity log、测试数、构建产物 hash | blocked | 否（需 Unity） |
 | 10.6.3 | 多分辨率、输入、减少动效和无障碍 QA | DeepSeek + 前端 | 1280×720/1440×900/键鼠/键盘报告 | blocked | 需 Unity/前端 |
 | 10.6.4 | 性能、内存、资源加载和长局稳定性 | DeepSeek + Codex | 20/100/1000 局、帧率/内存证据 | pending | 是（离线部分） |

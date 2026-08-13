@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [switch]$Restore,
-    [switch]$RunPython
+    [switch]$RunPython,
+    [switch]$RequireUnity
 )
 
 $ErrorActionPreference = 'Stop'
@@ -98,6 +99,11 @@ try {
     $results | Format-Table stage,status,exitCode,seconds,detail -AutoSize
     $failed = @($results | Where-Object { $_.status -eq 'FAIL' })
     if ($failed.Count -gt 0) { exit 1 }
+    $blocked = @($results | Where-Object { $_.status -eq 'BLOCKED' })
+    if ($RequireUnity -and $blocked.Count -gt 0) {
+        [Console]::Error.WriteLine(("Strict regression gate blocked: {0}" -f (($blocked.stage) -join ', ')))
+        exit 2
+    }
     exit 0
 }
 finally {
