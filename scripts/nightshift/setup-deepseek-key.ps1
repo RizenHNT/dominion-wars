@@ -1,11 +1,14 @@
 [CmdletBinding()]
 param(
-    [switch]$HardenOnly
+    [switch]$HardenOnly,
+    [string]$EnvFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $targetDirectory = Join-Path $env:LOCALAPPDATA 'DominionWarsNightshift'
 $targetFile = Join-Path $targetDirectory 'deepseek.key'
+$defaultEnvFile = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\dominion-wars-deepseek\.env'))
+$sourceEnvFile = if ($EnvFile.Trim()) { [IO.Path]::GetFullPath($EnvFile) } else { $defaultEnvFile }
 
 function Get-PrivateCredentialSids {
     @(
@@ -136,6 +139,27 @@ function Protect-PrivateAcl {
     }
 }
 
+function Get-DeepSeekSecretFromEnvFile {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "DeepSeek .env file was not found: $Path"
+    }
+    Assert-NotReparsePoint -Path $Path -Label 'DeepSeek .env file'
+    foreach ($line in [IO.File]::ReadAllLines($Path)) {
+        if ($line -match '^\s*(?:export\s+)?(?:DEEPSEEK_API_KEY|DEEPSEEK_API_TOKEN)\s*=\s*(.*?)\s*$') {
+            $value = [string]$matches[1]
+            if (($value.StartsWith('"') -and $value.EndsWith('"')) -or
+                ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+                $value = $value.Substring(1, $value.Length - 2)
+            }
+            if ($value.Trim().Length -eq 0) { throw 'DeepSeek .env key is empty.' }
+            return ($value | ConvertTo-SecureString -AsPlainText -Force)
+        }
+    }
+    throw 'DeepSeek .env must define DEEPSEEK_API_KEY or DEEPSEEK_API_TOKEN.'
+}
+
 Assert-NotReparsePoint -Path $targetDirectory -Label 'Credential directory'
 Assert-NotReparsePoint -Path $targetFile -Label 'Credential file'
 New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
@@ -148,7 +172,13 @@ if ($HardenOnly) {
     }
 }
 else {
-    $secret = Read-Host 'Paste the DeepSeek API key (input is hidden)' -AsSecureString
+    if (Test-Path -LiteralPath $sourceEnvFile -PathType Leaf) {
+        Write-Host "Importing the DeepSeek key from: $sourceEnvFile"
+        $secret = Get-DeepSeekSecretFromEnvFile -Path $sourceEnvFile
+    }
+    else {
+        $secret = Read-Host 'Paste the DeepSeek API key (input is hidden)' -AsSecureString
+    }
     if ($secret.Length -eq 0) {
         throw 'No API key was entered.'
     }
