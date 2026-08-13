@@ -1,0 +1,18 @@
+<Project>
+  <!--
+    Redirect all .NET build output to <repo>/build-output/ so the Unity
+    package folders under src/ never contain bin/ or obj/ artifacts.
+    Unity treats every *.dll under a package folder as a precompiled
+    assembly, and the test project's nunit.framework.dll (3.14, net8.0)
+    collided with Unity's built-in ext.nunit (3.5). This keeps all build
+    output outside src/, eliminating that source of conflicts.
+
+    BaseIntermediateOutputPath MUST be set before Microsoft.Common.props
+    is imported, which is why this lives in Directory.Build.props rather
+    than in each .csproj.
+  -->
+  <PropertyGroup>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)build-output\$(MSBuildProjectName)\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)build-output\$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

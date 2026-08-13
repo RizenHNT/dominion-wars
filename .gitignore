@@ -7,6 +7,10 @@ bin/
 obj/
 TestResults/
 
+# Redirected .NET build output (kept outside Unity package dirs so Unity never
+# scans src/*/bin as precompiled assemblies)
+build-output/
+
 # Local runtimes and packaged releases
 /jre/
 /releases/
