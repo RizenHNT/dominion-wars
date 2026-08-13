@@ -206,6 +206,19 @@
 
 自动执行的硬限制：不擅自决定规则/平衡/视觉、不卡住等待不存在的工具、不新增付费服务、不读取或发送凭据、不修改其他负责人的 dirty 文件、不 push/release。每领取一个任务，必须在 mailbox 或正式报告留下“任务 ID、实际文件、测试结果、未决风险”；发现需要 PL/人类决定的任务就跳过并领取下一个 `ready` 项。
 
+### 10.9 临时代理安全与撤回协议
+
+本阶段的值班 PL、游戏策划和反馈检测器都是**临时代理**，不等同于正式 PL 或 DeepSeek QA。正式负责人回来前，执行以下硬规则：
+
+1. 临时代理只读仓库、WBS、契约和测试结果；不得编辑生产代码、规则、平衡、契约、他人报告、`AI_MAILBOX.md` 或代理配置，也不得 commit/push。
+2. 临时代理的 `READY` 只是候选派工，不是产品批准。Codex 只能领取 WBS 已标为 `ready` 且不涉及规则/视觉/Unity 实机/发布的任务；其余统一标为 `HUMAN_REQUIRED`。
+3. Codex 每次改动前记录目标文件、HEAD、完整 dirty 清单和目标文件 hash；只允许精确 stage 目标文件。禁止 `git add .`、`git add -A`、reset、clean、rebase、merge、push 和删除性清理。
+4. 一个任务一个本地 commit，commit message 必须包含 WBS ID；不把临时代理的建议写成 `CHANGELOG` 或“已完成”状态。临时 QA 只能给出 advisory PASS/FAIL，正式 QA 必须回家后复核。
+5. 撤回优先使用 `git revert --no-edit <task-commit>`，不使用 history rewrite；回滚前先确认该 commit 只包含任务允许路径。未提交的临时文件不得覆盖他人 dirty，必要时放在仓库外临时目录。
+6. 每次交接必须列出：任务 ID、commit、实际文件、测试命令/结果、未决风险、建议回滚命令。正式 PL/QA 可以逐项接受、返工或撤回，不需要恢复整个工作区。
+
+因此，临时代理可以让 Codex 在你上班时持续推进低风险任务，但不能在你回家前替正式 PL 做最终规则、视觉、Unity、发布或 QA 签字。
+
 ---
 
 ## Backlog 优先级映射（18 行 → WBS 节点）
