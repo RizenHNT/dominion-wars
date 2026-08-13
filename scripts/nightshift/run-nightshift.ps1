@@ -7,6 +7,8 @@ param(
     [switch]$RetryGoal,
     [switch]$SafetySelfTest,
     [switch]$SandboxPreflightOnly,
+    [switch]$PlanOnly,
+    [switch]$ApprovedPlan,
     [ValidateSet('Mixed', 'Success', 'Timeout')]
     [string]$SimulationScenario = 'Mixed',
     [string]$GoalFile = 'docs/DAILY_GOAL.md'
@@ -39,6 +41,7 @@ $runRoot = Join-Path $stateRoot $runId
 $reportPath = if ($Simulation) { Join-Path $runRoot 'SIMULATION_REPORT.md' } else { Join-Path $repoRoot 'docs\NIGHT_REPORT.md' }
 $schedulerLog = Join-Path $stateRoot 'scheduler.log'
 $schedulerStatusPath = Join-Path $stateRoot 'last-scheduled-status.json'
+$pendingPlanPath = Join-Path $stateRoot 'pending-plan.json'
 $configuredCodex = [string]$config.developer.command
 $configuredPlProvider = [string]$config.pl.provider
 $configuredQaProvider = [string]$config.qa.provider
@@ -61,6 +64,10 @@ if ($Scheduled -and $script:launchId -notmatch '^[0-9a-f]{32}$') {
 }
 if ($SandboxPreflightOnly -and ($Scheduled -or $Simulation)) {
     throw '-SandboxPreflightOnly is manual-only and cannot be combined with -Scheduled or -Simulation.'
+}
+if ($PlanOnly -and $ApprovedPlan) { throw '-PlanOnly and -ApprovedPlan cannot be combined.' }
+if (($PlanOnly -or $ApprovedPlan) -and ($Scheduled -or $Simulation -or $SandboxPreflightOnly)) {
+    throw 'Plan review modes are manual daytime modes and cannot be combined with -Scheduled, -Simulation, or -SandboxPreflightOnly.'
 }
 
 if ([int]$config.version -ne 2) { throw "Unsupported night-shift config version: $($config.version)" }
@@ -1510,6 +1517,14 @@ $script:goalHash = Get-TextSha256 -Text $goalHashInput
 if (-not $RetryGoal) {
     $previousRun = Get-RunLedgerEntry -GoalHash $script:goalHash
     if ($previousRun) {
+        if ($ApprovedPlan -and [string]$previousRun.status -eq 'PLAN_READY') {
+            # A reviewed plan is intentionally allowed to be consumed by the
+            # second phase. All plan metadata is revalidated below.
+        }
+        elseif ($PlanOnly -and [string]$previousRun.status -eq 'PLAN_READY') {
+            throw "A plan is already waiting for review from run $($previousRun.runId). Review it or retry manually with -RetryGoal."
+        }
+        else {
         if ([string]$previousRun.status -eq 'RUNNING') {
             $script:runStarted = $true
             $script:currentStage = 'INTERRUPTED_PREVIOUS_RUN'
@@ -1531,6 +1546,7 @@ if (-not $RetryGoal) {
             exit 0
         }
         throw $message
+        }
     }
 }
 
@@ -1633,7 +1649,32 @@ Return JSON only with this shape:
 {"nightGoal":"...","tasks":[{"id":"T1","kind":"implementation","title":"...","acceptanceCriteria":["..."],"dependencies":[],"allowedPaths":["path"],"testProfiles":["build"],"risk":"low","humanRequired":false,"humanQuestion":""}]}
 Every executable task must have "kind":"implementation" and must create an observable deliverable in allowedPaths. Reading, research, and verification are steps inside an implementation task, never separate tasks. For one small file goal, return exactly one task. Copy allowedPaths only from the goal's Allowed scope section; never broaden them. Test profiles may only be build, regression, sanity, alignment, nightshift-index. Never authorize commits, pushes, merges, releases, credentials, paid resources, destructive deletion, or unapproved architecture decisions.
 '@
-if ($Simulation) {
+$approvedPlanEnvelope = $null
+if ($ApprovedPlan) {
+    if (-not (Test-Path -LiteralPath $pendingPlanPath -PathType Leaf)) {
+        throw 'No pending PL plan is waiting for approval. Ask PL for a fresh plan first.'
+    }
+    $approvedPlanEnvelope = Get-Content -Raw -LiteralPath $pendingPlanPath | ConvertFrom-Json
+    if ([int]$approvedPlanEnvelope.version -ne 1 -or -not $approvedPlanEnvelope.plan) {
+        throw 'Pending PL plan has an unsupported format.'
+    }
+    if ([string]$approvedPlanEnvelope.goalHash -ne $script:goalHash) {
+        throw 'The READY goal changed after PL produced the pending plan. Generate a fresh plan.'
+    }
+    if ([string]$approvedPlanEnvelope.branch -ne $script:startingBranch -or
+        [string]$approvedPlanEnvelope.startingHead -ne $script:startingHead) {
+        throw 'The isolated branch or HEAD changed after PL produced the pending plan. Generate a fresh plan.'
+    }
+    foreach ($entry in $script:controlPlaneHashes.GetEnumerator()) {
+        $savedProperty = $approvedPlanEnvelope.controlPlaneHashes.PSObject.Properties[$entry.Key]
+        $savedHash = if ($savedProperty) { [string]$savedProperty.Value } else { '' }
+        if (-not $savedHash -or $savedHash -ne $entry.Value) {
+            throw "A relay control file changed after PL produced the pending plan: $($entry.Key)"
+        }
+    }
+    $plan = $approvedPlanEnvelope.plan
+}
+elseif ($Simulation) {
     $plan = @'
 {
   "nightGoal": "Exercise repair, independent-task continuation, human escalation, and final approval guards.",
@@ -1683,6 +1724,48 @@ else {
 }
 $script:plan = $plan
 Assert-PlanValid -CandidatePlan $plan -GoalPaths $goalAllowedPaths
+
+$planJson = $plan | ConvertTo-Json -Depth 20
+$planHash = Get-TextSha256 -Text $planJson
+if ($ApprovedPlan) {
+    if ([string]$approvedPlanEnvelope.planHash -ne $planHash) {
+        throw 'The approved PL plan hash does not match its stored plan.'
+    }
+    # The plan is now bound to this execution. A later retry must request a
+    # fresh human-reviewed plan instead of silently reusing an old one.
+    Remove-Item -LiteralPath $pendingPlanPath -Force
+}
+if ($PlanOnly) {
+    $pendingEnvelope = [ordered]@{
+        version = 1
+        status = 'PLAN_READY_FOR_REVIEW'
+        goalHash = $script:goalHash
+        branch = $script:startingBranch
+        startingHead = $script:startingHead
+        controlPlaneHashes = [ordered]@{}
+        planHash = $planHash
+        plan = $plan
+        createdAt = [DateTimeOffset]::Now.ToString('o')
+    }
+    foreach ($entry in $script:controlPlaneHashes.GetEnumerator()) {
+        $pendingEnvelope.controlPlaneHashes[$entry.Key] = $entry.Value
+    }
+    Write-AtomicJson -Path $pendingPlanPath -Value $pendingEnvelope -Depth 30
+    Set-RunStage -Stage 'PLAN_READY_FOR_REVIEW'
+    Update-RunLedger -Status 'PLAN_READY' -Message 'PL plan is waiting for explicit human review and approval; no Codex, test, QA, or repair stage was started.'
+    Set-NightShiftAwake -Enabled $false
+    Exit-NightShiftLock
+    $script:runStarted = $false
+    [pscustomobject]@{
+        Status = 'PLAN_READY_FOR_REVIEW'
+        PlanFile = $pendingPlanPath
+        GoalHash = $script:goalHash
+        PlanHash = $planHash
+        Plan = $plan
+        Message = 'PL plan is ready for human review. No Codex, test, QA, or repair stage was started.'
+    } | ConvertTo-Json -Depth 30
+    exit 0
+}
 
 foreach ($task in $plan.tasks) {
     $task | Add-Member -NotePropertyName status -NotePropertyValue ($(if ($task.humanRequired) { 'HUMAN_REQUIRED' } else { 'PENDING' }))

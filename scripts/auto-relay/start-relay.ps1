@@ -1,11 +1,16 @@
 [CmdletBinding()]
 param(
     [switch]$ApprovedByHuman,
-    [switch]$ValidateOnly
+    [switch]$ValidateOnly,
+    [switch]$PlanOnly,
+    [switch]$ApprovedPlan
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'relay-common.ps1')
+
+if ($PlanOnly -and $ApprovedPlan) { throw '-PlanOnly and -ApprovedPlan cannot be combined.' }
+if ($ValidateOnly -and ($PlanOnly -or $ApprovedPlan)) { throw '-ValidateOnly cannot be combined with a live plan phase.' }
 
 $repoRoot = Get-RelayRepositoryRoot -ScriptDirectory $PSScriptRoot
 $stateRoot = Get-RelayStateRoot -RepositoryRoot $repoRoot
@@ -81,6 +86,8 @@ $parameters = @{
     Forbidden = $forbidden
 }
 if ($ValidateOnly) { $parameters.ValidateOnly = $true }
+if ($PlanOnly) { $parameters.PlanOnly = $true }
+if ($ApprovedPlan) { $parameters.ApprovedPlan = $true }
 $env:DOMINION_RELAY_DISABLE_FILE = Join-Path $stateRoot 'AUTO_RELAY_DISABLED'
 & $dayEntry @parameters
 exit $LASTEXITCODE

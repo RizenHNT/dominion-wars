@@ -5,12 +5,15 @@ param(
     [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string[]]$AcceptanceCriteria,
     [Parameter(Mandatory)][ValidateSet('build', 'regression', 'sanity', 'alignment', 'nightshift-index')][string[]]$TestProfile,
     [switch]$ValidateOnly,
+    [switch]$PlanOnly,
+    [switch]$ApprovedPlan,
     [string[]]$Forbidden = @(
         'Architecture, rule, balance, visual, release, credential, billing, dependency, push, merge, and destructive deletion changes not explicitly approved above.'
     )
 )
 
 $ErrorActionPreference = 'Stop'
+if ($PlanOnly -and $ApprovedPlan) { throw '-PlanOnly and -ApprovedPlan cannot be combined.' }
 
 function Get-BranchName {
     param([Parameter(Mandatory)][string]$Repository)
@@ -192,7 +195,7 @@ $(ConvertTo-BulletLines $normalizedTestProfiles)
 
 ## Human decisions already made
 
-- The human owner explicitly approved this daytime automated run and the scope above.
+$(if ($PlanOnly) { '- The human owner approved PL planning only; execution requires a separate explicit approval after plan review.' } else { '- The human owner explicitly approved this daytime automated run and the scope above.' })
 
 ## Forbidden tonight
 
@@ -228,5 +231,8 @@ $roundTripProfiles = @($profilesMatch.Groups[1].Value -split "`r?`n" | ForEach-O
 if (Compare-Object $normalizedAllowedPaths $roundTripPaths) { throw 'Generated day goal changed the approved allowed paths.' }
 if (Compare-Object $normalizedTestProfiles $roundTripProfiles) { throw 'Generated day goal changed the approved test profiles.' }
 
-& powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $runner -GoalFile $goalFile
+$runnerArguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $runner, '-GoalFile', $goalFile)
+if ($PlanOnly) { $runnerArguments += '-PlanOnly' }
+if ($ApprovedPlan) { $runnerArguments += '-ApprovedPlan' }
+& powershell @runnerArguments
 exit $LASTEXITCODE

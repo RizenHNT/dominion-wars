@@ -77,8 +77,10 @@ For an already approved daytime goal, `scripts/auto-relay/start-relay.ps1` is th
 
 ## Mobile / Remote Codex trigger
 
-- A mobile message received through a supported ChatGPT Remote connection to this desktop Codex session may start automation only when the human explicitly asks to execute the already approved `Status: READY` goal (for example, “执行今天的 READY 目标”).
-- On that explicit command, Codex must first run `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ValidateOnly`; only if it passes may Codex run the same entry with `-ApprovedByHuman`.
+- A mobile message received through a supported ChatGPT Remote connection to this desktop Codex session may request a PL preview or execution of the already approved `Status: READY` goal.
+- For a PL preview, Codex must first run `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ValidateOnly`; only if it passes may Codex run the same entry with `-PlanOnly -ApprovedByHuman`. This phase calls PL only and returns a reviewable plan; it must not start Codex, tests, QA, or repairs.
+- After the human explicitly says to approve/execute that displayed plan, Codex must run the validation command again and then invoke `scripts\auto-relay\start-relay.ps1 -ApprovedPlan -ApprovedByHuman`. The runner verifies the saved plan hash, goal hash, branch, HEAD, and control-file hashes before starting Codex, tests, DeepSeek V4 Pro QA, repairs, and PL final review.
+- A human “停止” command invokes `scripts\auto-relay\disable-relay.ps1`; the active relay stops cooperatively before its next paid call or test stage. Do not claim an immediate kill while a process may be mid-write.
 - The relay calls DeepSeek V4 Flash PL and DeepSeek V4 Pro QA directly through the audited controller. Do not try to wake an Agents Window with `@` mentions or `code chat`.
 - A request to inspect status, probe providers, or explain the workflow must not start a live development run. If the Remote host is offline, signed out, asleep, or unavailable, report that instead of claiming execution.
 

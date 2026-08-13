@@ -121,6 +121,12 @@ powershell -ExecutionPolicy Bypass -File scripts/nightshift/start-day-shift.ps1 
 
 The wrapper requires the isolated worktree to be clean, validates and round-trips the requested scope/test profiles, rejects Markdown control injection, writes the approved input atomically to the private state directory outside the repository, and then runs the same audited pipeline. It never commits or pushes; implementation and report changes remain uncommitted for human review.
 
+## Two-phase daytime approval
+
+The daytime relay separates planning from implementation. The first phase runs `start-relay.ps1 -PlanOnly -ApprovedByHuman`; it calls DeepSeek V4 Flash PL, saves a hash-bound plan in private state, prints the plan for human review, and starts no Codex, test, QA, or repair stage. After the human explicitly approves that displayed plan, the second phase runs `start-relay.ps1 -ApprovedPlan -ApprovedByHuman`. The runner verifies the goal hash, plan hash, isolated branch, starting HEAD, and control-file hashes before it starts implementation. If any of those changed, it refuses to continue and requires a fresh PL plan.
+
+The human may issue `disable-relay.ps1` at any time to stop future calls. An active relay stops cooperatively before its next paid provider call or test stage; it does not claim to kill a process while a file may be mid-write.
+
 ## One-time credential setup
 
 Codex uses its existing CLI login. DeepSeek V4 Flash PL and DeepSeek V4 Pro QA share one protected API credential that a scheduled process can read without placing plaintext in the repository:

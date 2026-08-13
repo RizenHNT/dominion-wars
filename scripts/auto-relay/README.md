@@ -27,13 +27,27 @@ The entry point refuses to start when the relay is disabled, the private DeepSee
 
 ## Mobile / Remote use
 
-From the ChatGPT mobile app, open the supported Remote connection to the desktop Codex session and explicitly ask Codex to execute the already approved `READY` goal. Codex must first run the no-model validation command:
+From the ChatGPT mobile app, open the supported Remote connection to the desktop Codex session and ask Codex for a PL preview. Codex must first run the no-model validation command:
 
 ```powershell
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ValidateOnly
 ```
 
-If that passes, Codex runs the live entry with `-ApprovedByHuman`. This single relay invokes DeepSeek V4 Flash PL, Codex, tests, DeepSeek V4 Pro QA, bounded repairs, and PL final review. A status question or provider probe never starts development, and a mobile message outside a connected Remote Codex session cannot access this local repository.
+If that passes, Codex runs the `-PlanOnly -ApprovedByHuman` preview entry below. A status question or provider probe never starts development, and a mobile message outside a connected Remote Codex session cannot access this local repository.
+
+For the two-phase review gate, the preview phase runs:
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -PlanOnly -ApprovedByHuman
+```
+
+It returns a saved plan and starts no implementation or QA. After the human explicitly approves that displayed plan, Codex runs:
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ApprovedPlan -ApprovedByHuman
+```
+
+The second phase consumes only the hash-bound plan that was shown for review. “停止” invokes `disable-relay.ps1`; the active controller stops cooperatively before its next paid call or test stage.
 
 ## Status and stop switch
 
