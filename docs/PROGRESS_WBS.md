@@ -159,7 +159,7 @@
 
 | ID | 未完成交付 | 负责人 | 依赖/验收证据 | 状态 | Codex自动执行 |
 |---|---|---|---|---|---|
-| 10.4.1 | 清点设计包 320 项资源并生成可消费的 asset manifest | Codex | 路径、hash、alpha、尺寸、用途校验 | ready | 是 |
+| 10.4.1 | 清点设计包 320 项资源并生成可消费的 asset manifest | Codex | 既有 `ASSET_MANIFEST.csv` 320 行/320 文件；`scripts/validate-design-manifest.ps1` 校验路径、SHA256、alpha、透明度尺寸元数据与覆盖率 | done (`待提交`) | 是 |
 | 10.4.2 | 将通用 SVG/PNG 资源导入 Unity 或建立只读导入步骤 | Codex | Unity AssetDatabase/导入报告 | blocked | 需 Unity |
 | 10.4.3 | 4 张统领图接入并验证 fallback/缺图行为 | Codex + 前端 | 4 阵营牌面截图/测试 | pending | 部分 |
 | 10.4.4 | 91 张卡牌专属图片的生产、命名和版权确认 | 人类 + GPT Web/美术 | 91/91 artId 与文件 hash | human_required | 否 |
