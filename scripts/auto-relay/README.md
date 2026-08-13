@@ -15,13 +15,13 @@ The implementation reuses `scripts/nightshift/start-day-shift.ps1` and `run-nigh
 
 1. The `MiniMax PL` role (backed by DeepSeek V4 Flash) prepares `docs/DAILY_GOAL.md` with exact allowed paths, acceptance criteria, test profiles, and `Status: READY`.
 2. The human owner approves that goal once.
-3. The approved local relay entry runs this fixed command:
+3. The approved local relay entry first runs the PL preview command:
 
 ```powershell
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -ApprovedByHuman
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\auto-relay\start-relay.ps1 -PlanOnly -ApprovedByHuman
 ```
 
-After that command starts, no chat-window handoff is required. The computer must remain powered on, signed in, and online. Locking the screen or closing VS Code does not stop the local controller. Signing out, sleeping without a proven wake configuration, hibernating, or shutting down does.
+After the human approves the displayed plan, the relay runs the execution phase with `-ApprovedPlan -ApprovedByHuman`; no chat-window handoff is required after that. The computer must remain powered on, signed in, and online. Locking the screen or closing VS Code does not stop the local controller. Signing out, sleeping without a proven wake configuration, hibernating, or shutting down does.
 
 The entry point refuses to start when the relay is disabled, the private DeepSeek credential is missing or unsafe, the goal is not `READY`, or the isolated night-shift branch does not contain current `main`.
 

@@ -11,6 +11,9 @@ $ErrorActionPreference = 'Stop'
 
 if ($PlanOnly -and $ApprovedPlan) { throw '-PlanOnly and -ApprovedPlan cannot be combined.' }
 if ($ValidateOnly -and ($PlanOnly -or $ApprovedPlan)) { throw '-ValidateOnly cannot be combined with a live plan phase.' }
+if (-not $ValidateOnly -and -not $PlanOnly -and -not $ApprovedPlan) {
+    throw 'Live relay requires an explicit phase: use -PlanOnly for PL review or -ApprovedPlan after human approval.'
+}
 
 $repoRoot = Get-RelayRepositoryRoot -ScriptDirectory $PSScriptRoot
 $stateRoot = Get-RelayStateRoot -RepositoryRoot $repoRoot
