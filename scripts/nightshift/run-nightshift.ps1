@@ -1492,10 +1492,10 @@ if ($DryRun) {
 
 $stateTrustedRoot = if ($Simulation) { $repoRoot } else { $env:LOCALAPPDATA }
 Initialize-SafeDirectory -TrustedRoot $stateTrustedRoot -Path $stateRoot
-if (-not $Simulation -and -not (Test-DeepSeekCredentialAcl)) {
+if (-not $Simulation -and -not $SandboxPreflightOnly -and -not (Test-DeepSeekCredentialAcl)) {
     throw 'DeepSeek credential ACL is not private. Run scripts/nightshift/setup-deepseek-key.ps1 -HardenOnly before unattended execution.'
 }
-if (-not $Simulation -and -not (Test-MiniMaxCredentialAcl)) {
+if (-not $Simulation -and -not $SandboxPreflightOnly -and -not (Test-MiniMaxCredentialAcl)) {
     throw 'MiniMax credential ACL is not private. Run scripts/auto-relay/harden-minimax-auth.ps1 -Apply before unattended execution.'
 }
 if (-not $Simulation -and -not (Test-NightShiftStateAclPrivate)) {
@@ -1569,12 +1569,12 @@ if ($Scheduled) { Add-SchedulerLog -Message "STARTED run=$runId goal=$($script:g
 if ($Scheduled) { Write-SchedulerStatus -Status 'RUNNING' -Message "Run started on branch $branch." }
 Set-RunStage -Stage 'PREFLIGHT'
 
-$requiredCommands = if ($Simulation) { @('git', 'powershell') } else { @('git', 'powershell', [string]$config.pl.command, [string]$config.developer.command) }
-if (@($script:goalTestProfiles | Where-Object { $_ -in @('build', 'regression') }).Count -gt 0) { $requiredCommands += 'java' }
+$requiredCommands = if ($Simulation) { @('git', 'powershell') } elseif ($SandboxPreflightOnly) { @('git', 'powershell', [string]$config.developer.command) } else { @('git', 'powershell', [string]$config.pl.command, [string]$config.developer.command) }
+if (-not $SandboxPreflightOnly -and @($script:goalTestProfiles | Where-Object { $_ -in @('build', 'regression') }).Count -gt 0) { $requiredCommands += 'java' }
 foreach ($command in $requiredCommands) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Required command not found: $command" }
 }
-if (@($script:goalTestProfiles | Where-Object { $_ -in @('sanity', 'alignment') }).Count -gt 0 -and -not $pythonCommand) { throw 'Required Python interpreter not found.' }
+if (-not $SandboxPreflightOnly -and @($script:goalTestProfiles | Where-Object { $_ -in @('sanity', 'alignment') }).Count -gt 0 -and -not $pythonCommand) { throw 'Required Python interpreter not found.' }
 if ($goalAllowedPaths.Count -eq 0) { throw 'The READY goal has no allowed paths.' }
 foreach ($path in $goalAllowedPaths) {
     if (-not (Test-SafeAllowedPath -Path $path)) { throw "Unsafe allowed path in goal: $path" }
@@ -1585,10 +1585,12 @@ if (-not $Simulation -and -not $branch.StartsWith('agents/nightshift-', [System.
     throw "Live night shift requires an isolated agents/nightshift-* branch, not: $branch"
 }
 if (-not $Simulation) {
-    if (-not (Test-DeepSeekCredentialAcl)) {
-        throw 'DeepSeek credential ACL is not private. Run scripts/nightshift/setup-deepseek-key.ps1 -HardenOnly before unattended execution.'
+    if (-not $SandboxPreflightOnly) {
+        if (-not (Test-DeepSeekCredentialAcl)) {
+            throw 'DeepSeek credential ACL is not private. Run scripts/nightshift/setup-deepseek-key.ps1 -HardenOnly before unattended execution.'
+        }
+        $null = Get-DeepSeekCredential
     }
-    $null = Get-DeepSeekCredential
     $script:startingBranch = $branch
     $startingHeadOutput = @(& git -C $repoRoot rev-parse HEAD)
     if ($LASTEXITCODE -ne 0) { throw 'Unable to record the starting Git commit.' }
