@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using DominionWars.Engine.Effects;
 using DominionWars.Engine.Model;
 
 namespace DominionWars.Data
@@ -76,7 +77,6 @@ namespace DominionWars.Data
             if (!CardTypes.Contains(type)) throw Invalid(source, "invalid card type: " + type);
             var text = RequiredString(element, "text", source, 0, 256);
             var isMinion = type == "MINION";
-            // AMBUSH has no CardDefinition slot in this batch; it is deliberately validated then discarded.
             if (isMinion && (!element.TryGetProperty("attack", out _) || !element.TryGetProperty("health", out _))) throw Invalid(source, "MINION cards require attack and health");
             if (type == "PUNISH" && (!element.TryGetProperty("punish", out var punishValue) || !punishValue.TryGetInt32(out var punishAmount) || punishAmount < 1)) throw Invalid(source, "PUNISH cards require punish >= 1");
             if (element.TryGetProperty("leader", out var leaderValue) && (leaderValue.ValueKind != JsonValueKind.True)) throw Invalid(source, "leader must be true when present");
@@ -88,16 +88,19 @@ namespace DominionWars.Data
             var punishActivatable = OptionalBool(element, "punishActivatable", false, source);
             var punishCost = OptionalInt(element, "punishCost", 0, 0, 20, source);
             if (punish > 0) { punishActivatable = true; punishCost = punish; }
+            var punishCondition = OptionalString(element, "punishCondition", source, 64);
             ValidateArrayStrings(element, "tags", source, 4, 1, 8, null);
             var keywords = ValidateArrayStrings(element, "keywords", source, 4, 1, 16, Keywords);
             ValidateEnum(element, "punishCondition", PunishConditions, source);
             ValidateEnum(element, "ambushKind", AmbushKinds, source);
             ValidateEnum(element, "ambushTrigger", AmbushTriggers, source);
-            ValidateEffects(element, "punishEffects", source);
-            ValidateEffects(element, "ambushEffects", source);
-            ValidateEffects(element, "chantEffects", source);
-            ValidateEffects(element, "onOpponentDiscardEffects", source);
-            ValidateEffects(element, "onPlayEffects", source);
+            var punishEffects = MapEffects(element, "punishEffects", source);
+            var ambushEffects = MapEffects(element, "ambushEffects", source);
+            var chantEffects = MapEffects(element, "chantEffects", source);
+            var onOpponentDiscardEffects = MapEffects(element, "onOpponentDiscardEffects", source);
+            var onPlayEffects = MapEffects(element, "onPlayEffects", source);
+            var leaderEnterEffects = new List<EffectSpec>();
+            var leaderPunishEffects = new List<EffectSpec>();
             var vulnerabilities = new List<string>();
             if (element.TryGetProperty("leaderDef", out var leaderDef))
             {
@@ -117,10 +120,37 @@ namespace DominionWars.Data
                     }
                 }
                 ValidateLeaderDef(leaderDef, source);
+                leaderEnterEffects = MapEffects(leaderDef, "enterEffects", source);
+                leaderPunishEffects = MapEffects(leaderDef, "punishEffects", source);
             }
             else if (isLeader) throw Invalid(source, "leader cards require leaderDef");
-            // TODO: leaderDef win effects, durability, grantLife and win parameters belong to the leader runtime batch.
-            return new CardDefinition(id, name, attack, health, isMinion, isLeader, faction: faction, text: text, flavor: OptionalString(element, "flavor", source, 256), cost: cost, keywords: keywords, tags: ValidateArrayStrings(element, "tags", source, 4, 1, 8, null), punishActivatable: punishActivatable, punishCost: punishCost, vulnerabilities: vulnerabilities);
+            return new CardDefinition(
+                id, name, attack, health, isMinion, isLeader,
+                kingSlayer: OptionalBool(element, "kingSlayer", false, source),
+                faction: faction,
+                text: text,
+                flavor: OptionalString(element, "flavor", source, 256),
+                cost: cost,
+                keywords: keywords,
+                tags: ValidateArrayStrings(element, "tags", source, 4, 1, 8, null),
+                punishActivatable: punishActivatable,
+                punishCost: punishCost,
+                vulnerabilities: vulnerabilities,
+                type: type,
+                punish: punish,
+                punishCondition: punishCondition,
+                onPlayEffects: onPlayEffects,
+                punishEffects: punishEffects,
+                ambushKind: OptionalString(element, "ambushKind", source, 32),
+                ambushTrigger: OptionalString(element, "ambushTrigger", source, 64),
+                ambushEffects: ambushEffects,
+                chant: OptionalInt(element, "chant", 0, 0, 99, source),
+                chantEffects: chantEffects,
+                attacksPerTurn: OptionalInt(element, "attacksPerTurn", 1, 1, 99, source),
+                onOpponentDiscardEffects: onOpponentDiscardEffects,
+                guard: OptionalBool(element, "guard", false, source),
+                leaderEnterEffects: leaderEnterEffects,
+                leaderPunishEffects: leaderPunishEffects);
         }
 
         private static void ValidateLeaderDef(JsonElement value, string source)
@@ -148,6 +178,24 @@ namespace DominionWars.Data
                 if (effect.TryGetProperty("amount", out var amount)) ValidateInt(amount, source, property + ".amount", -99, 99);
                 if (effect.TryGetProperty("param", out var param) && (param.ValueKind != JsonValueKind.String || param.GetString()!.Length > 64)) throw Invalid(source, "invalid effect param");
             }
+        }
+
+        private static List<EffectSpec> MapEffects(JsonElement parent, string property, string source)
+        {
+            ValidateEffects(parent, property, source);
+            var result = new List<EffectSpec>();
+            if (!parent.TryGetProperty(property, out var array)) return result;
+            foreach (var effect in array.EnumerateArray())
+            {
+                result.Add(new EffectSpec(
+                    RequiredString(effect, "action", source, 1, 64),
+                    OptionalString(effect, "target", source, 64),
+                    OptionalInt(effect, "amount", 0, -99, 99, source),
+                    OptionalString(effect, "param", source, 64),
+                    effect.TryGetProperty("kingSlayer", out _) ? OptionalBool(effect, "kingSlayer", false, source) : (bool?)null,
+                    OptionalString(effect, "condition", source, 64)));
+            }
+            return result;
         }
 
         private static List<string> ValidateArrayStrings(JsonElement parent, string property, string source, int maxItems, int minLength, int maxLength, HashSet<string>? allowed)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DominionWars.Engine.Effects;
 
 namespace DominionWars.Engine.Model
 {
@@ -8,6 +9,13 @@ public sealed class CardDefinition
 {
     private readonly IReadOnlyCollection<string> _keywords;
     private readonly IReadOnlyCollection<string> _tags;
+    private readonly IReadOnlyList<EffectSpec> _onPlayEffects;
+    private readonly IReadOnlyList<EffectSpec> _punishEffects;
+    private readonly IReadOnlyList<EffectSpec> _ambushEffects;
+    private readonly IReadOnlyList<EffectSpec> _chantEffects;
+    private readonly IReadOnlyList<EffectSpec> _onOpponentDiscardEffects;
+    private readonly IReadOnlyList<EffectSpec> _leaderEnterEffects;
+    private readonly IReadOnlyList<EffectSpec> _leaderPunishEffects;
 
     public CardDefinition(
         string id,
@@ -29,7 +37,22 @@ public sealed class CardDefinition
         IEnumerable<string>? tags = null,
         bool punishActivatable = false,
         int punishCost = 0,
-        bool hasLeaderAbility = false)
+        bool hasLeaderAbility = false,
+        string? type = null,
+        int punish = 0,
+        string? punishCondition = null,
+        IEnumerable<EffectSpec>? onPlayEffects = null,
+        IEnumerable<EffectSpec>? punishEffects = null,
+        string? ambushKind = null,
+        string? ambushTrigger = null,
+        IEnumerable<EffectSpec>? ambushEffects = null,
+        int chant = 0,
+        IEnumerable<EffectSpec>? chantEffects = null,
+        int attacksPerTurn = 1,
+        IEnumerable<EffectSpec>? onOpponentDiscardEffects = null,
+        bool guard = false,
+        IEnumerable<EffectSpec>? leaderEnterEffects = null,
+        IEnumerable<EffectSpec>? leaderPunishEffects = null)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -66,6 +89,11 @@ public sealed class CardDefinition
             throw new ArgumentOutOfRangeException(nameof(punishCost));
         }
 
+        if (punish < 0 || chant < 0 || attacksPerTurn < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(punish));
+        }
+
         Id = id;
         Name = name;
         Attack = attack;
@@ -82,6 +110,14 @@ public sealed class CardDefinition
         PunishActivatable = punishActivatable;
         PunishCost = punishCost;
         HasLeaderAbility = hasLeaderAbility;
+        Type = string.IsNullOrWhiteSpace(type) ? (isMinion ? "MINION" : "SPELL") : type!;
+        Punish = punish;
+        PunishCondition = punishCondition;
+        AmbushKind = ambushKind;
+        AmbushTrigger = ambushTrigger;
+        Chant = chant;
+        AttacksPerTurn = attacksPerTurn;
+        Guard = guard;
         // Legacy compatibility only. New data should mark the individual EffectSpec.
         KingSlayer = kingSlayer;
 
@@ -126,6 +162,13 @@ public sealed class CardDefinition
         }
 
         Vulnerabilities = vulnerabilitySet;
+        _onPlayEffects = CopyEffects(onPlayEffects);
+        _punishEffects = CopyEffects(punishEffects);
+        _ambushEffects = CopyEffects(ambushEffects);
+        _chantEffects = CopyEffects(chantEffects);
+        _onOpponentDiscardEffects = CopyEffects(onOpponentDiscardEffects);
+        _leaderEnterEffects = CopyEffects(leaderEnterEffects);
+        _leaderPunishEffects = CopyEffects(leaderPunishEffects);
     }
 
     public string Id { get; }
@@ -144,10 +187,39 @@ public sealed class CardDefinition
     public bool PunishActivatable { get; }
     public int PunishCost { get; }
     public bool HasLeaderAbility { get; }
+    public string Type { get; }
+    public int Punish { get; }
+    public string? PunishCondition { get; }
+    public string? AmbushKind { get; }
+    public string? AmbushTrigger { get; }
+    public int Chant { get; }
+    public int AttacksPerTurn { get; }
+    public bool Guard { get; }
     /// <summary>Legacy card-level fallback. EffectSpec.KingSlayer takes precedence when present.</summary>
     public bool KingSlayer { get; }
     public IReadOnlyCollection<string> Keywords => _keywords;
     public IReadOnlyCollection<string> Tags => _tags;
     public IReadOnlyCollection<string> Vulnerabilities { get; }
+    public IReadOnlyList<EffectSpec> OnPlayEffects => _onPlayEffects;
+    public IReadOnlyList<EffectSpec> PunishEffects => _punishEffects;
+    public IReadOnlyList<EffectSpec> AmbushEffects => _ambushEffects;
+    public IReadOnlyList<EffectSpec> ChantEffects => _chantEffects;
+    public IReadOnlyList<EffectSpec> OnOpponentDiscardEffects => _onOpponentDiscardEffects;
+    public IReadOnlyList<EffectSpec> LeaderEnterEffects => _leaderEnterEffects;
+    public IReadOnlyList<EffectSpec> LeaderPunishEffects => _leaderPunishEffects;
+
+    private static IReadOnlyList<EffectSpec> CopyEffects(IEnumerable<EffectSpec>? effects)
+    {
+        var copy = new List<EffectSpec>();
+        if (effects is not null)
+        {
+            foreach (var effect in effects)
+            {
+                copy.Add(effect ?? throw new ArgumentException("Effect lists cannot contain null.", nameof(effects)));
+            }
+        }
+
+        return copy.AsReadOnly();
+    }
 }
 }
