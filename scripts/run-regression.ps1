@@ -51,6 +51,11 @@ try {
             -File (Join-Path $repoRoot 'scripts\validate-cards.ps1')
     }
 
+    Invoke-RegressionStage -Name 'deck-validation' -Action {
+        & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+            -File (Join-Path $repoRoot 'scripts\validate-decks.ps1')
+    }
+
     Invoke-RegressionStage -Name 'java-build' -Action {
         & cmd.exe /d /c 'call scripts\build.bat'
     }
