@@ -11,7 +11,7 @@ $repoRoot = Get-RelayRepositoryRoot -ScriptDirectory $PSScriptRoot
 $stateRoot = Get-RelayStateRoot -RepositoryRoot $repoRoot
 if (Test-RelayDisabled -StateRoot $stateRoot) { throw 'Auto relay is disabled. Run disable-relay.ps1 -Enable after human review.' }
 if (-not $ValidateOnly -and -not $ApprovedByHuman) {
-    throw 'Live relay requires -ApprovedByHuman. MiniMax may use it only after the owner approved docs/DAILY_GOAL.md.'
+    throw 'Live relay requires -ApprovedByHuman after the owner approved docs/DAILY_GOAL.md.'
 }
 
 $goalFile = Join-Path $repoRoot 'docs\DAILY_GOAL.md'
@@ -42,12 +42,6 @@ if ($ValidateOnly -and -not $goalReady) {
 if (-not $goalReady) { throw 'docs/DAILY_GOAL.md is not READY.' }
 if (-not $branchContainsMain) { throw 'The isolated night-shift branch does not contain current main. Codex must sync it before relay can start.' }
 if (-not $branchControlMatchesMain) { throw 'The isolated branch overrides reviewed rules or automation controls. Codex must reconcile it with main before relay can start.' }
-
-if (-not $ValidateOnly) {
-    $authAudit = Join-Path $PSScriptRoot 'harden-minimax-auth.ps1'
-    & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $authAudit | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'The private MiniMax relay credential copy is missing or unsafe. Run harden-minimax-auth.ps1 -Apply before unattended relay.' }
-}
 
 function Get-SectionText {
     param([Parameter(Mandatory)][string]$Heading)

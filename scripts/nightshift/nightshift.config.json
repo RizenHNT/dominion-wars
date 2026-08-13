@@ -20,9 +20,10 @@
   },
   "protectedBranches": ["main", "master"],
   "pl": {
-    "command": "mmx",
-    "model": "MiniMax-M3",
-    "maxTokens": 4096,
+    "provider": "deepseek",
+    "endpoint": "https://api.deepseek.com/v1/chat/completions",
+    "model": "deepseek-v4-flash",
+    "maxOutputTokens": 4096,
     "temperature": 0.1
   },
   "developer": {
@@ -31,6 +32,7 @@
     "reasoningEffort": "high"
   },
   "qa": {
+    "provider": "deepseek",
     "endpoint": "https://api.deepseek.com/v1/chat/completions",
     "model": "deepseek-v4-pro",
     "credentialFile": "%LOCALAPPDATA%\\DominionWarsNightshift\\deepseek.key",

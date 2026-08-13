@@ -2,7 +2,9 @@
 description: "Test lead for Dominion Wars. Use for: regression testing, simulation runs, schema validation, asset checks, localization/accessibility audits, test case design, and QA reports. Never edits production code."
 name: "DeepSeek QA"
 user-invocable: true
-tools: [read, search, edit, execute]
+model: "DeepSeek V4 Pro"
+tools: [read, search, edit, execute, agent]
+agents: ["MiniMax PL"]
 argument-hint: "Describe the test task, QA check, or report needed."
 ---
 # Dominion Wars Test Lead

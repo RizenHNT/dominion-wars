@@ -39,8 +39,9 @@ $runRoot = Join-Path $stateRoot $runId
 $reportPath = if ($Simulation) { Join-Path $runRoot 'SIMULATION_REPORT.md' } else { Join-Path $repoRoot 'docs\NIGHT_REPORT.md' }
 $schedulerLog = Join-Path $stateRoot 'scheduler.log'
 $schedulerStatusPath = Join-Path $stateRoot 'last-scheduled-status.json'
-$configuredMiniMax = [string]$config.pl.command
 $configuredCodex = [string]$config.developer.command
+$configuredPlProvider = [string]$config.pl.provider
+$configuredQaProvider = [string]$config.qa.provider
 $script:runStarted = $false
 $script:currentStage = 'STARTUP'
 $script:goalHash = ''
@@ -85,14 +86,22 @@ if ([int]$config.scheduledLatestStartHour -lt 2 -or [int]$config.scheduledLatest
 if ([int]$config.goalMaxAgeHours -lt 2 -or [int]$config.goalMaxAgeHours -gt 48) { throw 'goalMaxAgeHours must be between 2 and 48.' }
 if ([string]$config.developer.model -ne 'gpt-5.6-luna') { throw 'Night-shift developer model must remain pinned to gpt-5.6-luna.' }
 if ([string]$config.developer.reasoningEffort -notin @('low', 'medium', 'high', 'xhigh', 'max')) { throw 'Invalid night-shift developer reasoning effort.' }
-
-if (-not (Get-Command $configuredMiniMax -ErrorAction SilentlyContinue)) {
-    foreach ($candidate in @(
-        (Join-Path $env:APPDATA 'npm\mmx.ps1'),
-        (Join-Path $env:APPDATA 'npm\mmx.cmd')
-    )) {
-        if (Test-Path -LiteralPath $candidate) { $config.pl.command = $candidate; break }
+if ($configuredPlProvider -ne 'deepseek') { throw 'Night-shift PL provider must remain pinned to deepseek.' }
+if ($configuredQaProvider -ne 'deepseek') { throw 'Night-shift QA provider must remain pinned to deepseek.' }
+foreach ($providerConfig in @($config.pl, $config.qa)) {
+    if ([string]$providerConfig.endpoint -ne 'https://api.deepseek.com/v1/chat/completions') {
+        throw 'Night-shift DeepSeek endpoint must remain pinned to https://api.deepseek.com/v1/chat/completions.'
     }
+    if (-not [string]$providerConfig.model) { throw 'Night-shift DeepSeek model is missing.' }
+    if ([double]$providerConfig.temperature -lt 0 -or [double]$providerConfig.temperature -gt 1) {
+        throw 'Night-shift DeepSeek temperature must be between 0 and 1.'
+    }
+}
+if ([int]$config.pl.maxOutputTokens -lt 1 -or [int]$config.pl.maxOutputTokens -gt 32768) {
+    throw 'Night-shift PL maxOutputTokens is outside the safe range.'
+}
+if ([int]$config.qa.maxOutputTokens -lt 1 -or [int]$config.qa.maxOutputTokens -gt 32768) {
+    throw 'Night-shift QA maxOutputTokens is outside the safe range.'
 }
 
 $codexCandidate = Get-ChildItem -Path (Join-Path $env:USERPROFILE '.vscode\extensions\openai.chatgpt-*-win32-x64\bin\windows-x86_64\codex.exe') -File -ErrorAction SilentlyContinue |
@@ -746,77 +755,14 @@ function ConvertFrom-ModelJson {
     $clean.Substring($start, $end - $start + 1) | ConvertFrom-Json
 }
 
-function Invoke-MiniMaxJson {
-    param(
-        [string]$SystemPrompt,
-        [string]$Message,
-        [string]$OutputFile,
-        [int]$TimeoutSeconds,
-        [string]$Stage
-    )
-    $SystemPrompt = Protect-ProviderText -Text $SystemPrompt -MaximumCharacters 20000
-    $Message = Protect-ProviderText -Text $Message
-    $miniMaxConfigDirectory = Join-Path $env:LOCALAPPDATA 'DominionWarsAutoRelay\mmx'
-    $miniMaxConfigFile = Join-Path $miniMaxConfigDirectory 'config.json'
-    if (-not (Test-Path -LiteralPath $miniMaxConfigFile -PathType Leaf)) {
-        throw 'The private MiniMax relay credential copy is missing. Run scripts/auto-relay/harden-minimax-auth.ps1 -Apply.'
-    }
-    foreach ($credentialPath in @($miniMaxConfigDirectory, $miniMaxConfigFile)) {
-        $credentialItem = Get-Item -LiteralPath $credentialPath -Force
-        if (($credentialItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw 'The private MiniMax relay credential path is a reparse point.'
-        }
-    }
-    if (-not (Test-MiniMaxCredentialAcl)) {
-        throw 'The private MiniMax relay credential ACL is not restricted to the current user, LocalSystem, and local Administrators.'
-    }
-    $messagesFile = "$OutputFile.messages.json"
-    $messagesJson = @(
-        @{ role = 'system'; content = $SystemPrompt },
-        @{ role = 'user'; content = $Message }
-    ) | ConvertTo-Json -Depth 10
-    [System.IO.File]::WriteAllText($messagesFile, $messagesJson, [System.Text.UTF8Encoding]::new($false))
-    $arguments = @(
-        'text', 'chat',
-        '--model', [string]$config.pl.model,
-        '--messages-file', $messagesFile,
-        '--max-tokens', [string]$config.pl.maxTokens,
-        '--temperature', [string]$config.pl.temperature,
-        '--output', 'json',
-        '--no-color', '--non-interactive',
-        '--timeout', [string]([Math]::Max(1, $TimeoutSeconds - 5))
-    )
-    $lastReason = 'MiniMax failed.'
-    for ($attempt = 1; $attempt -le [int]$config.providerMaxAttempts; $attempt++) {
-        $paidAttempt = Enter-PaidModelAttempt -Provider 'MiniMax' -Stage $Stage
-        $wrapper = $null
-        $attemptOutput = "$OutputFile.attempt-$attempt.txt"
-        $result = Invoke-CapturedCommand -Command $config.pl.command -Arguments $arguments -OutputFile $attemptOutput -TimeoutSeconds $TimeoutSeconds -Stage ("{0}_ATTEMPT_{1}" -f $Stage, $attempt) -Environment @{ MMX_CONFIG_DIR = $miniMaxConfigDirectory } -SanitizeEnvironment
-        if ($result.ExitCode -eq 0 -and -not $result.OutputTruncated) {
-            try {
-                $wrapper = $result.Output | ConvertFrom-Json
-                if (-not $wrapper.content -or -not $wrapper.content[0].text) { throw 'MiniMax response did not contain content[0].text.' }
-                Write-AtomicText -Path $OutputFile -Content $result.Output
-                Add-UsageRecord -Provider 'MiniMax' -Stage $Stage -Attempt $paidAttempt -Status 'SUCCESS' -Usage $wrapper.usage
-                return (ConvertFrom-ModelJson -Text ([string]$wrapper.content[0].text))
-            }
-            catch { $lastReason = "MiniMax returned invalid JSON: $($_.Exception.Message)" }
-        }
-        elseif ($result.OutputTruncated) { $lastReason = 'MiniMax output exceeded the capture limit.' }
-        elseif ($result.TimedOut) { $lastReason = "MiniMax timed out after $TimeoutSeconds seconds." }
-        else { $lastReason = "MiniMax failed with exit code $($result.ExitCode)." }
-        Add-UsageRecord -Provider 'MiniMax' -Stage $Stage -Attempt $paidAttempt -Status 'FAILED' -Usage $(if ($wrapper) { $wrapper.usage } else { $null })
-
-        $nonRetryable = $result.Output -match '(?i)(401|403|unauthori[sz]ed|invalid.{0,12}(?:api.?key|credential)|login fail|quota exceeded|insufficient (?:balance|credit)|billing)'
-        if ($nonRetryable -or $attempt -eq [int]$config.providerMaxAttempts) { break }
-        $retryDelay = Get-BoundedTimeoutSeconds -RequestedSeconds ([int]$config.providerRetryBaseSeconds * $attempt)
-        Start-Sleep -Seconds $retryDelay
-    }
-    throw "$lastReason See the per-attempt files next to $OutputFile"
+function Get-DeepSeekCredentialPath {
+    $expanded = [Environment]::ExpandEnvironmentVariables([string]$config.qa.credentialFile)
+    if (-not $expanded) { throw 'DeepSeek credentialFile is missing from night-shift configuration.' }
+    $expanded
 }
 
 function Get-DeepSeekCredential {
-    $expanded = [Environment]::ExpandEnvironmentVariables([string]$config.qa.credentialFile)
+    $expanded = Get-DeepSeekCredentialPath
     if (-not (Test-Path -LiteralPath $expanded)) {
         throw "DeepSeek credential is missing. Run scripts/nightshift/setup-deepseek-key.ps1 first."
     }
@@ -966,17 +912,27 @@ function Test-NightShiftStateAclPrivate {
 }
 
 function Invoke-DeepSeekJson {
-    param([string]$Message, [string]$OutputFile, [string]$Stage)
+    param(
+        [string]$Message,
+        [string]$OutputFile,
+        [string]$Stage,
+        [string]$SystemPrompt = 'You are independent QA. Return valid JSON only. Never claim tests passed unless the supplied command output proves it.',
+        [Parameter(Mandatory)][string]$Model,
+        [Parameter(Mandatory)][int]$MaxOutputTokens,
+        [Parameter(Mandatory)][double]$Temperature,
+        [string]$ProviderLabel = 'DeepSeek',
+        [int]$TimeoutSeconds = 0
+    )
     $Message = Protect-ProviderText -Text $Message
     $key = Get-DeepSeekCredential
     try {
         $headers = @{ Authorization = "Bearer $key" }
         $body = @{
-            model = [string]$config.qa.model
-            temperature = [double]$config.qa.temperature
-            max_tokens = [int]$config.qa.maxOutputTokens
+            model = $Model
+            temperature = $Temperature
+            max_tokens = $MaxOutputTokens
             messages = @(
-                @{ role = 'system'; content = 'You are independent QA. Return valid JSON only. Never claim tests passed unless the supplied command output proves it.' },
+                @{ role = 'system'; content = (Protect-ProviderText -Text $SystemPrompt -MaximumCharacters 20000) },
                 @{ role = 'user'; content = $Message }
             )
         } | ConvertTo-Json -Depth 10
@@ -986,18 +942,19 @@ function Invoke-DeepSeekJson {
         $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
         $lastFailure = 'DeepSeek failed.'
         for ($attempt = 1; $attempt -le [int]$config.providerMaxAttempts; $attempt++) {
-            $paidAttempt = Enter-PaidModelAttempt -Provider 'DeepSeek' -Stage $Stage
+            $paidAttempt = Enter-PaidModelAttempt -Provider $ProviderLabel -Stage $Stage
             $response = $null
             $attemptFile = "$OutputFile.attempt-$attempt.json"
             Set-RunStage -Stage ("{0}_ATTEMPT_{1}" -f $Stage, $attempt)
             try {
-                $qaTimeout = Get-BoundedTimeoutSeconds -RequestedSeconds ([int]$config.timeouts.qaSeconds)
+                $requestTimeout = if ($TimeoutSeconds -gt 0) { $TimeoutSeconds } else { [int]$config.timeouts.qaSeconds }
+                $qaTimeout = Get-BoundedTimeoutSeconds -RequestedSeconds $requestTimeout
                 $response = Invoke-RestMethod -Method Post -Uri $config.qa.endpoint -Headers $headers -ContentType 'application/json; charset=utf-8' -Body $bodyBytes -TimeoutSec $qaTimeout
                 Write-AtomicJson -Path $attemptFile -Value $response
                 Write-AtomicJson -Path $OutputFile -Value $response
                 if (-not $response.choices -or -not $response.choices[0].message.content) { throw 'DeepSeek response did not contain choices[0].message.content.' }
                 $parsed = ConvertFrom-ModelJson -Text ([string]$response.choices[0].message.content)
-                Add-UsageRecord -Provider 'DeepSeek' -Stage $Stage -Attempt $paidAttempt -Status 'SUCCESS' -Usage $response.usage
+                Add-UsageRecord -Provider $ProviderLabel -Stage $Stage -Attempt $paidAttempt -Status 'SUCCESS' -Usage $response.usage
                 return $parsed
             }
             catch {
@@ -1007,7 +964,7 @@ function Invoke-DeepSeekJson {
                 if (-not (Test-Path -LiteralPath $attemptFile)) {
                     Write-AtomicJson -Path $attemptFile -Value ([ordered]@{ statusCode = $statusCode; error = (Protect-ProviderText -Text $lastFailure -MaximumCharacters 4000) })
                 }
-                Add-UsageRecord -Provider 'DeepSeek' -Stage $Stage -Attempt $paidAttempt -Status 'FAILED' -Usage $(if ($response) { $response.usage } else { $null })
+                Add-UsageRecord -Provider $ProviderLabel -Stage $Stage -Attempt $paidAttempt -Status 'FAILED' -Usage $(if ($response) { $response.usage } else { $null })
                 $nonRetryable = $statusCode -in @(400, 401, 403, 404) -or $lastFailure -match '(?i)(unauthori[sz]ed|invalid.{0,12}(?:api.?key|credential)|quota exceeded|insufficient (?:balance|credit)|billing)'
                 if ($nonRetryable -or $attempt -eq [int]$config.providerMaxAttempts) { break }
                 $retryDelay = Get-BoundedTimeoutSeconds -RequestedSeconds ([int]$config.providerRetryBaseSeconds * $attempt)
@@ -1495,10 +1452,10 @@ if ($DryRun) {
         ExistingChanges = $changedBefore
         GoalAllowedPaths = $goalAllowedPaths
         GoalTestProfiles = $script:goalTestProfiles
-        MiniMax = (Get-Command $config.pl.command).Source
+        PlanningProvider = $config.pl.provider
+        PlanningModel = $config.pl.model
         Codex = (Get-Command $config.developer.command).Source
         Python = $pythonCommand
-        MiniMaxCredentialAclPrivate = Test-MiniMaxCredentialAcl
         DeepSeekCredentialConfigured = Test-DeepSeekCredential
         DeepSeekCredentialAclPrivate = Test-DeepSeekCredentialAcl
         NightShiftStateAclPrivate = Test-NightShiftStateAclPrivate
@@ -1514,9 +1471,6 @@ $stateTrustedRoot = if ($Simulation) { $repoRoot } else { $env:LOCALAPPDATA }
 Initialize-SafeDirectory -TrustedRoot $stateTrustedRoot -Path $stateRoot
 if (-not $Simulation -and -not $SandboxPreflightOnly -and -not (Test-DeepSeekCredentialAcl)) {
     throw 'DeepSeek credential ACL is not private. Run scripts/nightshift/setup-deepseek-key.ps1 -HardenOnly before unattended execution.'
-}
-if (-not $Simulation -and -not $SandboxPreflightOnly -and -not (Test-MiniMaxCredentialAcl)) {
-    throw 'MiniMax credential ACL is not private. Run scripts/auto-relay/harden-minimax-auth.ps1 -Apply before unattended execution.'
 }
 if (-not $Simulation -and -not (Test-NightShiftStateAclPrivate)) {
     throw 'Night-shift private state ACL is not restricted to the current user, LocalSystem, and local Administrators.'
@@ -1589,7 +1543,7 @@ if ($Scheduled) { Add-SchedulerLog -Message "STARTED run=$runId goal=$($script:g
 if ($Scheduled) { Write-SchedulerStatus -Status 'RUNNING' -Message "Run started on branch $branch." }
 Set-RunStage -Stage 'PREFLIGHT'
 
-$requiredCommands = if ($Simulation) { @('git', 'powershell') } elseif ($SandboxPreflightOnly) { @('git', 'powershell', [string]$config.developer.command) } else { @('git', 'powershell', [string]$config.pl.command, [string]$config.developer.command) }
+$requiredCommands = if ($Simulation) { @('git', 'powershell') } else { @('git', 'powershell', [string]$config.developer.command) }
 if (-not $SandboxPreflightOnly -and @($script:goalTestProfiles | Where-Object { $_ -in @('build', 'regression') }).Count -gt 0) { $requiredCommands += 'java' }
 foreach ($command in $requiredCommands) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Required command not found: $command" }
@@ -1725,7 +1679,7 @@ if ($Simulation) {
     }
 }
 else {
-    $plan = Invoke-MiniMaxJson -SystemPrompt $plannerSystem -Message $goalText -OutputFile (Join-Path $runRoot 'pl-plan-raw.json') -TimeoutSeconds ([int]$config.timeouts.plannerSeconds) -Stage 'PLANNING'
+    $plan = Invoke-DeepSeekJson -SystemPrompt $plannerSystem -Message $goalText -OutputFile (Join-Path $runRoot 'pl-plan-raw.json') -Stage 'PLANNING' -Model ([string]$config.pl.model) -MaxOutputTokens ([int]$config.pl.maxOutputTokens) -Temperature ([double]$config.pl.temperature) -ProviderLabel 'DeepSeek PL' -TimeoutSeconds ([int]$config.timeouts.plannerSeconds)
 }
 $script:plan = $plan
 Assert-PlanValid -CandidatePlan $plan -GoalPaths $goalAllowedPaths
@@ -1931,7 +1885,7 @@ $reviewEvidence
                     Write-AtomicJson -Path $qaFile -Value $qa
                 }
                 else {
-                    $qa = Invoke-DeepSeekJson -Message $qaPrompt -OutputFile $qaFile -Stage "QA_$($task.id)_$($task.repairCycles)"
+                    $qa = Invoke-DeepSeekJson -Message $qaPrompt -OutputFile $qaFile -Stage "QA_$($task.id)_$($task.repairCycles)" -Model ([string]$config.qa.model) -MaxOutputTokens ([int]$config.qa.maxOutputTokens) -Temperature ([double]$config.qa.temperature) -ProviderLabel 'DeepSeek QA'
                 }
             }
             catch {
@@ -2015,7 +1969,7 @@ if ($Simulation) {
 }
 else {
     try {
-        $finalReview = Invoke-MiniMaxJson -SystemPrompt 'You are the final PL reviewer. Use only supplied evidence and return JSON only.' -Message $finalPrompt -OutputFile (Join-Path $runRoot 'pl-final-raw.json') -TimeoutSeconds ([int]$config.timeouts.finalReviewSeconds) -Stage 'FINAL_PL_REVIEW'
+        $finalReview = Invoke-DeepSeekJson -SystemPrompt 'You are the planning lead final reviewer. Use only supplied evidence and return JSON only.' -Message $finalPrompt -OutputFile (Join-Path $runRoot 'pl-final-raw.json') -Stage 'FINAL_PL_REVIEW' -Model ([string]$config.pl.model) -MaxOutputTokens ([int]$config.pl.maxOutputTokens) -Temperature ([double]$config.pl.temperature) -ProviderLabel 'DeepSeek PL' -TimeoutSeconds ([int]$config.timeouts.finalReviewSeconds)
     }
     catch {
         $finalReview = [pscustomobject]@{ status = 'HUMAN_REQUIRED'; summary = "Final PL review was unavailable: $($_.Exception.Message)" }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The night shift is a bounded implementation and verification loop. MiniMax M3 plans and performs final review, Codex implements, and DeepSeek independently evaluates repository diffs plus test evidence. The human owner remains the final authority. Version 2 deliberately permits only one executable task per live night until per-task worktree isolation exists; that task may receive at most three repair cycles.
+The night shift is a bounded implementation and verification loop. The `MiniMax PL` role uses DeepSeek V4 Flash for planning and final review, Codex implements, and DeepSeek V4 Pro independently evaluates repository diffs plus test evidence. The human owner remains the final authority. Version 2 deliberately permits only one executable task per live night until per-task worktree isolation exists; that task may receive at most three repair cycles.
 
 ## State machine
 
@@ -20,10 +20,10 @@ The scheduler validates dependency graphs and runs only dependency-ready tasks. 
 
 ## Roles
 
-- MiniMax PL: reads the approved goal, creates bounded tasks, and performs final evidence review.
+- MiniMax PL (DeepSeek V4 Flash): reads the approved goal, creates bounded tasks, and performs final evidence review.
 - Codex: runs with a per-task permission profile that grants writes only to the approved paths and the Git-ignored `nightshift-agent-tmp/` scratch directory. The profile has no tool network access and uses non-interactive `approval_policy=never`; permitted operations proceed without a dialog, while requests outside the boundary fail closed and become `HUMAN_REQUIRED`. No legacy `--sandbox` mode or bypass flag is combined with the profile.
 - Test runner: executes only repository-owned allowlisted profiles under the `nightshift-test` Codex permission profile. The repository is read-only to tests except for `build/`; direct network, Git metadata writes, and source writes are denied. Test scratch is `build/nightshift-test-tmp/`. The DeepSeek credential directory also has a private Windows ACL, and preflight stops the night if that ACL is inherited or grants access beyond the current user, LocalSystem, and local Administrators.
-- DeepSeek: receives the actual diff and captured test output, then returns `PASS`, `FAIL`, or `HUMAN_REQUIRED`. It never edits production code.
+- DeepSeek QA (V4 Pro): receives the actual diff and captured test output, then returns `PASS`, `FAIL`, or `HUMAN_REQUIRED`. It never edits production code.
 
 ## Mandatory human gates
 
@@ -56,7 +56,7 @@ Automation must stop or defer a task involving any of the following:
 - The private-state `nightshift.lock` prevents manual, daytime, and scheduled entry points from overlapping. The versioned goal ledger keeps the most recent 200 executions, separates simulations from live goals, and makes an exact live goal execute once; manual `-RetryGoal` is required after review for a rerun.
 - State and reports use atomic replacement. An ordinary exception produces a current `HUMAN_REQUIRED` report; an abrupt power loss is recognized from the stale `RUNNING` ledger on the next launch.
 - `last-scheduled-status.json` in private state distinguishes no-goal, duplicate, stale, running, approved, partial, human-required, and bootstrap-failed outcomes. A concurrent launch adds a log entry without overwriting the active run status.
-- Provider inputs are secret-pattern redacted and hard-truncated. `usage.json` and the night report show the live attempt count plus any token usage returned by MiniMax, Codex, and DeepSeek; a fixed nightly model-attempt ceiling stops further calls.
+- Provider inputs are secret-pattern redacted and hard-truncated. `usage.json` and the night report show the live attempt count plus any token usage returned by DeepSeek PL, Codex, and DeepSeek QA; a fixed nightly model-attempt ceiling stops further calls.
 - Repository tests and Codex tool processes receive a minimal environment allowlist rather than inheriting VS Code/terminal variables; token, key, password, cookie, session, and credential variables are removed before launch.
 
 ## Test profiles
@@ -107,9 +107,9 @@ The task uses the current user's interactive token at limited privilege, require
 
 For the unattended night: connect AC power, keep the Windows user signed in, keep the network available, and lock the screen. VS Code may be closed. Do not shut down or sign out. Sleep is allowed only after AC wake timers have been enabled and a real short wake test has succeeded on this machine; until that test, leave the computer awake. Do not rely on closing the lid because the lid policy may hibernate or power off the machine.
 
-## Start from MiniMax PL during the day
+## Start from the MiniMax PL role during the day
 
-After the human owner approves a concrete goal, MiniMax PL may invoke the daytime wrapper instead of waiting for the 01:00 trigger:
+After the human owner approves a concrete goal, the MiniMax PL role (backed by DeepSeek V4 Flash) may invoke the daytime wrapper instead of waiting for the 01:00 trigger:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/nightshift/start-day-shift.ps1 `
@@ -123,7 +123,7 @@ The wrapper requires the isolated worktree to be clean, validates and round-trip
 
 ## One-time credential setup
 
-MiniMax and Codex use their existing CLI logins. DeepSeek needs a credential that a scheduled process can read without placing plaintext in the repository:
+Codex uses its existing CLI login. DeepSeek V4 Flash PL and DeepSeek V4 Pro QA share one protected API credential that a scheduled process can read without placing plaintext in the repository:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/nightshift/setup-deepseek-key.ps1
