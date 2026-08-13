@@ -1,0 +1,26 @@
+﻿[
+    {
+        "label":  "java-build",
+        "status":  "PASS",
+        "exitCode":  0,
+        "seconds":  3.88
+    },
+    {
+        "label":  "java-sim-20",
+        "status":  "PASS",
+        "exitCode":  0,
+        "seconds":  0.58
+    },
+    {
+        "label":  "java-sim-100",
+        "status":  "PASS",
+        "exitCode":  0,
+        "seconds":  1.33
+    },
+    {
+        "label":  "java-sim-1000",
+        "status":  "PASS",
+        "exitCode":  0,
+        "seconds":  5.85
+    }
+]
