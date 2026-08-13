@@ -254,7 +254,14 @@ public sealed partial class EffectRuntime
             return;
         }
 
-        Commit(_ => target.Health -= amount);
+        Commit(_ =>
+        {
+            target.Health -= amount;
+            if (target.IsLeaderEntity)
+            {
+                State.GetPlayer(target.OwnerPlayerIndex).DamagedThisCycle = true;
+            }
+        });
         Emit("DAMAGE_DEALT", context, Data(
             "target", target.InstanceId,
             "amount", amount,

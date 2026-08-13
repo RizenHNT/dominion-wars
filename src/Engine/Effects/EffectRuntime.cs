@@ -42,8 +42,12 @@ public sealed partial class EffectRuntime
         {
             var leader = player.Leader;
             var leaderDefeated = leader is not null && leader.IsMinion && leader.Health <= 0;
+            var durabilityDefeated = leader is not null
+                && !leader.IsMinion
+                && leader.Definition.LeaderDurability > 0
+                && leader.Durability <= 0;
             var lifeDefeated = player.Life.HasValue && player.Life.Value <= 0;
-            if (!leaderDefeated && !lifeDefeated)
+            if (!leaderDefeated && !durabilityDefeated && !lifeDefeated)
             {
                 continue;
             }
@@ -61,6 +65,11 @@ public sealed partial class EffectRuntime
                     {
                         player.Life = 1;
                     }
+
+                    if (durabilityDefeated)
+                    {
+                        leader!.Durability = 1;
+                    }
                 });
                 Emit("DEFEAT_PREVENTED", context, Data(
                     "player", player.PlayerIndex,
@@ -70,7 +79,9 @@ public sealed partial class EffectRuntime
 
             DeclareWinner(
                 1 - player.PlayerIndex,
-                leaderDefeated ? "win.enemy_leader_defeated" : "win.enemy_life_zero",
+                leaderDefeated || durabilityDefeated
+                    ? "win.enemy_leader_defeated"
+                    : "win.enemy_life_zero",
                 context);
             break;
         }

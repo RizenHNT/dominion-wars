@@ -12,6 +12,13 @@ namespace DominionWars.Engine
 /// </summary>
 public sealed class LegalActionGenerator
 {
+    private readonly AttackTargetPolicy _attackTargets;
+
+    public LegalActionGenerator(AttackTargetPolicy? attackTargets = null)
+    {
+        _attackTargets = attackTargets ?? new AttackTargetPolicy();
+    }
+
     public const string PlayCard = "PLAY_CARD";
     public const string Attack = "ATTACK";
     public const string EndTurn = "END_TURN";
@@ -82,23 +89,18 @@ public sealed class LegalActionGenerator
 
         foreach (var source in player.Field)
         {
-            if (CanAttack(source))
+            foreach (var target in _attackTargets.GetLegalTargets(state, source))
             {
-                foreach (var target in opponent.Field)
+                actions.Add(new LegalAction
                 {
-                    if (target.IsAlive)
-                    {
-                        actions.Add(new LegalAction
-                        {
-                            ActionId = $"attack_{source.InstanceId}_{target.InstanceId}",
-                            Type = Attack,
-                            Actor = playerIdx,
-                            SourceId = source.InstanceId,
-                            TargetId = target.InstanceId,
-                            ReasonKey = "action.attack",
-                        });
-                    }
-                }
+                    ActionId = $"attack_{source.InstanceId}_{target.Id}",
+                    Type = Attack,
+                    Actor = playerIdx,
+                    SourceId = source.InstanceId,
+                    TargetReferenceId = target.Id,
+                    TargetId = target.EntityId,
+                    ReasonKey = "action.attack",
+                });
             }
 
             if (source.IsLeaderEntity && source.Definition.HasLeaderAbility && source.IsAlive)
@@ -126,13 +128,6 @@ public sealed class LegalActionGenerator
         return actions;
     }
 
-    private static bool CanAttack(CardInstance card)
-    {
-        return card.IsMinion
-            && card.IsAlive
-            && !card.SummonedThisTurn
-            && card.AttacksUsed < 1;
-    }
 }
 
 /// <summary>Engine-side player choice; adapters project it to a transport DTO.</summary>
@@ -143,6 +138,7 @@ public class LegalAction
     public int Actor { get; set; }
     public long? SourceId { get; set; }
     public long? TargetId { get; set; }
+    public string? TargetReferenceId { get; set; }
     public string? CardId { get; set; }
     public string? ReasonKey { get; set; }
     public IReadOnlyDictionary<string, object?> Payload { get; set; }

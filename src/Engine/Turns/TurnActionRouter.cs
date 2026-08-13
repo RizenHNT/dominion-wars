@@ -39,6 +39,7 @@ public sealed class TurnActionRouter
         return new TurnActionRouter(flow, new ITurnActionHandler[]
         {
             new PlayCardActionHandler(targetPolicy, punishResponses),
+            new AttackActionHandler(),
         });
     }
 

@@ -61,6 +61,8 @@ public sealed class CardDto
     public int DefinitionAttack { get; set; }
     public int DefinitionHealth { get; set; }
     public int GrantLife { get; set; }
+    public int DefinitionDurability { get; set; }
+    public int Durability { get; set; }
     public bool KingSlayer { get; set; }
     public IReadOnlyList<string> Vulnerabilities { get; set; } = Array.Empty<string>();
     public int Attack { get; set; }
