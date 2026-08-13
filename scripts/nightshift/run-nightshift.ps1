@@ -1469,6 +1469,13 @@ $branch = ($branchOutput -join '').Trim()
 if (-not $branch) { throw 'Current Git branch is empty or detached.' }
 $changedBefore = @(Get-GitChangedPaths)
 
+# A failed preflight must not create docs/NIGHT_REPORT.md and thereby make the
+# next retry fail its own clean-worktree gate. Check this invariant before a
+# run is marked started or any report path becomes writable.
+if (-not $Simulation -and -not $DryRun -and $changedBefore.Count -gt 0) {
+    throw 'Live night shift requires a clean worktree.'
+}
+
 if ($DryRun) {
     [pscustomobject]@{
         Mode = 'DRY_RUN'
