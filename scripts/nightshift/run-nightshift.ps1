@@ -1037,6 +1037,7 @@ function Get-SandboxCodexConfigText {
     @"
 model = "$([string]$config.developer.model)"
 model_reasoning_effort = "$([string]$config.developer.reasoningEffort)"
+sandbox = "elevated"
 approval_policy = "never"
 default_permissions = "nightshift-test"
 
@@ -1394,7 +1395,7 @@ if ($SafetySelfTest) {
     if ($developerControlText -notmatch '(?i)--permission-profile\s+nightshift-developer') {
         throw 'Developer invocation omitted its dedicated permission profile.'
     }
-    foreach ($requiredControl in @('approval_policy = "never"', 'default_permissions = "nightshift-test"', '[permissions.nightshift-developer]', 'network = { enabled = false }', '"nightshift-agent-tmp" = "write"', '"docs/FILE_INDEX.md" = "write"')) {
+    foreach ($requiredControl in @('sandbox = "elevated"', 'approval_policy = "never"', 'default_permissions = "nightshift-test"', '[permissions.nightshift-developer]', 'network = { enabled = false }', '"nightshift-agent-tmp" = "write"', '"docs/FILE_INDEX.md" = "write"')) {
         if (-not $developerConfigText.Contains($requiredControl)) { throw "Developer sandbox configuration omitted safety control: $requiredControl" }
     }
     if (-not $testConfigText.Contains('[permissions.nightshift-test]')) {
@@ -1406,7 +1407,7 @@ if ($SafetySelfTest) {
         AcceptedPathControls = $acceptedPaths.Count
         RejectedMalformedPlans = 2
         VerifiedFinalStatusCombinations = $finalStatusCases.Count
-        VerifiedDeveloperProfileControls = 7
+        VerifiedDeveloperProfileControls = 8
     } | ConvertTo-Json
     exit 0
 }
