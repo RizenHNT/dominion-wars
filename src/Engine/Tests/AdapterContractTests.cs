@@ -145,5 +145,18 @@ public sealed class AdapterContractTests
         snapshot.Phase = "UNKNOWN";
         Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ValidateSnapshot(snapshot));
     }
+
+    [Test]
+    public void AdapterNullInputsFailClosed()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.Throws<System.ArgumentNullException>(() => EngineProjectionAdapter.ToLegalActionDtos(null!));
+            Assert.Throws<System.ArgumentNullException>(() => EngineProjectionAdapter.ToEvents(null!, 0, "START"));
+            Assert.Throws<System.ArgumentNullException>(() => EngineProjectionAdapter.ToEvent(null!, 0, "START"));
+            Assert.Throws<System.ArgumentNullException>(() => EngineProjectionAdapter.ToSnapshot(null!, "m", 0, "START"));
+            Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ToSnapshot(new GameState(), "", 0, "START"));
+        });
+    }
 }
 }
