@@ -136,12 +136,29 @@ public sealed partial class EffectRuntime
     private void ApplyCastleDamage(int amount, EffectContext context)
     {
         var before = State.CastleHealth;
-        Commit(state => state.CastleHealth = Math.Max(0, state.CastleHealth - amount));
+        Commit(state =>
+        {
+            state.CastleHealth = Math.Max(0, state.CastleHealth - amount);
+            state.GetOpponent(context.SourcePlayerIndex).DamagedThisCycle = true;
+        });
         Emit("CASTLE_DAMAGED", context, Data("amount", amount, "health", State.CastleHealth));
         if (before > 0 && State.CastleHealth == 0)
         {
             Emit("CASTLE_BROKEN", context, Data("breaker", context.SourcePlayerIndex));
+            var breaker = State.GetPlayer(context.SourcePlayerIndex);
+            Commit(_ => breaker.CycleWinCount = Math.Max(
+                breaker.CycleWinCount,
+                State.CastleBreakVictoryCount));
             ForceLeaderOut(State.GetOpponent(context.SourcePlayerIndex), context);
+            var breakerLeader = FindLeaderAnywhere(breaker);
+            if (breakerLeader is not null
+                && string.Equals(
+                    breakerLeader.Definition.LeaderWinCondition,
+                    "ROYAL_CASTLE_BREAK",
+                    StringComparison.Ordinal))
+            {
+                DeclareWinner(context.SourcePlayerIndex, "win.royal_castle_break", context);
+            }
         }
     }
 
@@ -166,7 +183,10 @@ public sealed partial class EffectRuntime
             player.Hand.Remove(leader);
             player.Deck.Remove(leader);
             player.Graveyard.Remove(leader);
+            leader.ResetRuntimeState();
             leader.IsLeaderEntity = true;
+            leader.SummonedThisTurn = leader.Definition.IsMinion;
+            leader.ChantRemaining = leader.Definition.Chant;
             player.Field.Add(leader);
             if (leader.Definition.GrantLife > 0)
             {
@@ -176,6 +196,15 @@ public sealed partial class EffectRuntime
         Emit("LEADER_MANIFESTED", context, Data(
             "player", player.PlayerIndex,
             "target", leader.InstanceId));
+        if (leader.Definition.LeaderEnterEffects.Count > 0)
+        {
+            EffectDispatcher.CreateDefault(this).ApplyAll(
+                leader.Definition.LeaderEnterEffects,
+                new EffectContext(
+                    player.PlayerIndex,
+                    context.RootEventId,
+                    sourceCard: leader));
+        }
     }
 
     private static CardInstance? FindLeader(System.Collections.Generic.IEnumerable<CardInstance> cards)
@@ -189,6 +218,14 @@ public sealed partial class EffectRuntime
         }
 
         return null;
+    }
+
+    private static CardInstance? FindLeaderAnywhere(PlayerState player)
+    {
+        return player.Leader
+            ?? FindLeader(player.Hand)
+            ?? FindLeader(player.Deck)
+            ?? FindLeader(player.Graveyard);
     }
 }
 }

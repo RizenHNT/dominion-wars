@@ -291,6 +291,12 @@ public sealed partial class EffectRuntime
         Emit("DECK_CYCLED", context, Data(
             "player", player.PlayerIndex,
             "counted", counted));
+        var beneficiary = State.GetOpponent(player.PlayerIndex);
+        if (counted && beneficiary.CycleWinCount >= State.ReshuffleLossThreshold)
+        {
+            DeclareWinner(beneficiary.PlayerIndex, "win.opponent_deck_cycles", context);
+        }
+
         return true;
     }
 }

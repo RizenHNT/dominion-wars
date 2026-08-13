@@ -16,6 +16,8 @@ public sealed class GameState
     private int _currentPlayerIndex;
     private int _castleHealth;
     private int? _winnerPlayerIndex;
+    private int _reshuffleLossThreshold = 10;
+    private int _castleBreakVictoryCount = 9;
     private long _nextEntityId = 1;
 
     public GameState()
@@ -142,6 +144,22 @@ public sealed class GameState
 
     public string? WinReason { get; set; }
     public bool EndTurnRequested { get; set; }
+
+    public int ReshuffleLossThreshold
+    {
+        get => _reshuffleLossThreshold;
+        set => _reshuffleLossThreshold = value > 0
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(value));
+    }
+
+    public int CastleBreakVictoryCount
+    {
+        get => _castleBreakVictoryCount;
+        set => _castleBreakVictoryCount = value > 0
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(value));
+    }
 
     public PlayerState GetPlayer(int playerIndex)
     {

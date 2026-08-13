@@ -83,6 +83,24 @@ public sealed class TurnFlowTests
     }
 
     [Test]
+    public void CountedDeckCycleReachingConfiguredThresholdEndsMatch()
+    {
+        var state = new GameState { ReshuffleLossThreshold = 1 };
+        var definition = new CardDefinition("unit", "Unit", 2, 3, isMinion: true);
+        state.GetPlayer(0).Graveyard.Add(new CardInstance(33, 0, definition));
+
+        TurnFlow.CreateDefault().Advance(state, 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.GetPlayer(1).CycleWinCount, Is.EqualTo(1));
+            Assert.That(state.WinnerPlayerIndex, Is.EqualTo(1));
+            Assert.That(state.WinReason, Is.EqualTo("win.opponent_deck_cycles"));
+            Assert.That(state.Turn.PhaseId, Is.EqualTo(TurnPhase.Over));
+        });
+    }
+
+    [Test]
     public void SecondPlayerFirstTurnDrawsTwoCards()
     {
         var state = new GameState();

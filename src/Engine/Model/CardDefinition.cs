@@ -52,7 +52,10 @@ public sealed class CardDefinition
         IEnumerable<EffectSpec>? onOpponentDiscardEffects = null,
         bool guard = false,
         IEnumerable<EffectSpec>? leaderEnterEffects = null,
-        IEnumerable<EffectSpec>? leaderPunishEffects = null)
+        IEnumerable<EffectSpec>? leaderPunishEffects = null,
+        string? leaderWinCondition = null,
+        string? leaderWinText = null,
+        int leaderDurability = 0)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -94,6 +97,11 @@ public sealed class CardDefinition
             throw new ArgumentOutOfRangeException(nameof(punish));
         }
 
+        if (leaderDurability < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(leaderDurability));
+        }
+
         Id = id;
         Name = name;
         Attack = attack;
@@ -118,6 +126,9 @@ public sealed class CardDefinition
         Chant = chant;
         AttacksPerTurn = attacksPerTurn;
         Guard = guard;
+        LeaderWinCondition = leaderWinCondition;
+        LeaderWinText = leaderWinText;
+        LeaderDurability = leaderDurability;
         // Legacy compatibility only. New data should mark the individual EffectSpec.
         KingSlayer = kingSlayer;
 
@@ -195,6 +206,9 @@ public sealed class CardDefinition
     public int Chant { get; }
     public int AttacksPerTurn { get; }
     public bool Guard { get; }
+    public string? LeaderWinCondition { get; }
+    public string? LeaderWinText { get; }
+    public int LeaderDurability { get; }
     /// <summary>Legacy card-level fallback. EffectSpec.KingSlayer takes precedence when present.</summary>
     public bool KingSlayer { get; }
     public IReadOnlyCollection<string> Keywords => _keywords;

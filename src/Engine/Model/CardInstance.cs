@@ -24,6 +24,7 @@ public sealed class CardInstance
         Attack = definition.Attack;
         Health = definition.Health;
         MaxHealth = definition.Health;
+        Durability = definition.LeaderDurability;
         Keywords = new HashSet<string>(definition.Keywords, StringComparer.OrdinalIgnoreCase);
         Shield = Keywords.Contains("圣盾");
     }
@@ -39,6 +40,7 @@ public sealed class CardInstance
     public bool SummonedThisTurn { get; set; }
     public bool PunishActivated { get; set; }
     public int ChantRemaining { get; set; }
+    public int Durability { get; set; }
     public ISet<string> Keywords { get; }
 
     public bool IsMinion => Definition.IsMinion;
@@ -61,6 +63,7 @@ public sealed class CardInstance
         SummonedThisTurn = false;
         PunishActivated = false;
         ChantRemaining = 0;
+        Durability = Definition.LeaderDurability;
         IsLeaderEntity = false;
         Keywords.Clear();
         foreach (var keyword in Definition.Keywords)

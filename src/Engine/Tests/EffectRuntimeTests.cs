@@ -352,6 +352,45 @@ public sealed class EffectRuntimeTests
     }
 
     [Test]
+    public void BreakingCastleAppliesCountdownForcesLeaderAndChecksCastleVictory()
+    {
+        var game = new EffectTestFixture();
+        game.State.CastleEnabled = true;
+        game.State.CastleHealth = 2;
+        var breakerLeader = new CardInstance(30, 0, new CardDefinition(
+            "breaker_leader",
+            "Breaker Leader",
+            isLeader: true,
+            leaderWinCondition: "ROYAL_CASTLE_BREAK",
+            leaderWinText: "Break the castle"));
+        var victimLeader = new CardInstance(31, 1, new CardDefinition(
+            "victim_leader",
+            "Victim Leader",
+            attack: 2,
+            health: 6,
+            isMinion: true,
+            isLeader: true,
+            grantLife: 10,
+            leaderEnterEffects: new[] { new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 2) }));
+        game.State.GetPlayer(0).Deck.Add(breakerLeader);
+        game.State.GetPlayer(1).Deck.Add(victimLeader);
+
+        game.Apply(EffectNames.DamageCastle, amount: 2);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.CastleHealth, Is.Zero);
+            Assert.That(game.State.GetPlayer(0).CycleWinCount, Is.EqualTo(9));
+            Assert.That(game.State.GetPlayer(1).DamagedThisCycle, Is.True);
+            Assert.That(game.State.GetPlayer(1).Leader, Is.SameAs(victimLeader));
+            Assert.That(victimLeader.SummonedThisTurn, Is.True);
+            Assert.That(game.State.GetPlayer(1).Life, Is.EqualTo(12));
+            Assert.That(game.State.WinnerPlayerIndex, Is.Zero);
+            Assert.That(game.State.WinReason, Is.EqualTo("win.royal_castle_break"));
+        });
+    }
+
+    [Test]
     public void WinGameSetsWinnerAndReason()
     {
         var game = new EffectTestFixture();

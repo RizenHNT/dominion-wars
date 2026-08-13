@@ -103,6 +103,9 @@ namespace DominionWars.Data
             var leaderPunishEffects = new List<EffectSpec>();
             var vulnerabilities = new List<string>();
             var grantLife = 0;
+            string? leaderWinCondition = null;
+            string? leaderWinText = null;
+            var leaderDurability = 0;
             if (element.TryGetProperty("leaderDef", out var leaderDef))
             {
                 if (leaderDef.ValueKind != JsonValueKind.Object) throw Invalid(source, "leaderDef must be an object");
@@ -110,6 +113,8 @@ namespace DominionWars.Data
                 if (!leaderDef.TryGetProperty("winCondition", out var winCondition)) throw Invalid(source, "leaderDef.winCondition is required");
                 var win = ReadString(winCondition, source, "leaderDef.winCondition");
                 if (!WinConditions.Contains(win)) throw Invalid(source, "invalid win condition: " + win);
+                leaderWinCondition = win;
+                leaderWinText = OptionalString(leaderDef, "winText", source, 64);
                 if (leaderDef.TryGetProperty("vulnerabilities", out var vulnerabilityArray))
                 {
                     if (vulnerabilityArray.ValueKind != JsonValueKind.Array) throw Invalid(source, "leaderDef.vulnerabilities must be an array");
@@ -122,6 +127,7 @@ namespace DominionWars.Data
                 }
                 ValidateLeaderDef(leaderDef, source);
                 grantLife = OptionalInt(leaderDef, "grantLife", 0, 1, 99, source);
+                leaderDurability = OptionalInt(leaderDef, "durability", 0, 1, 999, source);
                 leaderEnterEffects = MapEffects(leaderDef, "enterEffects", source);
                 leaderPunishEffects = MapEffects(leaderDef, "punishEffects", source);
             }
@@ -152,7 +158,10 @@ namespace DominionWars.Data
                 onOpponentDiscardEffects: onOpponentDiscardEffects,
                 guard: OptionalBool(element, "guard", false, source),
                 leaderEnterEffects: leaderEnterEffects,
-                leaderPunishEffects: leaderPunishEffects);
+                leaderPunishEffects: leaderPunishEffects,
+                leaderWinCondition: leaderWinCondition,
+                leaderWinText: leaderWinText,
+                leaderDurability: leaderDurability);
         }
 
         private static void ValidateLeaderDef(JsonElement value, string source)
