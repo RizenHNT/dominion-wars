@@ -127,7 +127,7 @@
 | 10.1.2 | 建立 91 卡 `id → artId → asset path` 映射清单 | Codex | `scripts/report-card-art-map.ps1`；91 卡、7 个 leader 记录、4 个现有 fallback、87 个缺图、0 个 artId | done (`019cf1e`) | 是 |
 | 10.1.3 | 为现有卡牌补齐正式 `artId` 字段或记录迁移方案 | PL + 人类 | schema、loader、旧 Java 数据一致 | human_required | 否 |
 | 10.1.4 | 4 套牌组加载、数量、阵营和领袖约束的发布前检查 | Codex + DeepSeek | `scripts/validate-decks.ps1`；4 套、91 卡；`DECK_VALIDATION pass=4 fail=0` | done (`a92b151`) | 是 |
-| 10.1.5 | 确认 C# 与 Java 的字段/效果/目标差异清单 | Codex + DeepSeek | `scripts/report-engine-alignment.ps1` + `docs/CODEX_ALIGNMENT_REPORT_2026-08-13.md`；效果 24/24、目标差异 3 项、字段差异列明并标记 PL/HUMAN_REQUIRED | done (`待提交`) | 是 |
+| 10.1.5 | 确认 C# 与 Java 的字段/效果/目标差异清单 | Codex + DeepSeek | `scripts/report-engine-alignment.ps1` + `docs/CODEX_ALIGNMENT_REPORT_2026-08-13.md`；效果 24/24、目标差异 3 项、字段差异列明并标记 PL/HUMAN_REQUIRED | done (`f3f2e6c`) | 是 |
 
 ### 10.2 C# MVP 引擎闭环
 
@@ -159,7 +159,7 @@
 
 | ID | 未完成交付 | 负责人 | 依赖/验收证据 | 状态 | Codex自动执行 |
 |---|---|---|---|---|---|
-| 10.4.1 | 清点设计包 320 项资源并生成可消费的 asset manifest | Codex | 既有 `ASSET_MANIFEST.csv` 320 行/320 文件；`scripts/validate-design-manifest.ps1` 校验路径、SHA256、alpha、透明度尺寸元数据与覆盖率 | done (`待提交`) | 是 |
+| 10.4.1 | 清点设计包 320 项资源并生成可消费的 asset manifest | Codex | 既有 `ASSET_MANIFEST.csv` 320 行/320 文件；`scripts/validate-design-manifest.ps1` 校验路径、SHA256、alpha、透明度尺寸元数据与覆盖率 | done (`4395bdf`) | 是 |
 | 10.4.2 | 将通用 SVG/PNG 资源导入 Unity 或建立只读导入步骤 | Codex | Unity AssetDatabase/导入报告 | blocked | 需 Unity |
 | 10.4.3 | 4 张统领图接入并验证 fallback/缺图行为 | Codex + 前端 | 4 阵营牌面截图/测试 | pending | 部分 |
 | 10.4.4 | 91 张卡牌专属图片的生产、命名和版权确认 | 人类 + GPT Web/美术 | 91/91 artId 与文件 hash | human_required | 否 |
@@ -179,7 +179,7 @@
 
 | ID | 未完成交付 | 负责人 | 依赖/验收证据 | 状态 | Codex自动执行 |
 |---|---|---|---|---|---|
-| 10.6.1 | 全量 .NET/Java/schema/alignment 回归脚本统一 | Codex + DeepSeek | `scripts/run-regression.ps1`；.NET 300/300、schema 91/91、deck 4/4、design manifest 320/320、Java 38/38；Unity 明确 BLOCKED | done (`8bb4a9b`, `a92b151`, `本次补充`) | 是 |
+| 10.6.1 | 全量 .NET/Java/schema/alignment 回归脚本统一 | Codex + DeepSeek | `scripts/run-regression.ps1`；.NET 300/300、schema 91/91、deck 4/4、design manifest 320/320、Java 38/38；Unity 明确 BLOCKED | done (`8bb4a9b`, `a92b151`, `42ece24`) | 是 |
 | 10.6.2 | Unity EditMode/PlayMode/Windows smoke | DeepSeek + Codex | Unity log、测试数、构建产物 hash | blocked | 否（需 Unity） |
 | 10.6.3 | 多分辨率、输入、减少动效和无障碍 QA | DeepSeek + 前端 | 1280×720/1440×900/键鼠/键盘报告 | blocked | 需 Unity/前端 |
 | 10.6.4 | 性能、内存、资源加载和长局稳定性 | DeepSeek + Codex | 20/100/1000 局、帧率/内存证据 | pending | 是（离线部分） |
