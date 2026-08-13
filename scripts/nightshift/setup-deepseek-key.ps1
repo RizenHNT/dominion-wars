@@ -156,13 +156,21 @@ else {
     # ConvertFrom-SecureString uses Windows DPAPI. Only this Windows user on this
     # computer can decrypt the resulting value. Write a fully protected sibling
     # first, then atomically replace the old key so interruption preserves it.
-    $temporaryFile = Join-Path $targetDirectory ('.deepseek.key.{0}.tmp' -f [Guid]::NewGuid().ToString('N'))
+    $replacementId = [Guid]::NewGuid().ToString('N')
+    $temporaryFile = Join-Path $targetDirectory ('.deepseek.key.{0}.tmp' -f $replacementId)
+    $backupFile = Join-Path $targetDirectory ('.deepseek.key.{0}.bak' -f $replacementId)
     try {
         $secret | ConvertFrom-SecureString | Set-Content -LiteralPath $temporaryFile -Encoding UTF8
         Set-PrivateFileAcl -Path $temporaryFile
         Assert-PrivateAcl -Path $temporaryFile -Label 'Temporary credential file'
         if (Test-Path -LiteralPath $targetFile -PathType Leaf) {
-            [IO.File]::Replace($temporaryFile, $targetFile, $null, $true)
+            # Windows PowerShell/.NET rejects a null backup path on some
+            # machines. Use a private sibling backup so replacement remains
+            # atomic, then remove that backup after the swap succeeds.
+            [IO.File]::Replace($temporaryFile, $targetFile, $backupFile, $true)
+            if (Test-Path -LiteralPath $backupFile -PathType Leaf) {
+                Remove-Item -LiteralPath $backupFile -Force
+            }
         }
         else {
             [IO.File]::Move($temporaryFile, $targetFile)
@@ -171,6 +179,9 @@ else {
     finally {
         if ($temporaryFile -and (Test-Path -LiteralPath $temporaryFile)) {
             Remove-Item -LiteralPath $temporaryFile -Force
+        }
+        if ($backupFile -and (Test-Path -LiteralPath $backupFile)) {
+            Remove-Item -LiteralPath $backupFile -Force
         }
     }
 }
