@@ -6,6 +6,7 @@ param(
     [switch]$ApprovedScheduledGoal,
     [switch]$RetryGoal,
     [switch]$SafetySelfTest,
+    [switch]$SandboxPreflightOnly,
     [ValidateSet('Mixed', 'Success', 'Timeout')]
     [string]$SimulationScenario = 'Mixed',
     [string]$GoalFile = 'docs/DAILY_GOAL.md'
@@ -56,6 +57,9 @@ $script:launchId = [string]$env:DOMINION_NIGHTSHIFT_LAUNCH_ID
 
 if ($Scheduled -and $script:launchId -notmatch '^[0-9a-f]{32}$') {
     throw 'Scheduled launch is missing its watchdog invocation identifier.'
+}
+if ($SandboxPreflightOnly -and ($Scheduled -or $Simulation)) {
+    throw '-SandboxPreflightOnly is manual-only and cannot be combined with -Scheduled or -Simulation.'
 }
 
 if ([int]$config.version -ne 2) { throw "Unsupported night-shift config version: $($config.version)" }
@@ -1013,29 +1017,42 @@ function Invoke-DeepSeekJson {
 
 function Get-TestSandboxArguments {
     param([Parameter(Mandatory)][string]$TestCommand, [string[]]$TestArguments = @())
-    $permissionDefinition = @(
-        'permissions.nightshift-test.description="Night test isolation"',
-        'permissions.nightshift-test.filesystem={":root"="deny",":minimal"="read",":tmpdir"="deny",":slash_tmp"="deny","~/AppData/Local/DominionWarsNightshift"="deny",":workspace_roots"={"."="read","build"="write",".git"="read",".codex"="read"}}',
-        'permissions.nightshift-test.network={enabled=false}'
-    )
-    @('sandbox', '-c', 'permissions={}', '-c', 'default_permissions="nightshift-test"') +
-        @($permissionDefinition | ForEach-Object { @('-c', $_) }) +
-        @('--permission-profile', 'nightshift-test', '--sandbox-state-disable-network', '-C', $repoRoot, $TestCommand) + $TestArguments
+    @('sandbox', '--permission-profile', 'nightshift-test', '--sandbox-state-disable-network', '-C', $repoRoot, $TestCommand) + $TestArguments
 }
 
-function Get-DeveloperPermissionDefinition {
+function Get-SandboxCodexConfigText {
     param([Parameter(Mandatory)][string[]]$AllowedPaths)
-    $workspaceRules = New-Object System.Collections.Generic.List[string]
-    $workspaceRules.Add('"." = "read"')
-    $workspaceRules.Add('"nightshift-agent-tmp" = "write"')
+    $developerWorkspaceRules = New-Object System.Collections.Generic.List[string]
+    $developerWorkspaceRules.Add('"." = "read"')
+    $developerWorkspaceRules.Add('"nightshift-agent-tmp" = "write"')
     foreach ($path in @($AllowedPaths | ForEach-Object { Normalize-RepoRelativePath -Path ([string]$_) } | Sort-Object -Unique)) {
-        $workspaceRules.Add(('"{0}" = "write"' -f $path))
+        $developerWorkspaceRules.Add(('"{0}" = "write"' -f $path))
     }
-    @(
-        'permissions.nightshift-developer.description="Write only the human-approved task paths"',
-        ('permissions.nightshift-developer.filesystem={":root"="deny",":minimal"="read",":tmpdir"="deny",":slash_tmp"="deny","~/AppData/Local/DominionWarsNightshift"="deny",":workspace_roots"={' + (($workspaceRules -join ', ') -replace ' = ', '=' -replace '"', '"') + '}}'),
-        'permissions.nightshift-developer.network={enabled=false}'
-    )
+    @"
+model = "$([string]$config.developer.model)"
+model_reasoning_effort = "$([string]$config.developer.reasoningEffort)"
+approval_policy = "never"
+default_permissions = "nightshift-test"
+
+[permissions.nightshift-test]
+description = "Night test isolation"
+filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "deny", ":slash_tmp" = "deny", "~/AppData/Local/DominionWarsNightshift" = "deny", ":workspace_roots" = { "." = "read", "build" = "write", ".git" = "read", ".codex" = "read" } }
+network = { enabled = false }
+
+[permissions.nightshift-developer]
+description = "Write only the human-approved task paths"
+filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "deny", ":slash_tmp" = "deny", "~/AppData/Local/DominionWarsNightshift" = "deny", ":workspace_roots" = { $($developerWorkspaceRules -join ', ') } }
+network = { enabled = false }
+"@
+}
+
+function Get-SandboxCodexEnvironment {
+    param([Parameter(Mandatory)][string[]]$AllowedPaths)
+    $sandboxCodexHome = Join-Path $stateRoot 'codex-sandbox-home'
+    $trustedRoot = if ($Simulation) { $repoRoot } else { $env:LOCALAPPDATA }
+    Initialize-SafeDirectory -TrustedRoot $trustedRoot -Path $sandboxCodexHome
+    Write-AtomicText -Path (Join-Path $sandboxCodexHome 'config.toml') -Content (Get-SandboxCodexConfigText -AllowedPaths $AllowedPaths)
+    @{ CODEX_HOME = $sandboxCodexHome }
 }
 
 function Get-DeveloperProfileProbeArguments {
@@ -1044,10 +1061,7 @@ function Get-DeveloperProfileProbeArguments {
         [Parameter(Mandatory)][string]$ChildCommand,
         [string[]]$ChildArguments = @()
     )
-    $permissionDefinition = Get-DeveloperPermissionDefinition -AllowedPaths $AllowedPaths
-    @('sandbox', '-c', 'permissions={}', '-c', 'default_permissions="nightshift-developer"') +
-        @($permissionDefinition | ForEach-Object { @('-c', $_) }) +
-        @('--permission-profile', 'nightshift-developer', '-C', $repoRoot, $ChildCommand) + $ChildArguments
+    @('sandbox', '--permission-profile', 'nightshift-developer', '-C', $repoRoot, $ChildCommand) + $ChildArguments
 }
 
 function Get-DeveloperSandboxArguments {
@@ -1056,14 +1070,8 @@ function Get-DeveloperSandboxArguments {
         [Parameter(Mandatory)][string]$ScratchOutput,
         [Parameter(Mandatory)][string]$Prompt
     )
-    $permissionDefinition = Get-DeveloperPermissionDefinition -AllowedPaths $AllowedPaths
-    $modelArguments = @('-m', [string]$config.developer.model, '-c', ('model_reasoning_effort="{0}"' -f [string]$config.developer.reasoningEffort))
-    @('exec', '--ephemeral', '--ignore-user-config', '--strict-config',
-        '-c', 'permissions={}',
-        '-c', 'approval_policy="never"',
-        '-c', 'default_permissions="nightshift-developer"') +
-        @($permissionDefinition | ForEach-Object { @('-c', $_) }) +
-        @('--json', '--color', 'never') + $modelArguments + @('-C', $repoRoot, '-o', $ScratchOutput, $Prompt)
+    @('exec', '--ephemeral', '--strict-config', '--permission-profile', 'nightshift-developer',
+        '--json', '--color', 'never', '-C', $repoRoot, '-o', $ScratchOutput, $Prompt)
 }
 
 function Invoke-TestProfile {
@@ -1108,7 +1116,11 @@ function Invoke-TestProfile {
     # Run repository code under Codex's restricted Windows token with direct
     # network access disabled. The parent process retains no plaintext QA key.
     $sandboxArguments = @(Get-TestSandboxArguments -TestCommand $testCommand -TestArguments $testArguments)
-    $result = Invoke-CapturedCommand -Command $config.developer.command -Arguments $sandboxArguments -OutputFile $OutputFile -TimeoutSeconds ([int]$config.timeouts.testSeconds) -Stage $Stage -Environment @{ TEMP = $testTempRoot; TMP = $testTempRoot; TMPDIR = $testTempRoot } -SanitizeEnvironment
+    $sandboxEnvironment = Get-SandboxCodexEnvironment -AllowedPaths @()
+    $sandboxEnvironment.TEMP = $testTempRoot
+    $sandboxEnvironment.TMP = $testTempRoot
+    $sandboxEnvironment.TMPDIR = $testTempRoot
+    $result = Invoke-CapturedCommand -Command $config.developer.command -Arguments $sandboxArguments -OutputFile $OutputFile -TimeoutSeconds ([int]$config.timeouts.testSeconds) -Stage $Stage -Environment $sandboxEnvironment -SanitizeEnvironment
     Initialize-SafeDirectory -TrustedRoot $repoRoot -Path $testTempRoot
     $result
 }
@@ -1368,11 +1380,15 @@ if ($SafetySelfTest) {
     }
     $developerControlArgs = @(Get-DeveloperSandboxArguments -AllowedPaths @('docs/FILE_INDEX.md') -ScratchOutput (Join-Path $agentTempRoot 'self-test.txt') -Prompt 'self-test')
     $developerControlText = $developerControlArgs -join ' '
+    $developerConfigText = Get-SandboxCodexConfigText -AllowedPaths @('docs/FILE_INDEX.md')
     if ($developerControlText -match '(?:--dangerously-bypass|--approve-for-me|--sandbox\s)') {
         throw 'Developer invocation unexpectedly selected a bypass, legacy sandbox, or auto-escalation flag.'
     }
-    foreach ($requiredControl in @('approval_policy="never"', 'default_permissions="nightshift-developer"', 'permissions.nightshift-developer.network={enabled=false}')) {
-        if (-not $developerControlText.Contains($requiredControl)) { throw "Developer invocation omitted safety control: $requiredControl" }
+    if ($developerControlText -notmatch '(?i)--permission-profile\s+nightshift-developer') {
+        throw 'Developer invocation omitted its dedicated permission profile.'
+    }
+    foreach ($requiredControl in @('approval_policy = "never"', 'default_permissions = "nightshift-test"', '[permissions.nightshift-developer]', 'network = { enabled = false }', '"nightshift-agent-tmp" = "write"', '"docs/FILE_INDEX.md" = "write"')) {
+        if (-not $developerConfigText.Contains($requiredControl)) { throw "Developer sandbox configuration omitted safety control: $requiredControl" }
     }
     [pscustomobject]@{
         Status = 'PASS'
@@ -1380,7 +1396,7 @@ if ($SafetySelfTest) {
         AcceptedPathControls = $acceptedPaths.Count
         RejectedMalformedPlans = 2
         VerifiedFinalStatusCombinations = $finalStatusCases.Count
-        VerifiedDeveloperProfileControls = 3
+        VerifiedDeveloperProfileControls = 6
     } | ConvertTo-Json
     exit 0
 }
@@ -1514,7 +1530,7 @@ if ($Scheduled -and -not $Simulation) {
     }
 }
 Enter-NightShiftLock
-$goalHashInput = if ($Simulation) { "SIMULATION:$SimulationScenario`n$goalText" } else { $goalText }
+$goalHashInput = if ($Simulation) { "SIMULATION:$SimulationScenario`n$goalText" } elseif ($SandboxPreflightOnly) { "SANDBOX_PREFLIGHT_ONLY:`n$goalText" } else { $goalText }
 $script:goalHash = Get-TextSha256 -Text $goalHashInput
 
 if (-not $RetryGoal) {
@@ -1587,7 +1603,11 @@ if (-not $Simulation) {
     Initialize-SafeDirectory -TrustedRoot $repoRoot -Path $agentTempRoot
     $probeOutput = Join-Path $runRoot 'sandbox-probe.txt'
     $probeArguments = @(Get-TestSandboxArguments -TestCommand (Join-Path $env:SystemRoot 'System32\cmd.exe') -TestArguments @('/d', '/c', 'exit 0'))
-    $probe = Invoke-CapturedCommand -Command $config.developer.command -Arguments $probeArguments -OutputFile $probeOutput -TimeoutSeconds 60 -Stage 'SANDBOX_PREFLIGHT' -Environment @{ TEMP = $testTempRoot; TMP = $testTempRoot; TMPDIR = $testTempRoot } -SanitizeEnvironment
+    $testSandboxEnvironment = Get-SandboxCodexEnvironment -AllowedPaths @()
+    $testSandboxEnvironment.TEMP = $testTempRoot
+    $testSandboxEnvironment.TMP = $testTempRoot
+    $testSandboxEnvironment.TMPDIR = $testTempRoot
+    $probe = Invoke-CapturedCommand -Command $config.developer.command -Arguments $probeArguments -OutputFile $probeOutput -TimeoutSeconds 60 -Stage 'SANDBOX_PREFLIGHT' -Environment $testSandboxEnvironment -SanitizeEnvironment
     if ($probe.ExitCode -ne 0) { throw "Restricted test sandbox preflight failed. See $probeOutput" }
 
     $developerAllowedProbe = Join-Path $agentTempRoot 'developer-write-allowed.probe'
@@ -1597,18 +1617,37 @@ if (-not $Simulation) {
     }
     $cmdExe = Join-Path $env:SystemRoot 'System32\cmd.exe'
     $allowedProbeArgs = @(Get-DeveloperProfileProbeArguments -AllowedPaths $goalAllowedPaths -ChildCommand $cmdExe -ChildArguments @('/d', '/c', 'echo OK>nightshift-agent-tmp\developer-write-allowed.probe'))
-    $allowedProbe = Invoke-CapturedCommand -Command $config.developer.command -Arguments $allowedProbeArgs -OutputFile (Join-Path $runRoot 'developer-sandbox-allowed.txt') -TimeoutSeconds 60 -Stage 'DEVELOPER_SANDBOX_ALLOW_PROBE' -Environment @{ TEMP = $agentTempRoot; TMP = $agentTempRoot; TMPDIR = $agentTempRoot } -SanitizeEnvironment
+    $developerSandboxEnvironment = Get-SandboxCodexEnvironment -AllowedPaths $goalAllowedPaths
+    $developerSandboxEnvironment.TEMP = $agentTempRoot
+    $developerSandboxEnvironment.TMP = $agentTempRoot
+    $developerSandboxEnvironment.TMPDIR = $agentTempRoot
+    $allowedProbe = Invoke-CapturedCommand -Command $config.developer.command -Arguments $allowedProbeArgs -OutputFile (Join-Path $runRoot 'developer-sandbox-allowed.txt') -TimeoutSeconds 60 -Stage 'DEVELOPER_SANDBOX_ALLOW_PROBE' -Environment $developerSandboxEnvironment -SanitizeEnvironment
     if ($allowedProbe.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $developerAllowedProbe -PathType Leaf)) {
         throw 'Developer sandbox could not write its dedicated scratch path.'
     }
     Remove-Item -LiteralPath $developerAllowedProbe -Force
     $deniedProbeArgs = @(Get-DeveloperProfileProbeArguments -AllowedPaths $goalAllowedPaths -ChildCommand $cmdExe -ChildArguments @('/d', '/c', 'echo BLOCKED>scripts\nightshift\developer-write-denied.probe'))
-    $deniedProbe = Invoke-CapturedCommand -Command $config.developer.command -Arguments $deniedProbeArgs -OutputFile (Join-Path $runRoot 'developer-sandbox-denied.txt') -TimeoutSeconds 60 -Stage 'DEVELOPER_SANDBOX_DENY_PROBE' -Environment @{ TEMP = $agentTempRoot; TMP = $agentTempRoot; TMPDIR = $agentTempRoot } -SanitizeEnvironment
+    $deniedProbe = Invoke-CapturedCommand -Command $config.developer.command -Arguments $deniedProbeArgs -OutputFile (Join-Path $runRoot 'developer-sandbox-denied.txt') -TimeoutSeconds 60 -Stage 'DEVELOPER_SANDBOX_DENY_PROBE' -Environment $developerSandboxEnvironment -SanitizeEnvironment
     if (Test-Path -LiteralPath $developerDeniedProbe) {
         Remove-Item -LiteralPath $developerDeniedProbe -Force
         throw 'Developer sandbox wrote an automation control path that should be denied.'
     }
     if ($deniedProbe.ExitCode -eq 0) { throw 'Developer sandbox denial probe returned success unexpectedly.' }
+}
+
+if ($SandboxPreflightOnly) {
+    Set-RunStage -Stage 'SANDBOX_PREFLIGHT_PASSED'
+    Update-RunLedger -Status 'PREFLIGHT_PASSED' -Message 'Manual no-cost sandbox preflight passed; no planner, developer, test, or QA model call was started.'
+    Set-NightShiftAwake -Enabled $false
+    Exit-NightShiftLock
+    $script:runStarted = $false
+    [pscustomobject]@{
+        Status = 'PREFLIGHT_PASSED'
+        RunRoot = $runRoot
+        PaidModelAttempts = 0
+        Message = 'No planner, developer, test, or QA model call was started.'
+    } | ConvertTo-Json
+    exit 0
 }
 
 $plannerSystem = @'
@@ -1736,7 +1775,11 @@ Do not commit, push, merge, install dependencies, modify credentials, or edit ou
                     Initialize-SafeDirectory -TrustedRoot $repoRoot -Path $agentTempRoot
                     foreach ($allowedPath in @($task.allowedPaths)) { Assert-RepositoryPathHasNoReparse -Path ([string]$allowedPath) }
                     if (Test-Path -LiteralPath $devScratchOutput) { Remove-Item -LiteralPath $devScratchOutput -Force }
-                    $devRun = Invoke-CapturedCommand -Command $config.developer.command -Arguments $devArgs -OutputFile $devEvents -TimeoutSeconds ([int]$config.timeouts.developerSeconds) -Stage "CODEX_$($task.id)_$($task.repairCycles)" -Environment @{ TEMP = $agentTempRoot; TMP = $agentTempRoot; TMPDIR = $agentTempRoot } -SanitizeEnvironment
+                    $developerSandboxEnvironment = Get-SandboxCodexEnvironment -AllowedPaths @($task.allowedPaths)
+                    $developerSandboxEnvironment.TEMP = $agentTempRoot
+                    $developerSandboxEnvironment.TMP = $agentTempRoot
+                    $developerSandboxEnvironment.TMPDIR = $agentTempRoot
+                    $devRun = Invoke-CapturedCommand -Command $config.developer.command -Arguments $devArgs -OutputFile $devEvents -TimeoutSeconds ([int]$config.timeouts.developerSeconds) -Stage "CODEX_$($task.id)_$($task.repairCycles)" -Environment $developerSandboxEnvironment -SanitizeEnvironment
                     Initialize-SafeDirectory -TrustedRoot $repoRoot -Path $agentTempRoot
                     if (Test-Path -LiteralPath $devScratchOutput -PathType Leaf) {
                         $scratchItem = Get-Item -LiteralPath $devScratchOutput -Force
