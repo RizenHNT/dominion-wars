@@ -1,7 +1,7 @@
 # Progress WBS — Dominion Wars 重做
 
-> **更新时间**：2026-08-13 00:22 · **负责人**：PL (MiniMax M3 / DeepSeek v4) / Codex implementation evidence
-> **更新**：Unity 6 LTS 6000.3.21f1 Editor 安装已启动（Hub headless CLI，后台下载 3.5GB）— 见 6.0 备注
+> **更新时间**：2026-08-14 · **负责人**：PL (MiniMax M3 / DeepSeek v4) / Codex implementation evidence
+> **更新**：10.10.2-10.10.9 attended 批已复核并 push 到 origin/main（0/0 分叉）；工作树已清理（.meta 全部入库 + 旧文档归档 + Java 冻结修复提交）— 见 10.10 节
 > **目的**：树状分解 + 完成度 % + 阻塞标记；替代 / 增强 `IMPLEMENTATION_TODO.csv` 的平铺视图
 > **配套仪表盘**：[PROGRESS_DASHBOARD.md](/path/to/docs/PROGRESS_DASHBOARD.md)
 > **权威源**：Java 行为基线 + RULES.md + SPEC.md + 设计/contracts/
@@ -16,7 +16,7 @@
 | 2. 数据契约与加载 (Schema + Effects Contract) | **100%** | ✅ | 91 卡 schema 全过；C# CardCatalog/DeckLoader 已完成（3d0c23b、b48b008） |
 | 3. 决策与规则同步 (RULES + Decisions) | **100%** | ✅ | Decision A/B/C/D/E 已落 RULES §11 |
 | 4. 适配层 (Adapters → Unity) | **85%** | 🟢 | 4.4-4.7 已完成；证据 e1b53d2 + cbc270f |
-| 5. 测试矩阵 (Unit + Spec + Contract) | **95%** | 🟢 | 当前 .NET 300/300、Java 38/38；Unity 实机、安装包和性能验收仍未完成 |
+| 5. 测试矩阵 (Unit + Spec + Contract) | **95%** | 🟢 | 当前 .NET 386/386（Release，2026-08-14 复验）、Java 38/38；Unity 实机、安装包和性能验收仍未完成 |
 | 6. 前端 / Unity 渲染 | **0%** | 🔴 | 未启动 — 需 Unity Editor 装好 |
 | 7. 资产 / 美术 | **0%** | 🔴 | 未启动 — 需外部依赖 |
 | 8. 运行时 QA (Sim + A11y + Perf) | **10%** | 🟡 | 8.2 本地化已建立；8.1 仍为 P3 backlog |
@@ -77,6 +77,7 @@
 - **4.5** LegalAction[] → LegalActionDto[] ✅ `e1b53d2`
 - **4.6** GameEvent[] → UiEventDto[] (含 parentEventId) ✅ `e1b53d2`
 - **4.7** Adapter 单元测试 ✅ `cbc270f`
+- **4.8** Runtime 1.31 Adapter 系列（RuntimeContractV131Snapshot / RuntimeMatchGateway / RuntimeEventCursor）✅ `f58997e`（10.10.3-10.10.5，PL 已复验）
 
 ### 5. 测试矩阵 🟢 95%
 - **5.1** 引擎单测 EffectRuntimeTests 34 ✅
@@ -288,10 +289,9 @@
 
 | 阻塞 | 影响范围 | 解锁条件 |
 |---|---|---|
-| Unity Editor 未装 | 6.1-6.5, 7.2-7.3, 8.1 全部 P0/P1 | 装 Unity 6 LTS（人类决策） |
+| Unity Editor 未装 | 6.1-6.5, 7.2-7.3, 8.1 全部 P0/P1 | 装 Unity 6 LTS（人类决策；Editor 6000.3.21f1 已装，待激活许可证） |
 | DeepSeek 接力无 bot | 9.4-9.5 | Codex 接力任务完成 |
-| 15 dirty + 10 untracked 未 commit | 流程（不是 WBS 节点） | 人类手动审 + commit（PL 整理轮已 commit 自身文档） |
-| 30K+ 改动未 push | main 领先 origin 42 commits | 人类决定推送时机 |
+| 10.10.8 缺独立 DeepSeek 复核 | 10.10.8 门禁 | DeepSeek 复核 10.10.2-10.10.5 离线 PASS（已转 DeepSeek） |
 
 ---
 
