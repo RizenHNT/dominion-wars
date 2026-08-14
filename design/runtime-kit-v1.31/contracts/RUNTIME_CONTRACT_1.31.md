@@ -63,7 +63,7 @@
 | 8 | entity/leader/castle/player life/prompt option 的 target union 与稳定 ID grammar？ | ID grammar → 已定（基于 SPEC §5）：卡牌 ID = JSON 字符串常量；对局实体 ID = 引擎 64-bit counter（单局稳定，跨局不复用）；eventId = 单调 int64；actionId = 提交时分配；player = `player_0/player_1`；leader = `leader_0/leader_1`；castle = `castle`。**target union 已定（A-E）**：8 值 ENEMY_FACE/ENEMY_TARGET/ENEMY_MINION/ALL_ENEMY_MINIONS/ALL_FRIENDLY_MINIONS/FRIENDLY_MINION/ALL_MINIONS/SELF；王城用 DAMAGE_CASTLE action 非独立 target；正交维度 = 侧×对象×范围×约束（嘲讽/扰魔/护卫） | 已定 | SPEC §5；RULES_QUESTIONS C |
 | 9 | viewer/audience、隐藏手牌、伏击、牌库顺序、spectator redaction？ | **已定（A-E+人类裁决）**：双 viewer 投影，每 viewer 只收自己可见字段；对手手牌**数量可见/内容隐藏**；盖放伏击**只显数量+档位（普通/专注/封场）**；牌库顺序秘密，任何到达 Unity = Gate 失败 | 已定 | 人类裁决 mailbox L3495；RULES_QUESTIONS D |
 | 10 | UIEvent 完整枚举、每类 payload、内部过滤、ancestry compression、ActionResult/拒绝事件分工？ | 枚举 = 1.30 已有 22 个（≥ SPEC ≥21）。payload = 每 type 一个 discriminated union（oneOf data schema，Step 1 细化）。ancestry = 默认只带 parentEventId 单引用，根事件 parent=null，不发送全祖先数组。ActionResult = 提交 action 的权威同步响应（accepted/rejected + reason + 新 revision 或错误码）；拒绝可同时发对应 UI 事件（如 TARGET_REJECTED），职责分离。内部事件过滤清单 → 待 Step 4 Java 投影时细化，未知类型一律 fail-closed，不静默丢弃 | 大部分已定 | SPEC §9.3；ARCHITECTURE_REVIEW §10 Step 4 |
-| 11 | Castle 在首个 Unity MVP 是否启用？禁用如何表达？ | **已定（人类裁决）**：MVP **启用**，双方共用、中立、无攻击力、默认初始生命 75（balance.json `royalCastleMaxHp=75` 一致）；破城后破城方胜利计数≥9。禁用表达保留技术方案：`snapshot.castle = null`（或 `{enabled:false}`）；CASTLE_* 事件不发 | 已定 | 人类裁决 mailbox L3495；RULES_QUESTIONS A |
+| 11 | Castle 在首个 Unity MVP 是否启用？禁用如何表达？ | **已定（人类裁决 2026-08-14）**：MVP **启用**，双方共用、中立、无攻击力、默认初始生命 75（balance.json `royalCastleMaxHp=75` 一致）；破城后破城方胜利计数≥9。禁用表达**统一为 `snapshot.castle = { "enabled": false }`**（不采用 `castle:null`，schema 已强制对象 + `enabled` 必填）；禁用时 CASTLE_* 事件不发 | 已定 | 人类裁决 mailbox L3495；RULES_QUESTIONS A；PL 2026-08-14 定案 |
 | 12 | Java 作为 Unity runtime 的打包/进程/IPC/JRE 边界？ | 在 C# sole runtime（#2）决策下**不适用**：Unity runtime = C# Engine assembly（DLL），无 Java/JRE、无 IPC 边界。若未来改回 Java runtime 需重新评估，不在本合同范围 | 已定 | WBS 10.10.0 |
 
 ### §5.4 wire 策略（对应 #4）
@@ -73,6 +73,7 @@
 - **null/omitted 三态**：`required`（必须有非 null）/ `optional`（可省略，省略视同 null）/ `nullable`（显式 null 允许）。schema 中逐字段表达，省略与 null 等价策略按字段标注。
 - **unknown-field**：**fail-closed** —— 与已知 schema 不匹配的未知字段使该 message 无效（不得静默降级，ARCHITECTURE_REVIEW §9）。
 - **numeric width**：integer = 64-bit（JSON 无小数）；float = 64-bit double；无 NaN/Infinity（序列化即失败）。
+- **entity ID wire 形态（2026-08-14 定案）**：对局实体 ID = **裸 JSON integer（64-bit counter，≥1）**，单局稳定、跨局不复用；不使用 `entity_...` 字符串形式。命名 ID（player/leader/castle/prompt）保持字符串（`player_0`/`player_1`/`leader_0`/`leader_1`/`castle`/`prompt_*`）。`sourceId`/`targetId`/`targetIds` 为**联合**：裸整数（实体）或命名 ID 字符串；纯实体字段（snapshot `card.entityId`、payload `selectedEntityIds`）为纯整数 ≥1。与 schema 一致。
 
 ## 6. HUMAN_REQUIRED 决策清单（已回填 + 残留）
 
@@ -119,6 +120,7 @@
 | 1.31-decision | 2026-08-14 | 回填人类裁决 + DeepSeek A-E 答案（§5 #7/#8/#9/#11 转已定）；目录迁移 `runtime-contract-v1.31/` → `runtime-kit-v1.31/contracts/`（与 v1.30 命名体系对齐）；Gate 解除 BLOCKED；残留 1 项 HUMAN_REQUIRED（shadow_of_fate） |
 | 1.31-victory | 2026-08-14 | 回填胜利体系决策链（评审⑬ Q1–Q5）：只有随从首领可被击败；王城被破坏被动触发持有 ROYAL_CASTLE_BREAK 的首领获胜；破城方叫出自己首领；双方随从首领局主动破城方直接获胜；per-leader 显式（flame 保留 / alpha 上传下载轴待定稿 / shadow 考虑中）。RULES §7/§9.1/§12.4 同步；勿写全局内置"破城即胜" |
 | 1.31-rules-sync | 2026-08-14 | 同步 RULES.md v1.0 规范化修订：王城默认 75（改"推荐"）；§1 门限例外；§7 伏击形态+AMBUSH_TRIGGER_WIN；§12.2 木 512 主题目标+连乘目标限制；§12.4 机械协议字段白名单 + machine_alpha 确定上传/下载轴。合同与规则书口径一致 |
+| 1.31-wire-entity-id | 2026-08-14 | 定案 wire 实体 ID = 裸 JSON integer（64-bit ≥1）；sourceId/targetId/targetIds 为整数∪命名ID字符串联合；纯实体字段纯整数。castle 禁用统一 `{enabled:false}`（删 `castle:null` 备选）。schema 4 文件 + fixture minimal + 合同同步 |
 
 ## 9. 批准记录
 

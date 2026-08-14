@@ -16,10 +16,10 @@
     "turn": { "type": "integer", "minimum": 0 },
     "phase": { "type": "string", "enum": ["START", "AMBUSH", "ACTION", "DISCARD", "END", "OVER"] },
     "snapshotRevision": { "type": "integer", "minimum": 0 },
-    "sourceId": { "type": ["string", "null"], "pattern": "^(entity_[0-9]{12}|leader_[01])$" },
+    "sourceId": { "type": ["integer", "string", "null"], "minimum": 1, "pattern": "^(leader_[01])$" },
     "targetIds": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^(entity_[0-9]{12}|player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },
+      "items": { "type": ["integer", "string"], "minimum": 1, "pattern": "^(player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },
       "uniqueItems": true
     },
     "amount": { "type": ["number", "null"] },
@@ -32,8 +32,8 @@
         "cardId": { "type": "string", "minLength": 1 },
         "count": { "type": "integer", "minimum": 0 },
         "reasonKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$" },
-        "sourceId": { "type": "string", "pattern": "^(entity_[0-9]{12}|leader_[01])$" },
-        "targetIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "sourceId": { "type": ["integer", "string"], "minimum": 1, "pattern": "^(leader_[01])$" },
+        "targetIds": { "type": "array", "items": { "type": ["integer", "string"], "minimum": 1, "pattern": "^(player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" }, "uniqueItems": true },
         "winnerPlayerIndex": { "type": "integer", "enum": [0, 1] }
       }
     }
