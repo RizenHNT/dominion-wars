@@ -3917,16 +3917,19 @@ ATTACKS_RESTORED, BUFF_APPLIED, CARDS_DISCARDED, CARDS_DRAWN, DAMAGE_DEALT, DEFE
 
 ---
 
-## 🔵 [PL → DeepSeek] 统领重设计批次（QA + 策划）
+## 🔵 [PL → DeepSeek] 卡牌设计批次：平衡基本包全卡设计（QA + 策划）— 范围升级 2026-08-15
 
-**背景**：人类裁决所有统领重新设计。machine 卡因 COMMIT/PUSH/PULL 规则刚定需全部重做；其余统领（flame/sea/wood/gate/shadow 等）不合理处一并修订。
+**背景（2026-08-15 00:50 人类指示）**：现有 91 张太少，最终目标"几百张 + 组卡自由度"；**初版只做"最平衡的基本包"**（非全集）。全部旧卡在新版规则书（RULES §12）下重做为完整、平衡、可组卡的基本包卡池，列清单交程序实现；策划（DeepSeek）负责设计 + 自验证平衡性。
 
 **范围**：
-1. 全部统领卡重设计提案（数据层 `data/cards/*.json` + 平衡理由）
-2. machine 阵营：围绕 Commit/Push/Rollback/Pull（RULES §12.4）的完整卡组重做；**machine_alpha 胜利条件 = 下载轴**（通过下载达成特定条件），给出具体协议组合与阈值
-3. shadow_of_fate：DISABLE_ENEMY_LEADER 机制已删，需给新身份；其 winCondition=NONE 缺口也在此批次解决（评审⑬ Q1：非随从统领须有显式 winCondition）
+1. **卡牌设计模板（先出，作为全批次规格）**：随从/咒文/伏击/惩罚/统领五类的数据层字段模板（对齐 `data/schema/cards.schema.json`）+ 平衡数值参考 + 文本规范。模板即 Codex 实现规格。
+2. **平衡基本包全卡设计（核心交付）**：5 个来源阵营文件（flame/machine/sea/wood/neutral）全量重做。目标规模建议 ≈120–150 张（每阵营 25–30 + 中立 12–15，含统领），具体规模列为人类确认项。每卡给出：id/字段/效果/文本/平衡理由/强度评级。
+3. **machine 阵营全量重做**：围绕 Commit/Push/Rollback/Pull（RULES §12.4）完整主题卡组；**machine_alpha 胜利 = 下载轴**（通过下载达成特定条件），给具体协议组合 + 阈值。
+4. **shadow_of_fate 新身份**：DISABLE_ENEMY_LEADER 已删，需新身份 + 显式 winCondition（评审⑬ Q1：非随从统领须有显式 winCondition）。
+5. **卡组模板**：基于基本包的 4 套官方卡组（每阵营 1 套，约 40 张/套）。
+6. **自验证**：每卡平衡性自查（数值 vs 同类/费用/惩罚值）、卡池内部协同、4 套卡组可玩性。QA 必须验证设计的卡合适不合适（人类强调）。
 
-**验收**：每统领给出设计稿（字段/效果/胜利条件/平衡理由），回填 data + RULES §12 对应章节，交 PL 审 → 人类拍板 → Codex 实现。
+**验收**：① 卡牌设计模板；② 平衡基本包全卡 spec（字段+文本+平衡理由+强度评级）；③ 4 套卡组模板；④ machine_alpha 下载轴协议+阈值；⑤ shadow_of_fate 新身份+winCondition；⑥ 自验证报告。交 PL 审 → 人类拍板 → Codex 实现。
 **路由**：DeepSeek（QA/策划）先出提案 → PL 审 → 人类定 → Codex 实现。只出提案，不改生产代码。
 
 ---
@@ -3947,4 +3950,17 @@ ATTACKS_RESTORED, BUFF_APPLIED, CARDS_DISCARDED, CARDS_DRAWN, DAMAGE_DEALT, DEFE
 **验收**：dotnet test 全绿；schema 校验 0 fail；Java 38/38；报告改动清单。
 **路由**：Codex 实现 + 报告；不 push（人类定）。
 
+— PL（DeepSeek v4 Flash）· 2026-08-15
+
+---
+
+## 🟡 [PL 记录] Codex 队列文档已创建（2026-08-15）
+
+已创建 `docs/GOAL_CODEX_QUEUE_2026-08-15.md` —— Codex 待办收口（4 阶段）：
+- P1 wire 实体 ID C# 边界同步（mailbox L3856 派发 #1-#5）
+- P2 DISABLE_ENEMY_LEADER 机制删除（mailbox L3934 派发）
+- P3 10.10.2 fixture/schema 补强（QA 深审 4/6 项）
+- P4 Unity Windows 构建补跑（6.0 验收）
+
+人类 relay：请手动 chat 通知 Codex 读该文档 + mailbox 两段派发（自动 relay 未装好）。DeepSeek 同理通知读上方「卡牌设计批次」派发段。
 — PL（DeepSeek v4 Flash）· 2026-08-15
