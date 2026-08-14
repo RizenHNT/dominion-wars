@@ -3923,7 +3923,7 @@ ATTACKS_RESTORED, BUFF_APPLIED, CARDS_DISCARDED, CARDS_DRAWN, DAMAGE_DEALT, DEFE
 
 **范围**：
 1. **卡牌设计模板（先出，作为全批次规格）**：随从/咒文/伏击/惩罚/统领五类的数据层字段模板（对齐 `data/schema/cards.schema.json`）+ 平衡数值参考 + 文本规范。模板即 Codex 实现规格。
-2. **平衡基本包全卡设计（核心交付）**：5 个来源阵营文件（flame/machine/sea/wood/neutral）全量重做。目标规模建议 ≈120–150 张（每阵营 25–30 + 中立 12–15，含统领），具体规模列为人类确认项。每卡给出：id/字段/效果/文本/平衡理由/强度评级。
+2. **平衡基本包全卡设计（核心交付）**：5 个来源阵营文件（flame/machine/sea/wood/neutral）全量重做。**规模已拍板（2026-08-15 人类确认）：≈120–150 张（每阵营 25–30 + 中立 12–15，含统领）**。每卡给出：id/字段/效果/文本/平衡理由/强度评级。
 3. **machine 阵营全量重做**：围绕 Commit/Push/Rollback/Pull（RULES §12.4）完整主题卡组；**machine_alpha 胜利 = 下载轴**（通过下载达成特定条件），给具体协议组合 + 阈值。
 4. **shadow_of_fate 新身份**：DISABLE_ENEMY_LEADER 已删，需新身份 + 显式 winCondition（评审⑬ Q1：非随从统领须有显式 winCondition）。
 5. **卡组模板**：基于基本包的 4 套官方卡组（每阵营 1 套，约 40 张/套）。
