@@ -32,13 +32,10 @@ namespace DominionWars.Unity.EditMode
 
             var snapshot = EngineProjectionAdapter.ToSnapshot(state, "unity-smoke", 1, "OVER");
             var events = EngineProjectionAdapter.ToEvents(state.Events.Items, 1, "OVER");
-            Assert.Multiple(() =>
-            {
-                Assert.That(snapshot.ContractVersion, Is.EqualTo(1));
-                Assert.That(state.WinnerPlayerIndex, Is.EqualTo(0));
-                Assert.That(events.Last().Type, Is.EqualTo("GAME_OVER"));
-                Assert.That(events.Select(item => item.EventId).Distinct().Count(), Is.EqualTo(events.Count));
-            });
+            Assert.That(snapshot.ContractVersion, Is.EqualTo(1));
+            Assert.That(state.WinnerPlayerIndex, Is.EqualTo(0));
+            Assert.That(events.Last().Type, Is.EqualTo("GAME_OVER"));
+            Assert.That(events.Select(item => item.EventId).Distinct().Count(), Is.EqualTo(events.Count));
         }
     }
 }

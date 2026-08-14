@@ -5,6 +5,7 @@
     "DominionWars.Engine",
     "DominionWars.Adapters",
     "DominionWars.Data",
+    "DominionWars.Runtime",
     "TestAssemblies"
   ],
   "includePlatforms": [ "Editor" ],

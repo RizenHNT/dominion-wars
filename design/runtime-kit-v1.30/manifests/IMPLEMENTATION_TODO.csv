@@ -1,14 +1,14 @@
-﻿priority,area,task,exit,status,owner,completed_at,evidence
+priority,area,task,exit,status,owner,completed_at,evidence
 P0,Adapter,Implement snapshot/action/event adapters against current Java engine,No UI rule duplication,done,Codex,2026-08-12,e1b53d2 + cbc270f + 225/225 tests
-P0,Unity MVP,Create Unity vertical slice and Windows package,Friend can launch a Windows .exe with one faction one leader cards turn flow and victory,pending,Codex+Human,,Blocked: Unity 6 LTS project/editor not installed
+P0,Unity MVP,Create Unity vertical slice and Windows package,Friend can launch a Windows .exe with one faction one leader cards turn flow and victory,pending,Codex+Human,,Editor 6000.3.21f1 installed 2026-08-13; blocked: Personal license activation
 P0,Data,Implement C# JSON card/deck loader against cards.schema.json,All 91 cards load or fail closed with actionable validation,pending,Codex,,C# loader not yet implemented
 P0,Engine,Implement Unity MVP turn/match controller,One faction one leader basic turn flow and victory,pending,Codex,,C# full turn controller not yet implemented
-P0,Renderer,Implement normalized layout + components,1440x900/1280x720 stable,pending,Codex,,Blocked: requires Unity Editor
-P0,Assets,Resolve logical asset IDs to SVG/PNG,No hardcoded file paths,pending,Codex,,Blocked: requires Unity Editor + asset bake
-P0,Motion,Map semantic motion primitives to native engine animations,Reduced motion works,pending,Codex,,Blocked: requires Unity Editor
-P0,Battle,Implement phase UI from battle_state_machine.json,Phase parity,pending,Codex,,Blocked: requires Unity Editor
-P0,Targeting,All targets use legalActions / reason,Click and drag same GameAction,pending,Codex,,Blocked: requires Unity Editor
-P0,Punish,Render parentEventId causal chain,Cause understandable without log,pending,Codex,,Blocked: requires Unity Editor
+P0,Renderer,Implement normalized layout + components,1440x900/1280x720 stable,pending,Codex,,Blocked: requires Unity project scaffold (Batch 6B)
+P0,Assets,Resolve logical asset IDs to SVG/PNG,No hardcoded file paths,pending,Codex,,Blocked: requires Unity project scaffold (Batch 6B) + asset bake
+P0,Motion,Map semantic motion primitives to native engine animations,Reduced motion works,pending,Codex,,Blocked: requires Unity project scaffold (Batch 6B)
+P0,Battle,Implement phase UI from battle_state_machine.json,Phase parity,pending,Codex,,Blocked: requires Unity project scaffold (Batch 6B)
+P0,Targeting,All targets use legalActions / reason,Click and drag same GameAction,pending,Codex,,Blocked: requires Unity project scaffold (Batch 6B)
+P0,Punish,Render parentEventId causal chain,Cause understandable without log,pending,Codex,,Blocked: requires Unity project scaffold (Batch 6B)
 P1,Deck Builder,Use CardView + deck validation contract,No renderer-coupled deck data,pending,Codex,,
 P1,Localization,All UI strings use keys,JP/ZH/EN safe,done,Codex,2026-08-12,ae33fad + LocalizationTests 10/10
 P1,Skin,Load skin manifest,Skin swap without code edit,pending,Codex,,
