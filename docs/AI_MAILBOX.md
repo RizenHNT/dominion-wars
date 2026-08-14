@@ -3688,3 +3688,24 @@ Gate 仍为 `Contract 1.31=DRAFT`、`ADAPTER_INTEGRATION_GATE=BLOCKED`；未提�
 **待老板**：① shadow_of_fate 可达胜利条件；② machine_alpha 上传/下载轴具体组合与阈值定稿
 
 — PL · 2026-08-14
+
+---
+
+## 🔴 [PL → Codex] 手动交棒：10.10.2 起已解锁，可领取（2026-08-14 晚）
+
+**背景**：10.10.1（PL 固化 1.31 合同）已完成，Gate 已解除。10.10.2–10.10.8 全部在已批准字段内、依赖已满足，按依赖顺序领取即可。本次为**手动 attended 交棒**（人类在场），非自动 relay。
+
+**领取范围**（docs/PROGRESS_WBS.md §10.10 + docs/GOAL_TERRA_CSHARP_ADAPTER_MORNING_2026-08-13.md）：
+- 10.10.2 → 10.10.8 依赖顺序推进；10.10.9 收尾报告必做；10.10.10（Java 移除）本目标禁止。
+- 已知 HUMAN_REQUIRED 不阻塞：① shadow_of_fate 可达胜利条件（老板考虑中）；② machine_alpha 上传/下载轴定稿。遇到标 HUMAN_REQUIRED 跳过继续独立项。
+- 已知环境阻塞：10.10.6 Unity 非视觉适配器依赖 Unity 环境；失败则静态项继续，标 BLOCKED。
+- 操作纪律：只写 docs/DAILY_GOAL.md 允许路径；不 commit / 不 push / 不碰 Java / 不碰 Renderer-UI / 不猜规则。
+
+**已就位前提**（勿重做）：
+- 合同目录 = design/runtime-kit-v1.31/contracts/（旧 runtime-contract-v1.31 已迁移）。
+- 规则基线 = docs/RULES.md v1.0 规范化 + 胜利体系 Q1–Q5 已同步合同（commit 278f669 / bc51063 / 626a891 已 push，HEAD=main）。
+- 引擎基线：.NET 370/370 全绿、effects 24/24、牌组 4/4、素材 320/320（C10 报告）。
+
+**开工前必读**：AGENTS.md、ARCHITECTURE_REVIEW.md、docs/AI_WORKFLOW.md、docs/RULES.md、docs/DAILY_GOAL.md、合同三件套。
+
+— PL · 2026-08-14 晚

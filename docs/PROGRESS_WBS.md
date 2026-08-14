@@ -228,7 +228,7 @@
 | 10.10.0 | 技术路线锁定：C# sole runtime；Java parity-only | 人类 + PL | 本节决策；后续 PL 报告同步 | done（人类已确认） | 否 |
 | 10.10.0a | 上午 relay 隔离分支同步与无付费 preflight | Codex + 人类 | `start-relay.ps1 -ValidateOnly` 已通过；隔离分支已包含 `main` 且控制路径一致；下一步在正常 Windows 用户会话运行 `run-nightshift.ps1 -SandboxPreflightOnly`，必须通过 test sandbox、developer allow、developer deny 三项且 `PaidModelAttempts=0` | pending（真实无付费探针） | 否，禁止绕过门禁 |
 | 10.10.1 | PL 固化 Canonical Runtime Contract 1.31 与 1.30 迁移说明 | Claude/MiniMax PL | version、wire casing、revision、visibility、action/result、target、event matrix；未知产品语义标 `HUMAN_REQUIRED` | done（PL 2026-08-14 已回填决策包 + 解除 Gate；残留 shadow_of_fate 单点跟踪） | 否 |
-| 10.10.2 | 1.31 strict schema、golden/invalid fixtures 与可重复验证脚本 | Codex/Terra | fixture 总数；valid 全过、invalid 按预期拒绝 | pending（依赖 10.10.1） | 是，已批准字段内 |
+| 10.10.2 | 1.31 strict schema、golden/invalid fixtures 与可重复验证脚本 | Codex/Terra | fixture 总数；valid 全过、invalid 按预期拒绝 | ready（10.10.1 已完成 + Gate 解除，可领取；2026-08-14 手动交棒） | 是，已批准字段内 |
 | 10.10.3 | C# viewer-scoped GameSnapshot、稳定 match/revision 与隐藏信息裁剪 | Codex/Terra | 双 viewer redaction、稳定 ID、确定性投影测试 | pending（依赖 10.10.1-2） | 是，禁止 UI 隐藏补救 |
 | 10.10.4 | LegalAction → GameAction → ActionResult 唯一入口与 stale/duplicate 防护 | Codex/Terra | wrong-match/stale/duplicate/not-advertised/actor/payload/game-over 无副作用测试 | pending（依赖 10.10.1-3） | 是，未批准 action type 跳过 |
 | 10.10.5 | UIEvent 事件时 metadata、映射策略、cursor/dedupe/gap 与因果验证 | Codex/Terra + PL | eventId/parent/revision/turn/phase；unknown 行为一致；禁止日志解析 | pending（依赖 10.10.1-2） | 是，语义缺口交 PL |
