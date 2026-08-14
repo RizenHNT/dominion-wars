@@ -1,0 +1,4 @@
+Picked up JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8
+??: �Q�s�����ٖ@��?��? com.dominionwars.test.TestMain
+����: java.lang.ClassNotFoundException: com.dominionwars.test.TestMain
+

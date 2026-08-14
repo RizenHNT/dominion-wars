@@ -1,0 +1,2 @@
+??: �Q�s�����ٖ@��?��? com.dominionwars.test.TestMain
+����: java.lang.ClassNotFoundException: com.dominionwars.test.TestMain

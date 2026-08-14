@@ -1,0 +1,60 @@
+=== JSON 解析检查 (12 个文件) ===
+
+=== balance.json 完整性 ===
+  openingHand=5 drawPerTurn=1
+  handLimit=8  chainLimit=20
+  deckMin=60 deckMax=80
+  reshuffleLoseAt=10
+  royalCastleEnabled=True  royalCastleMaxHp=75  breakVictoryCount=9
+
+=== 卡牌数据完整性 ===
+  总计: 91 张唯一卡牌
+  其中统领: 7 张
+  flame_leader: type=MINION, winCondition=ROYAL_CASTLE_BREAK, enterEffects=True, punishEffects=True [OK]
+  machine_leader: type=SPELL, winCondition=NONE, enterEffects=False, punishEffects=True [OK (非随从型, 有替代效果: ['chantEffects'])]
+  machine_alpha: type=MINION, winCondition=OPP_PUNISH_DRAW_TURN_GE, enterEffects=False, punishEffects=True [WARN (随从型统领无 enterEffects)]
+  shadow_of_fate: type=MINION, winCondition=NONE, enterEffects=False, punishEffects=True [OK]
+  gate_of_fate: type=AMBUSH, winCondition=AMBUSH_TRIGGER_WIN, enterEffects=False, punishEffects=False [OK (非随从型, 有替代效果: ['ambushEffects'])]
+  sea_leader: type=SPELL, winCondition=OPP_DISCARD_TOTAL_GE, enterEffects=True, punishEffects=True [OK]
+  wood_leader: type=SPELL, winCondition=NO_DAMAGE_TURNS_GE, enterEffects=True, punishEffects=True [OK]
+
+=== 卡组引用一致性 (leader + cards{id:count}) ===
+  烈焰帝国·焚天速攻: leader=flame_leader, 20 种卡 × 数量 = 60 张 + 1 统领 = 61 总 (60-80) OK
+  机械遗迹·极神协议: leader=machine_leader, 20 种卡 × 数量 = 60 张 + 1 统领 = 61 总 (60-80) OK
+  深海联盟·吞噬之渊: leader=sea_leader, 20 种卡 × 数量 = 60 张 + 1 统领 = 61 总 (60-80) OK
+  古木圣地·常青壁垒: leader=wood_leader, 20 种卡 × 数量 = 60 张 + 1 统领 = 61 总 (60-80) OK
+
+=== 阵营卡牌分析 ===
+  古木圣地: 21 张卡 (统领: ['wood_leader'])
+  无阵营: 6 张卡 (统领: ['shadow_of_fate', 'gate_of_fate'])
+  机械遗迹: 22 张卡 (统领: ['machine_leader', 'machine_alpha'])
+  深海联盟: 21 张卡 (统领: ['sea_leader'])
+  烈焰帝国: 21 张卡 (统领: ['flame_leader'])
+
+=== 卡图资源 ===
+  data/art/: 4 张 PNG 卡图
+  匹配卡牌ID的: 4 张
+
+=== 文档检查 ===
+  docs/RULES.md: 9245 bytes
+  docs/DESIGN.md: 4652 bytes
+  docs/BALANCE.md: 3358 bytes
+  docs/AI_WORKFLOW.md: 4543 bytes
+
+=== Runtime Design Kit ===
+  待实现: P0=11, P1=5, P2=1, P3=1
+  注: IMPLEMENTATION_TODO.csv 是整个 Design Kit 的待办，不等于当前项目缺失
+  contracts/: 14 个文件
+
+=== Web 前端检查 ===
+  OK: web/index.html (3936 bytes)
+  OK: web/app.js (34539 bytes)
+  OK: web/config.js (3212 bytes)
+  OK: web/style.css (24621 bytes)
+  web/skin/: 1 个文件
+
+============================================================
+检测完成: 0 个 ERROR, 0 个 WARN, 0 个 INFO
+============================================================
+
+  未发现任何问题，项目数据质量良好！
