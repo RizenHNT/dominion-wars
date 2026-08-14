@@ -228,14 +228,14 @@
 | 10.10.0 | 技术路线锁定：C# sole runtime；Java parity-only | 人类 + PL | 本节决策；后续 PL 报告同步 | done（人类已确认） | 否 |
 | 10.10.0a | 上午 relay 隔离分支同步与无付费 preflight | Codex + 人类 | `start-relay.ps1 -ValidateOnly` 已通过；隔离分支已包含 `main` 且控制路径一致；下一步在正常 Windows 用户会话运行 `run-nightshift.ps1 -SandboxPreflightOnly`，必须通过 test sandbox、developer allow、developer deny 三项且 `PaidModelAttempts=0` | pending（真实无付费探针） | 否，禁止绕过门禁 |
 | 10.10.1 | PL 固化 Canonical Runtime Contract 1.31 与 1.30 迁移说明 | Claude/MiniMax PL | version、wire casing、revision、visibility、action/result、target、event matrix；未知产品语义标 `HUMAN_REQUIRED` | done（PL 2026-08-14 已回填决策包 + 解除 Gate；残留 shadow_of_fate 单点跟踪） | 否 |
-| 10.10.2 | 1.31 strict schema、golden/invalid fixtures 与可重复验证脚本 | Codex/Terra | fixture 总数；valid 全过、invalid 按预期拒绝 | ready（10.10.1 已完成 + Gate 解除，可领取；2026-08-14 手动交棒） | 是，已批准字段内 |
-| 10.10.3 | C# viewer-scoped GameSnapshot、稳定 match/revision 与隐藏信息裁剪 | Codex/Terra | 双 viewer redaction、稳定 ID、确定性投影测试 | pending（依赖 10.10.1-2） | 是，禁止 UI 隐藏补救 |
-| 10.10.4 | LegalAction → GameAction → ActionResult 唯一入口与 stale/duplicate 防护 | Codex/Terra | wrong-match/stale/duplicate/not-advertised/actor/payload/game-over 无副作用测试 | pending（依赖 10.10.1-3） | 是，未批准 action type 跳过 |
-| 10.10.5 | UIEvent 事件时 metadata、映射策略、cursor/dedupe/gap 与因果验证 | Codex/Terra + PL | eventId/parent/revision/turn/phase；unknown 行为一致；禁止日志解析 | pending（依赖 10.10.1-2） | 是，语义缺口交 PL |
-| 10.10.6 | Unity 非视觉 RuntimeAdapter：Contracts/Transport/Adapter/Bootstrap/Presentation | Codex/Terra | 无规则复制；main-thread/stale response/fake session EditMode 测试 | pending（依赖 10.10.2-5） | 是，Unity 环境失败则静态项继续 |
-| 10.10.7 | C# 最小端到端 trace：snapshot → advertised action → result → snapshot/events | Codex/Terra | 固定 fixture、revision/action/event/final-state 证据 | pending（依赖 10.10.3-6） | 是，不做正式 UI |
-| 10.10.8 | DeepSeek 独立 Adapter Gate QA + 最多三轮 Codex 修复 | DeepSeek + Codex/Terra | 精确命令、通过/总数/失败/跳过；Step 8 十项逐条结论 | pending（依赖 10.10.2-7） | relay 自动交接 |
-| 10.10.9 | 上午收尾报告与工作树范围审计 | Codex/Terra | `docs/ADAPTER_INTEGRATION_MORNING_REPORT_2026-08-13.md`；总体 PASS/FAIL/BLOCKED | ready（每次运行必做） | 是 |
+| 10.10.2 | 1.31 strict schema、golden/invalid fixtures 与可重复验证脚本 | Codex/Terra | fixture 总数；valid 全过、invalid 按预期拒绝 | done（2026-08-14 attended 批；4 schema + 5 valid/4 invalid fixture；validator 5/4/0，PL 已复验） | 是，已批准字段内 |
+| 10.10.3 | C# viewer-scoped GameSnapshot、稳定 match/revision 与隐藏信息裁剪 | Codex/Terra | 双 viewer redaction、稳定 ID、确定性投影测试 | done（2026-08-14 attended 批；RuntimeContractV131Snapshot viewer-safe 投影；PL 已复验） | 是，禁止 UI 隐藏补救 |
+| 10.10.4 | LegalAction → GameAction → ActionResult 唯一入口与 stale/duplicate 防护 | Codex/Terra | wrong-match/stale/duplicate/not-advertised/actor/payload/game-over 无副作用测试 | done（2026-08-14 attended 批；RuntimeMatchGateway 幂等/revision/广告动作/无副作用；PL 已复验） | 是，未批准 action type 跳过 |
+| 10.10.5 | UIEvent 事件时 metadata、映射策略、cursor/dedupe/gap 与因果验证 | Codex/Terra + PL | eventId/parent/revision/turn/phase；unknown 行为一致；禁止日志解析 | done（2026-08-14 attended 批；RuntimeEventCursor 22 类型 + dup/gap/order/parent 全校验；PL 已复验） | 是，语义缺口交 PL |
+| 10.10.6 | Unity 非视觉 RuntimeAdapter：Contracts/Transport/Adapter/Bootstrap/Presentation | Codex/Terra | 无规则复制；main-thread/stale response/fake session EditMode 测试 | static_foundation（2026-08-14 attended 批；UnityEngine-free noEngineReferences 基础 + 静态 EditMode 测试）；runtime_blocked（Unity Hub/许可证环境，待人类激活） | 是，Unity 环境失败则静态项继续 |
+| 10.10.7 | C# 最小端到端 trace：snapshot → advertised action → result → snapshot/events | Codex/Terra | 固定 fixture、revision/action/event/final-state 证据 | done（2026-08-14 attended 批；RuntimeMatchTraceTests 离线 trace；PL 已复验） | 是，不做正式 UI |
+| 10.10.8 | DeepSeek 独立 Adapter Gate QA + 最多三轮 Codex 修复 | DeepSeek + Codex/Terra | 精确命令、通过/总数/失败/跳过；Step 8 十项逐条结论 | pending（本批仅 LOCAL_QA 386/386；缺独立 DeepSeek 复核，已转 DeepSeek） | relay 自动交接 |
+| 10.10.9 | 上午收尾报告与工作树范围审计 | Codex/Terra | `docs/ADAPTER_INTEGRATION_MORNING_REPORT_2026-08-13.md`；总体 PASS/FAIL/BLOCKED | done（2026-08-14 attended 批；C11 段含验证矩阵/偏差/最终 Gate；PL 已复核） | 是 |
 | 10.10.10 | Java 归档/移除 | 人类 + PL + Codex + DeepSeek | C# parity、Unity、回归、可恢复归档全部通过后另行批准 | human_required（本目标禁止） | 否 |
 
 自动执行规则：按 10.10.1 → 10.10.8 的依赖顺序领取；单项遇到 `HUMAN_REQUIRED` 或环境阻塞时，记录后继续所有独立项；时间不足时完成当前可验证批次，不留下未经测试的半编辑；10.10.9 永远必做。不得因本队列进入 Renderer/UI、Windows 发布或 Java 删除。
