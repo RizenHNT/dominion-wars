@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Runs = '20,100,1000',
+    [object]$Runs = '20,100,1000',
     [int]$TimeoutSeconds = 300,
     [switch]$SkipBuild,
     [string]$OutputPath
@@ -10,14 +10,41 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repoRoot
 try {
-    $runValues = @($Runs -split ',' | ForEach-Object {
-        $value = $_.Trim()
-        $parsed = 0
-        if ([string]::IsNullOrWhiteSpace($value) -or -not [int]::TryParse($value, [Globalization.NumberStyles]::Integer, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) {
-            throw "Runs must be a comma-separated list of integers: $Runs"
+    function Expand-RunTokens {
+        param(
+            [AllowNull()][object]$Value
+        )
+
+        if ($null -eq $Value) {
+            Write-Output -NoEnumerate ''
+            return
         }
-        $parsed
-    })
+        if ($Value -is [string]) {
+            foreach ($token in ([string]$Value -split ',')) {
+                Write-Output -NoEnumerate $token
+            }
+            return
+        }
+        if ($Value -is [Collections.IEnumerable]) {
+            foreach ($item in $Value) {
+                Expand-RunTokens -Value $item
+            }
+            return
+        }
+        Write-Output -NoEnumerate ([Convert]::ToString($Value, [Globalization.CultureInfo]::InvariantCulture))
+    }
+
+    $runTokens = @(Expand-RunTokens -Value $Runs)
+    $runValues = @(
+        foreach ($rawToken in $runTokens) {
+            $value = ([string]$rawToken).Trim()
+            $parsed = 0
+            if ([string]::IsNullOrWhiteSpace($value) -or -not [int]::TryParse($value, [Globalization.NumberStyles]::Integer, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) {
+                throw "Runs must be a comma-separated list of integers: $Runs"
+            }
+            $parsed
+        }
+    )
     if ($runValues.Count -eq 0 -or @($runValues | Where-Object { $_ -lt 1 -or $_ -gt 10000 }).Count -gt 0) {
         throw 'Runs must contain values from 1 through 10000.'
     }
@@ -45,6 +72,9 @@ try {
             $psi.CreateNoWindow = $true
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError = $true
+            $utf8 = [System.Text.UTF8Encoding]::new($false)
+            $psi.StandardOutputEncoding = $utf8
+            $psi.StandardErrorEncoding = $utf8
             # All callers below use repository-relative, space-free arguments;
             # keeping the command line literal also preserves cmd.exe /c semantics
             # under Windows PowerShell 5.1.
@@ -84,11 +114,15 @@ try {
     }
 
     foreach ($run in $runValues) {
-        $result = Invoke-ProcessWithTimeout -FilePath 'java' -ArgumentList @('-Dfile.encoding=UTF-8', '-cp', 'build\classes;build\test-classes', 'com.dominionwars.test.SimMain', [string]$run) -Timeout $TimeoutSeconds -Label ("java-sim-{0}" -f $run)
+        $result = Invoke-ProcessWithTimeout -FilePath 'java' -ArgumentList @('-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', '-cp', 'build\classes;build\test-classes', 'com.dominionwars.test.SimMain', [string]$run) -Timeout $TimeoutSeconds -Label ("java-sim-{0}" -f $run)
         $results.Add($result)
         if ($result.status -eq 'PASS') {
             $line = ($result.output -split "`r?`n" | Where-Object { $_ -match '240|1200|12000|局|games|回合' } | Select-Object -Last 1)
-            Write-Output ("STABILITY run={0} status=PASS exit=0 seconds={1} summary={2}" -f $run, $result.seconds, ($line -replace '\s+', ' ').Trim())
+            if (-not $line) {
+                $line = ($result.output -split "`r?`n" | Where-Object { $_.Trim().StartsWith('==') -and $_.Trim().EndsWith('==') } | Select-Object -Last 1)
+            }
+            $summary = (@($line) -replace '\s+', ' ') -join ' '
+            Write-Output ("STABILITY run={0} status=PASS exit=0 seconds={1} summary={2}" -f $run, $result.seconds, $summary.Trim())
         }
         else {
             Write-Output ("STABILITY run={0} status={1} exit={2} seconds={3}" -f $run, $result.status, $result.exitCode, $result.seconds)

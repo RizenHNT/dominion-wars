@@ -13,6 +13,12 @@ foreach ($pattern in $Path) {
     $leaf = Split-Path -Leaf $fullPattern
     if (Test-Path -LiteralPath $fullPattern -PathType Leaf) {
         [void]$files.Add((Resolve-Path -LiteralPath $fullPattern).Path)
+    } elseif ($fullPattern -match '^(?<root>.+?)[\\/][*][*][\\/](?<leaf>[^\\/]+)$') {
+        $globRoot = $Matches.root
+        $globLeaf = $Matches.leaf
+        if (Test-Path -LiteralPath $globRoot -PathType Container) {
+            Get-ChildItem -LiteralPath $globRoot -Filter $globLeaf -File -Recurse -Force -ErrorAction Stop | ForEach-Object { [void]$files.Add($_.FullName) }
+        }
     } elseif (Test-Path -LiteralPath $parent -PathType Container) {
         Get-ChildItem -LiteralPath $parent -Filter $leaf -File -Recurse -Force -ErrorAction Stop | ForEach-Object { [void]$files.Add($_.FullName) }
     }

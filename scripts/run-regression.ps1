@@ -48,8 +48,14 @@ try {
     Invoke-RegressionStage -Name 'dotnet-release' -Action { & dotnet @dotnetArgs }
 
     Invoke-RegressionStage -Name 'cards-schema' -Action {
-        & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-            -File (Join-Path $repoRoot 'scripts\validate-cards.ps1')
+        $cardValidationArguments = @(
+            '-NoProfile',
+            '-NonInteractive',
+            '-ExecutionPolicy', 'Bypass',
+            '-File', (Join-Path $repoRoot 'scripts\validate-cards.ps1')
+        )
+        if (-not $Restore) { $cardValidationArguments += '-NoRestore' }
+        & powershell.exe @cardValidationArguments
     }
 
     Invoke-RegressionStage -Name 'deck-validation' -Action {
