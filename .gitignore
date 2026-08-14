@@ -42,3 +42,11 @@ web.backup-*/
 /Dominion_Wars_Runtime_Design_Kit_*.zip
 .nightshift/
 /nightshift-agent-tmp/
+
+# Local schema-validator SDK/NuGet caches
+/.schema-validator-dotnet-home/
+/.schema-validator-packages/
+
+# Local build and remote-session scratch files
+/target/
+/.codex-remote-attachments/
