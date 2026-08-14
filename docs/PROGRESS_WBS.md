@@ -219,6 +219,27 @@
 
 因此，临时代理可以让 Codex 在你上班时持续推进低风险任务，但不能在你回家前替正式 PL 做最终规则、视觉、Unity、发布或 QA 签字。
 
+### 10.10 C# Runtime Contract 1.31 与 Adapter Integration（2026-08-13 人类批准队列）
+
+人类已决定：**C# Engine 是未来唯一正式运行时；Java 仅保留为临时行为对照，删除 Java 必须另开经人类批准的收尾目标。** 本节把 `ARCHITECTURE_REVIEW.md` 的审查步骤登记为可执行队列。详细上午目标见 `docs/GOAL_TERRA_CSHARP_ADAPTER_MORNING_2026-08-13.md`，自动接力入口见 `docs/DAILY_GOAL.md`。
+
+| ID | 未完成交付 | 负责人 | 依赖/验收证据 | 状态 | Terra 自动执行 |
+|---|---|---|---|---|---|
+| 10.10.0 | 技术路线锁定：C# sole runtime；Java parity-only | 人类 + PL | 本节决策；后续 PL 报告同步 | done（人类已确认） | 否 |
+| 10.10.0a | 上午 relay 隔离分支同步与无付费 preflight | Codex + 人类 | `start-relay.ps1 -ValidateOnly` 已通过；隔离分支已包含 `main` 且控制路径一致；下一步在正常 Windows 用户会话运行 `run-nightshift.ps1 -SandboxPreflightOnly`，必须通过 test sandbox、developer allow、developer deny 三项且 `PaidModelAttempts=0` | pending（真实无付费探针） | 否，禁止绕过门禁 |
+| 10.10.1 | PL 固化 Canonical Runtime Contract 1.31 与 1.30 迁移说明 | Claude/MiniMax PL | version、wire casing、revision、visibility、action/result、target、event matrix；未知产品语义标 `HUMAN_REQUIRED` | done（PL 2026-08-14 已回填决策包 + 解除 Gate；残留 shadow_of_fate 单点跟踪） | 否 |
+| 10.10.2 | 1.31 strict schema、golden/invalid fixtures 与可重复验证脚本 | Codex/Terra | fixture 总数；valid 全过、invalid 按预期拒绝 | pending（依赖 10.10.1） | 是，已批准字段内 |
+| 10.10.3 | C# viewer-scoped GameSnapshot、稳定 match/revision 与隐藏信息裁剪 | Codex/Terra | 双 viewer redaction、稳定 ID、确定性投影测试 | pending（依赖 10.10.1-2） | 是，禁止 UI 隐藏补救 |
+| 10.10.4 | LegalAction → GameAction → ActionResult 唯一入口与 stale/duplicate 防护 | Codex/Terra | wrong-match/stale/duplicate/not-advertised/actor/payload/game-over 无副作用测试 | pending（依赖 10.10.1-3） | 是，未批准 action type 跳过 |
+| 10.10.5 | UIEvent 事件时 metadata、映射策略、cursor/dedupe/gap 与因果验证 | Codex/Terra + PL | eventId/parent/revision/turn/phase；unknown 行为一致；禁止日志解析 | pending（依赖 10.10.1-2） | 是，语义缺口交 PL |
+| 10.10.6 | Unity 非视觉 RuntimeAdapter：Contracts/Transport/Adapter/Bootstrap/Presentation | Codex/Terra | 无规则复制；main-thread/stale response/fake session EditMode 测试 | pending（依赖 10.10.2-5） | 是，Unity 环境失败则静态项继续 |
+| 10.10.7 | C# 最小端到端 trace：snapshot → advertised action → result → snapshot/events | Codex/Terra | 固定 fixture、revision/action/event/final-state 证据 | pending（依赖 10.10.3-6） | 是，不做正式 UI |
+| 10.10.8 | DeepSeek 独立 Adapter Gate QA + 最多三轮 Codex 修复 | DeepSeek + Codex/Terra | 精确命令、通过/总数/失败/跳过；Step 8 十项逐条结论 | pending（依赖 10.10.2-7） | relay 自动交接 |
+| 10.10.9 | 上午收尾报告与工作树范围审计 | Codex/Terra | `docs/ADAPTER_INTEGRATION_MORNING_REPORT_2026-08-13.md`；总体 PASS/FAIL/BLOCKED | ready（每次运行必做） | 是 |
+| 10.10.10 | Java 归档/移除 | 人类 + PL + Codex + DeepSeek | C# parity、Unity、回归、可恢复归档全部通过后另行批准 | human_required（本目标禁止） | 否 |
+
+自动执行规则：按 10.10.1 → 10.10.8 的依赖顺序领取；单项遇到 `HUMAN_REQUIRED` 或环境阻塞时，记录后继续所有独立项；时间不足时完成当前可验证批次，不留下未经测试的半编辑；10.10.9 永远必做。不得因本队列进入 Renderer/UI、Windows 发布或 Java 删除。
+
 ---
 
 ## Backlog 优先级映射（18 行 → WBS 节点）

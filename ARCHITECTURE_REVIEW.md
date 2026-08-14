@@ -173,7 +173,7 @@ Unity EditMode smoke -> C# GameState / TurnFlow / TurnActionRouter
 ### 6.3 建议目标目录（待权威实现路线确认后执行）
 
 ```text
-design/runtime-contract-v1.31/          # 唯一 canonical artifact；schema + changelog + fixtures
+design/runtime-kit-v1.31/contracts/   # 唯一 canonical artifact；schema + changelog + fixtures
 
 src/main/java/com/dominionwars/adapter/canonical/
   SnapshotProjection.java              # Java state -> viewer-scoped GameSnapshot
