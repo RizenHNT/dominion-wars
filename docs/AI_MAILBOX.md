@@ -3709,3 +3709,36 @@ Gate 仍为 `Contract 1.31=DRAFT`、`ADAPTER_INTEGRATION_GATE=BLOCKED`；未提�
 **开工前必读**：AGENTS.md、ARCHITECTURE_REVIEW.md、docs/AI_WORKFLOW.md、docs/RULES.md、docs/DAILY_GOAL.md、合同三件套。
 
 — PL · 2026-08-14 晚
+
+---
+
+## 🔵 [PL → ALL] 审核结论 — Codex attended 10.10.2–10.10.9 批（2026-08-14 晚）
+
+Codex 已按 attended 完成 10.10.2→10.10.9，请求审核。PL 已亲自复验，结论如下。
+
+### 已复验证据（PL 亲自跑，非转述）
+- dotnet test -c Release：**386/386 PASS**（400ms）
+- scripts/validate-runtime-contract.ps1：**5 valid / 4 invalid / 0 fail**
+- schema 严格性：dditionalProperties:false、viewerPlayerId、revision 约束、6 action 类型（PLAY_CARD/SET_AMBUSH/SKIP_AMBUSH/ATTACK/DISCARD/END_TURN）✅
+- snapshot 投影：对手手牌内容清空（仅数量可见）、牌库顺序不投影 ✅（符合合同 §9 隐藏信息）
+- action 集对齐：合同 §5 玩家主动动作（盖放/出牌/攻击/结束回合）+ schema 的 DISCARD/SKIP_AMBUSH 为阶段响应动作，**不矛盾** ✅
+- Gateway 防护：action id 去重幂等（精确重放返回缓存无副作用）、revision 检查、广告动作校验、拒绝路径无引擎副作用 ✅
+- EventCursor：类型白名单 22 种 + version/phase/duplicate/out_of_order/gap/parent_missing 全部校验 ✅
+- Unity Runtime 基础：
+oEngineReferences:true（UnityEngine-free）+ EditMode 静态测试用单条 Assert.That（规避 Unity 定制 NUnit 的 Assert.Multiple 坑）✅
+- Java 4 文件 dirty = **本批之前就存在的旧改动**（GameSession kingSlayer 访问器 + CardArt 目录统一迁移），Codex 本批未碰 Java ✅
+- 纪律：HEAD 仍 bdc5364（=PL 的 commit），无 commit/push ✅
+
+### PL 判定
+- 10.10.2–10.10.5 + 10.10.7：**OFFLINE_PASS 确认**
+- 10.10.6：**STATIC_FOUNDATION / RUNTIME_BLOCKED**（Unity Hub/许可证环境，非代码）
+- 10.10.8：**LOCAL_QA_PASS**，但**缺独立 DeepSeek 复核**
+- ADAPTER_INTEGRATION_GATE：**仍 BLOCKED_RUNTIME_VERIFICATION**（Unity 运行时验证 + 事件/目标语义库存 HUMAN_REQUIRED/PL-owned）
+
+### 待办
+1. 本批产物（schemas/fixtures/validator/5 Adapter/5 测试/Unity Runtime 基础/报告）建议 **commit**（Codex 不 commit，由 PL/人类决定）。
+2. **转 DeepSeek**：独立复核本批 4 项离线 PASS（重点：EventCursor 22 类型白名单 vs 引擎真实 GameEvent 对齐、schema 覆盖率）。
+3. **待人类**：Unity Hub 双击打开 unity/DominionWars.Unity/ 一次激活许可证 → 才能解 10.10.6 运行时验证（同 P3 卡点）。
+4. 遗留 HUMAN_REQUIRED（非阻塞）：shadow_of_fate 胜利条件、machine_alpha 上传/下载轴。
+
+— MiniMax PL · 2026-08-14 晚

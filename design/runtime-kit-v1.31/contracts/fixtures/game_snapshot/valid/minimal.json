@@ -1,0 +1,16 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 0,
+  "turn": 1,
+  "phase": "START",
+  "currentPlayer": 0,
+  "viewerPlayerId": "player_0",
+  "players": [
+    { "playerId": "player_0", "life": 20, "deckCount": 5, "handCount": 1, "fieldCount": 1, "graveyardCount": 1, "ambushCount": 0, "hand": [{ "entityId": "entity_000000000001", "cardId": "flame_scout", "ownerPlayer": 0 }], "field": [{ "entityId": "entity_000000000002", "cardId": "flame_scout", "ownerPlayer": 0 }], "graveyard": [{ "entityId": "entity_000000000003", "cardId": "flame_scout", "ownerPlayer": 0 }] },
+    { "playerId": "player_1", "life": 20, "deckCount": 5, "handCount": 2, "fieldCount": 1, "graveyardCount": 1, "ambushCount": 0, "hand": [{ "entityId": "entity_000000000004", "cardId": "flame_scout", "ownerPlayer": 1 }], "field": [{ "entityId": "entity_000000000005", "cardId": "flame_scout", "ownerPlayer": 1 }], "graveyard": [{ "entityId": "entity_000000000006", "cardId": "flame_scout", "ownerPlayer": 1 }] }
+  ],
+  "castle": { "enabled": true, "health": 75 },
+  "legalActions": [{ "contractVersion": 1, "snapshotRevision": 0, "actionId": "act_fixture_0001", "type": "END_TURN", "actor": 0, "sourceId": null, "targetId": null, "cardId": null, "reasonKey": null, "payload": { "count": 0 } }],
+  "pendingPrompt": null
+}

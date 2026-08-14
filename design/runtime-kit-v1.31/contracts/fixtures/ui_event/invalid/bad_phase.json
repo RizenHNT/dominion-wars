@@ -1,0 +1,11 @@
+{
+  "contractVersion": 1,
+  "eventId": "evt_000000000002",
+  "parentEventId": null,
+  "type": "PHASE_CHANGED",
+  "turn": 1,
+  "phase": "NOT_A_PHASE",
+  "snapshotRevision": 0,
+  "targetIds": [],
+  "data": {}
+}

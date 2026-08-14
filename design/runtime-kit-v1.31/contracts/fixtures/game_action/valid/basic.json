@@ -1,0 +1,12 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 0,
+  "actionId": "act_fixture_0001",
+  "type": "END_TURN",
+  "actor": 0,
+  "sourceId": null,
+  "targetId": null,
+  "cardId": null,
+  "payload": {}
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dw:runtime:contract:1.31:action-result",
+  "title": "Dominion Wars ActionResult 1.31",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "matchId", "snapshotRevision", "resultingSnapshotRevision", "actionId", "accepted", "reasonKey"],
+  "properties": {
+    "contractVersion": { "const": 1 },
+    "matchId": { "type": "string", "pattern": "^match_[A-Za-z0-9_-]+$" },
+    "snapshotRevision": { "type": "integer", "minimum": 0 },
+    "resultingSnapshotRevision": { "type": "integer", "minimum": 0 },
+    "actionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "accepted": { "type": "boolean" },
+    "reasonKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$" }
+  }
+}

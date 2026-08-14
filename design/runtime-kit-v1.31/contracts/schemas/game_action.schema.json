@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dw:runtime:contract:1.31:game-action",
+  "title": "Dominion Wars GameAction 1.31",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "matchId", "snapshotRevision", "actionId", "type", "actor", "payload"],
+  "properties": {
+    "contractVersion": { "const": 1 },
+    "matchId": { "type": "string", "pattern": "^match_[A-Za-z0-9_-]+$" },
+    "snapshotRevision": { "type": "integer", "minimum": 0 },
+    "actionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "type": {
+      "type": "string",
+      "enum": ["PLAY_CARD", "SET_AMBUSH", "SKIP_AMBUSH", "ATTACK", "DISCARD", "END_TURN"]
+    },
+    "actor": { "type": "integer", "enum": [0, 1] },
+    "sourceId": { "type": ["string", "null"], "pattern": "^(entity_[0-9]{12}|leader_[01])$" },
+    "targetId": { "type": ["string", "null"], "pattern": "^(entity_[0-9]{12}|player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },
+    "cardId": { "type": ["string", "null"], "minLength": 1 },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "selectedEntityIds": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "uniqueItems": true
+        },
+        "targetId": { "type": "string", "pattern": "^(entity_[0-9]{12}|player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },
+        "count": { "type": "integer", "minimum": 0 },
+        "promptId": { "type": "string", "minLength": 1 },
+        "optionIndex": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

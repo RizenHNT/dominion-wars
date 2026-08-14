@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dw:runtime:contract:1.31:game-snapshot",
+  "title": "Dominion Wars GameSnapshot 1.31",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "matchId", "snapshotRevision", "turn", "phase", "currentPlayer", "viewerPlayerId", "players", "castle", "legalActions", "pendingPrompt"],
+  "properties": {
+    "contractVersion": { "const": 1 },
+    "matchId": { "type": "string", "pattern": "^match_[A-Za-z0-9_-]+$" },
+    "snapshotRevision": { "type": "integer", "minimum": 0 },
+    "turn": { "type": "integer", "minimum": 0 },
+    "phase": { "type": "string", "enum": ["START", "AMBUSH", "ACTION", "DISCARD", "END", "OVER"] },
+    "currentPlayer": { "type": "integer", "enum": [0, 1] },
+    "viewerPlayerId": { "type": "string", "pattern": "^player_[01]$" },
+    "players": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/player" }
+    },
+    "castle": { "$ref": "#/$defs/castle" },
+    "legalActions": { "type": "array", "items": { "$ref": "#/$defs/legalAction" } },
+    "pendingPrompt": { "type": ["object", "null"], "additionalProperties": false, "properties": { "promptId": { "type": "string", "minLength": 1 }, "kind": { "type": "string", "minLength": 1 } } }
+  },
+  "$defs": {
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entityId", "cardId", "ownerPlayer"],
+      "properties": {
+        "entityId": { "type": "string", "pattern": "^entity_[0-9]{12}$" },
+        "cardId": { "type": "string", "minLength": 1 },
+        "ownerPlayer": { "type": "integer", "enum": [0, 1] }
+      }
+    },
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerId", "life", "deckCount", "handCount", "fieldCount", "graveyardCount", "ambushCount", "hand", "field", "graveyard"],
+      "properties": {
+        "playerId": { "type": "string", "pattern": "^player_[01]$" },
+        "life": { "type": ["integer", "null"], "minimum": 0 },
+        "deckCount": { "type": "integer", "minimum": 0 },
+        "handCount": { "type": "integer", "minimum": 0 },
+        "fieldCount": { "type": "integer", "minimum": 0 },
+        "graveyardCount": { "type": "integer", "minimum": 0 },
+        "ambushCount": { "type": "integer", "minimum": 0 },
+        "hand": { "type": "array", "items": { "$ref": "#/$defs/card" } },
+        "field": { "type": "array", "items": { "$ref": "#/$defs/card" } },
+        "graveyard": { "type": "array", "items": { "$ref": "#/$defs/card" } }
+      }
+    },
+    "castle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "health"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "health": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "legalAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "snapshotRevision", "actionId", "type", "actor", "payload"],
+      "properties": {
+        "contractVersion": { "const": 1 },
+        "snapshotRevision": { "type": "integer", "minimum": 0 },
+        "actionId": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "enum": ["PLAY_CARD", "SET_AMBUSH", "SKIP_AMBUSH", "ATTACK", "DISCARD", "END_TURN"] },
+        "actor": { "type": "integer", "enum": [0, 1] },
+        "sourceId": { "type": ["string", "null"], "pattern": "^(entity_[0-9]{12}|leader_[01])$" },
+        "targetId": { "type": ["string", "null"], "pattern": "^(entity_[0-9]{12}|player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },
+        "cardId": { "type": ["string", "null"], "minLength": 1 },
+        "reasonKey": { "type": ["string", "null"], "pattern": "^[a-z0-9][a-z0-9_.-]*$" },
+        "payload": { "type": "object", "additionalProperties": false, "properties": { "count": { "type": "integer", "minimum": 0 }, "selectedEntityIds": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "uniqueItems": true }, "targetId": { "type": "string" } } }
+      }
+    }
+  }
+}

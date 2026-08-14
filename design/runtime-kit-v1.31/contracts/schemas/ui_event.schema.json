@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dw:runtime:contract:1.31:ui-event",
+  "title": "Dominion Wars UIEvent 1.31",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "eventId", "parentEventId", "type", "turn", "phase", "snapshotRevision", "targetIds", "data"],
+  "properties": {
+    "contractVersion": { "const": 1 },
+    "eventId": { "type": "string", "pattern": "^evt_[0-9]{12}$" },
+    "parentEventId": { "type": ["string", "null"], "pattern": "^evt_[0-9]{12}$" },
+    "type": {
+      "type": "string",
+      "enum": ["PHASE_CHANGED", "TURN_CHANGED", "CARD_PLAYED", "AMBUSH_SET", "AMBUSH_TRIGGERED", "ATTACK_DECLARED", "TARGET_REJECTED", "DAMAGE_APPLIED", "HEAL_APPLIED", "PUNISH_ISSUED", "PUNISH_DRAW", "PUNISH_TRIGGERED", "CHAIN_LINK", "CHAIN_RESOLVED", "CASTLE_DAMAGED", "CASTLE_BROKEN", "LEADER_MANIFESTED", "LEADER_DISABLED", "VICTORY_PROGRESS", "DECK_CYCLED", "CARD_DISCARDED", "GAME_OVER"]
+    },
+    "turn": { "type": "integer", "minimum": 0 },
+    "phase": { "type": "string", "enum": ["START", "AMBUSH", "ACTION", "DISCARD", "END", "OVER"] },
+    "snapshotRevision": { "type": "integer", "minimum": 0 },
+    "sourceId": { "type": ["string", "null"], "pattern": "^(entity_[0-9]{12}|leader_[01])$" },
+    "targetIds": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^(entity_[0-9]{12}|player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },
+      "uniqueItems": true
+    },
+    "amount": { "type": ["number", "null"] },
+    "reasonKey": { "type": ["string", "null"], "pattern": "^[a-z0-9][a-z0-9_.-]*$" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": { "type": "number" },
+        "cardId": { "type": "string", "minLength": 1 },
+        "count": { "type": "integer", "minimum": 0 },
+        "reasonKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$" },
+        "sourceId": { "type": "string", "pattern": "^(entity_[0-9]{12}|leader_[01])$" },
+        "targetIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "winnerPlayerIndex": { "type": "integer", "enum": [0, 1] }
+      }
+    }
+  }
+}

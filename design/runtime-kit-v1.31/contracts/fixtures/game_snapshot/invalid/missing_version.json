@@ -1,0 +1,12 @@
+{
+  "matchId": "match_fixture",
+  "snapshotRevision": 0,
+  "turn": 1,
+  "phase": "START",
+  "currentPlayer": 0,
+  "viewerPlayerId": 0,
+  "players": [],
+  "castle": { "enabled": true, "health": 75 },
+  "legalActions": [],
+  "pendingPrompt": null
+}

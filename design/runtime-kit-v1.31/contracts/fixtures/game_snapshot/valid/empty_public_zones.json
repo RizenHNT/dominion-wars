@@ -1,0 +1,16 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_empty",
+  "snapshotRevision": 0,
+  "turn": 0,
+  "phase": "OVER",
+  "currentPlayer": 1,
+  "viewerPlayerId": "player_1",
+  "players": [
+    { "playerId": "player_0", "life": null, "deckCount": 0, "handCount": 0, "fieldCount": 0, "graveyardCount": 0, "ambushCount": 0, "hand": [], "field": [], "graveyard": [] },
+    { "playerId": "player_1", "life": null, "deckCount": 0, "handCount": 0, "fieldCount": 0, "graveyardCount": 0, "ambushCount": 0, "hand": [], "field": [], "graveyard": [] }
+  ],
+  "castle": { "enabled": false, "health": 0 },
+  "legalActions": [],
+  "pendingPrompt": null
+}
