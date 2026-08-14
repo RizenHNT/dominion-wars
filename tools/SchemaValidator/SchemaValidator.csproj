@@ -6,6 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Directory.Build.props redirects new intermediates to build-output.
+         Keep legacy local obj/bin artifacts out of the SDK compile glob. -->
+    <Compile Remove="obj\**\*.cs;bin\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="NJsonSchema" Version="11.3.2" />
   </ItemGroup>
 </Project>
