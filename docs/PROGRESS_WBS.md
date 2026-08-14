@@ -1,7 +1,7 @@
 # Progress WBS — Dominion Wars 重做
 
-> **更新时间**：2026-08-14 · **负责人**：PL (MiniMax M3 / DeepSeek v4) / Codex implementation evidence
-> **更新**：10.10.2-10.10.9 attended 批已复核并 push 到 origin/main（0/0 分叉）；工作树已清理（.meta 全部入库 + 旧文档归档 + Java 冻结修复提交）— 见 10.10 节
+> **更新时间**：2026-08-15 · **负责人**：PL (MiniMax M3 / DeepSeek v4) / Codex implementation evidence
+> **更新**：10.10.2-10.10.9 attended 批已复核并 push 到 origin/main（0/0 分叉）；工作树已清理（.meta 全部入库 + 旧文档归档 + Java 冻结修复提交）— 见 10.10 节；wire 实体 ID 决策落地（80591fe）；**10.10.6 Unity EditMode 已解锁（2026-08-15 凌晨人类 Hub 打开 + Test Runner 通过）**
 > **目的**：树状分解 + 完成度 % + 阻塞标记；替代 / 增强 `IMPLEMENTATION_TODO.csv` 的平铺视图
 > **配套仪表盘**：[PROGRESS_DASHBOARD.md](/path/to/docs/PROGRESS_DASHBOARD.md)
 > **权威源**：Java 行为基线 + RULES.md + SPEC.md + 设计/contracts/
@@ -91,7 +91,7 @@
 - **5.9** effects-spec-test (10+ 测试) ✅ `dd0aeae`
 
 ### 6. 前端 / Unity 渲染 🔴 0%
-- **6.0** Unity 工程壳 + Windows 构建验收 🔴 **下一阶段 P0** — ✅ Editor 已装（6000.3.21f1，2026-08-13 00:27 完成，7.67GB）；待激活 Personal 许可证
+- **6.0** Unity 工程壳 + Windows 构建验收 🔴 **下一阶段 P0** — ✅ Editor 已装（6000.3.21f1，2026-08-13 00:27 完成，7.67GB）+ Personal 许可证已激活（UnityEntitlementLicense.xml）+ 人类 Hub 打开工程完成包解析；✅ EditMode 编译+Test Runner 通过（2026-08-15 凌晨）；⏳ 剩 Windows 构建待补跑
 - **6.1** Renderer layout + components 🔴 需 Unity Editor
 - **6.2** Battle phase UI 🔴
 - **6.3** Targeting legalActions / reason 🔴
@@ -233,7 +233,7 @@
 | 10.10.3 | C# viewer-scoped GameSnapshot、稳定 match/revision 与隐藏信息裁剪 | Codex/Terra | 双 viewer redaction、稳定 ID、确定性投影测试 | done（2026-08-14 attended 批；RuntimeContractV131Snapshot viewer-safe 投影；PL 已复验） | 是，禁止 UI 隐藏补救 |
 | 10.10.4 | LegalAction → GameAction → ActionResult 唯一入口与 stale/duplicate 防护 | Codex/Terra | wrong-match/stale/duplicate/not-advertised/actor/payload/game-over 无副作用测试 | done（2026-08-14 attended 批；RuntimeMatchGateway 幂等/revision/广告动作/无副作用；PL 已复验） | 是，未批准 action type 跳过 |
 | 10.10.5 | UIEvent 事件时 metadata、映射策略、cursor/dedupe/gap 与因果验证 | Codex/Terra + PL | eventId/parent/revision/turn/phase；unknown 行为一致；禁止日志解析 | done（2026-08-14 attended 批；RuntimeEventCursor 22 类型 + dup/gap/order/parent 全校验；PL 已复验） | 是，语义缺口交 PL |
-| 10.10.6 | Unity 非视觉 RuntimeAdapter：Contracts/Transport/Adapter/Bootstrap/Presentation | Codex/Terra | 无规则复制；main-thread/stale response/fake session EditMode 测试 | static_foundation（2026-08-14 attended 批；UnityEngine-free noEngineReferences 基础 + 静态 EditMode 测试）；runtime_blocked（Unity Hub/许可证环境，待人类激活） | 是，Unity 环境失败则静态项继续 |
+| 10.10.6 | Unity 非视觉 RuntimeAdapter：Contracts/Transport/Adapter/Bootstrap/Presentation | Codex/Terra | 无规则复制；main-thread/stale response/fake session EditMode 测试 | **EditMode 验证通过（2026-08-15 凌晨人类解锁）**：许可证一直激活（UnityEntitlementLicense.xml）；人类 Hub 交互打开工程 + Test Runner 通过；编译产物齐备（Library/ScriptAssemblies 含 Unity.EditMode.dll）+ packages-lock 已生成。剩余 Windows 构建归 6.0，另行验收 | 是，Unity 环境失败则静态项继续 |
 | 10.10.7 | C# 最小端到端 trace：snapshot → advertised action → result → snapshot/events | Codex/Terra | 固定 fixture、revision/action/event/final-state 证据 | done（2026-08-14 attended 批；RuntimeMatchTraceTests 离线 trace；PL 已复验） | 是，不做正式 UI |
 | 10.10.8 | DeepSeek 独立 Adapter Gate QA + 最多三轮 Codex 修复 | DeepSeek + Codex/Terra | 精确命令、通过/总数/失败/跳过；Step 8 十项逐条结论 | pending（本批仅 LOCAL_QA 386/386；缺独立 DeepSeek 复核，已转 DeepSeek） | relay 自动交接 |
 | 10.10.9 | 上午收尾报告与工作树范围审计 | Codex/Terra | `docs/ADAPTER_INTEGRATION_MORNING_REPORT_2026-08-13.md`；总体 PASS/FAIL/BLOCKED | done（2026-08-14 attended 批；C11 段含验证矩阵/偏差/最终 Gate；PL 已复核） | 是 |
@@ -289,7 +289,7 @@
 
 | 阻塞 | 影响范围 | 解锁条件 |
 |---|---|---|
-| Unity Editor 未装 | 6.1-6.5, 7.2-7.3, 8.1 全部 P0/P1 | 装 Unity 6 LTS（人类决策；Editor 6000.3.21f1 已装，待激活许可证） |
+| Unity 编译/构建环境 | 6.1-6.5, 7.2-7.3, 8.1 全部 P0/P1 | Unity 6 LTS 已装（6000.3.21f1）+ 许可证已激活 + Hub 已交互打开（2026-08-15 解锁）；EditMode 已通过，剩 Windows 构建补跑 |
 | DeepSeek 接力无 bot | 9.4-9.5 | Codex 接力任务完成 |
 | 10.10.8 缺独立 DeepSeek 复核 | 10.10.8 门禁 | DeepSeek 复核 10.10.2-10.10.5 离线 PASS（已转 DeepSeek） |
 

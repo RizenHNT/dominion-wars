@@ -3875,3 +3875,27 @@ ATTACKS_RESTORED, BUFF_APPLIED, CARDS_DISCARDED, CARDS_DRAWN, DAMAGE_DEALT, DEFE
 **路由**：#1/#2/#4 = Codex 实现；#3/#5 = Codex 判断 + 报告
 
 — PL（DeepSeek v4 Flash）· 2026-08-14 晚
+
+---
+
+## 🟢 [PL 记录] 10.10.6 Unity EditMode 解锁 — 非人类问题（2026-08-15 凌晨）
+
+**人类反馈**：许可证早申请过；Unity 已打开工程；Test Runner 已测过、没问题。问"是我的问题还是已解决"。
+
+**核实结论：已解决，非人类问题。** 之前记录把"无头 CLI 卡 licensing"简写为"许可证待激活"是表述误导——**许可证一直激活**（`UnityEntitlementLicense.xml` 08-13 起存在）；真正阻塞是 Unity 无头 `-batchmode` 在无 GUI 会话下卡 `Licensing is not yet initialized`（已知行为），需要人类 Hub 交互打开一次，人类已做。
+
+**客观证据（2026-08-15 00:05 核实）**：
+- `UnityEntitlementLicense.xml` 存在 ✅
+- `Library/ScriptAssemblies/` 编译产物齐备（Engine/Adapters/Data/Runtime/Unity.EditMode dll，最新 23:55）✅
+- `Packages/packages-lock.json` 已生成（包解析完成）✅
+- Unity 进程运行中（PID 31596，23:57 启动）✅
+- 3 个 EditMode 测试文件在位：EngineBoundaryEditModeTests / EngineMatchSmokeEditModeTests / RuntimeAdapterEditModeTests ✅
+
+**状态更新**：
+- WBS 10.10.6：runtime_blocked → **EditMode 验证通过**（Windows 构建归 6.0 另行验收）
+- WBS 6.0：许可证已激活 + Hub 已打开 + EditMode 通过；剩 Windows 构建补跑
+- 阻塞清单：Unity 编译/构建环境 → 已解锁（剩 Windows 构建）
+
+**后续**：Windows 构建（6.0 验收）可排；10.10.6 后续 EditMode 再验证由 Codex/QA 按需补跑。C# wire 边界同步任务（mailbox 上一条 🔵 派发段）仍待 Codex。
+
+— PL（DeepSeek v4 Flash）· 2026-08-15 凌晨
