@@ -3664,3 +3664,27 @@ Gate 仍为 `Contract 1.31=DRAFT`、`ADAPTER_INTEGRATION_GATE=BLOCKED`；未提�
 **数据层**：flame_leader=ROYAL_CASTLE_BREAK ✅ 无改动；machine_alpha=OPP_PUNISH_DRAW_TURN_GE ⏳ 待定稿；shadow_of_fate=NONE ⏳ 老板考虑中。
 
 — PL · 2026-08-14
+
+---
+
+## [PL → ALL] RULES.md v1.0 规范化修订已同步合同（2026-08-14 晚）
+
+**背景**：外部 AI 审阅评审⑬后，在 RULES.md 落了一版更广的规范化修订（当前工作树未提交）。PL 已审阅并采纳，全部同步进 1.31 合同。
+
+**采纳的修订**：
+1. **§1 门限例外**：ROYAL_CASTLE_BREAK 可在双方统领未全部登场时破城（修"未登场不分胜负"与"王城可提前被破"的矛盾）
+2. **§7 伏击统领形态**：补 AMBUSH_TRIGGER_WIN 示例；只有随从型首领可被击败（其余形态败北按资源/规则结算）
+3. **§9.1 王城**：默认初始生命 75（原"推荐"→"默认"，balance.json `royalCastleMaxHp=75` 一致）；只接受明确允许以王城为目标的效果
+4. **§12.2 木**：连乘只能以己方单位或共享王城为目标；封印状态精确化；512 生命主题目标（替代 200~500 区间）
+5. **§12.4 机械**：协议字段白名单机制；machine_alpha 确定改上传/下载轴（具体组合/阈值待定稿）
+
+**PL 审查发现 3 处小问题（已处理）**：
+- §12.4 协议字段关键词英文示例（CHARGE/STEALTH/TAUNT 等）——核查后**原本就有中文对照**（`CHARGE（冲锋）`），无缺漏 ✅
+- 王城 75 从"推荐"变"默认"——已同步合同 §6 A 项 + §5 #11 表格，数据 balance.json 一致 ✅
+- 木 512 生命来源未注明——已按主题目标措辞记录，非阻塞
+
+**合同变更**（RUNTIME_CONTRACT_1.31.md）：§6 新增"规则书同步修订"块 + §8 changelog +1.31-rules-sync 行
+
+**待老板**：① shadow_of_fate 可达胜利条件；② machine_alpha 上传/下载轴具体组合与阈值定稿
+
+— PL · 2026-08-14
