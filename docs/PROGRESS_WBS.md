@@ -237,6 +237,8 @@
 | 10.10.7 | C# 最小端到端 trace：snapshot → advertised action → result → snapshot/events | Codex/Terra | 固定 fixture、revision/action/event/final-state 证据 | done（2026-08-14 attended 批；RuntimeMatchTraceTests 离线 trace；PL 已复验） | 是，不做正式 UI |
 | 10.10.8 | DeepSeek 独立 Adapter Gate QA + 最多三轮 Codex 修复 | DeepSeek + Codex/Terra | 精确命令、通过/总数/失败/跳过；Step 8 十项逐条结论 | pending（本批仅 LOCAL_QA 386/386；缺独立 DeepSeek 复核，已转 DeepSeek） | relay 自动交接 |
 | 10.10.9 | 上午收尾报告与工作树范围审计 | Codex/Terra | `docs/ADAPTER_INTEGRATION_MORNING_REPORT_2026-08-13.md`；总体 PASS/FAIL/BLOCKED | done（2026-08-14 attended 批；C11 段含验证矩阵/偏差/最终 Gate；PL 已复核） | 是 |
+| 10.10.11 | 统领重设计批次（QA + 策划） | DeepSeek（QA/策划） | 2026-08-15 人类裁决：所有统领送 QA/策划重新设计；machine 因 COMMIT/PUSH/PULL 规则刚定需全量重做；machine_alpha 胜利条件 = 下载轴（Pull）需给具体协议组合/阈值；shadow_of_fate 失去压制机制后需新身份 + 显式 winCondition（评审⑬ Q1）。**只出提案，不碰生产代码** | pending（mailbox 已派 DeepSeek，待人类 relay 通知） | relay 自动交接 |
+| 10.10.12 | DISABLE_ENEMY_LEADER 机制删除 | Codex/Terra | 2026-08-15 人类裁决机制级删除：`data/cards/neutral.json` shadow_of_fate persistentEffects + 文案；`data/schema/cards.schema.json` PersistentEffectAction 枚举（倾向删除空枚举）；`src/Data/CardCatalog.cs` PersistentActions；Java parity `Game.java:816` + `TestMain.java:627`；C# contract tests（ContractBoundaryTests/EffectsSpecContractTests）；effects.contract.md 已由 PL 同步（4.1 + 24 动作注释） | pending（mailbox 已派 Codex，待人类 relay 通知） | relay 自动交接 |
 | 10.10.10 | Java 归档/移除 | 人类 + PL + Codex + DeepSeek | C# parity、Unity、回归、可恢复归档全部通过后另行批准 | human_required（本目标禁止） | 否 |
 
 自动执行规则：按 10.10.1 → 10.10.8 的依赖顺序领取；单项遇到 `HUMAN_REQUIRED` 或环境阻塞时，记录后继续所有独立项；时间不足时完成当前可验证批次，不留下未经测试的半编辑；10.10.9 永远必做。不得因本队列进入 Renderer/UI、Windows 发布或 Java 删除。

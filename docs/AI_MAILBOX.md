@@ -1139,6 +1139,8 @@ DS 提的核心问题：默认 `win_condition.disable_resistance = true` 会让 
 
 **等人类拍板**（不阻塞 Codex 启动 kingSlayer 迁移批次）。
 
+> **⚪ 已 moot（2026-08-15）**：人类裁决**整体删除 DISABLE_ENEMY_LEADER 机制**并送全部统领重设计。本方案 Y 讨论的"DISABLE 是否被 disable_resistance 克制"问题随机制删除而消失。`disable_resistance` 三步校验链（§11.2：kingSlayer → vulnerabilities → disable_resistance）保留为通用模型，不再针对 shadow_of_fate 特例。
+
 ### 4️⃣ Decision D 审计（30,000 文件）— **DS 担忧已排除**
 
 **PL 实测**：
@@ -3899,3 +3901,50 @@ ATTACKS_RESTORED, BUFF_APPLIED, CARDS_DISCARDED, CARDS_DRAWN, DAMAGE_DEALT, DEFE
 **后续**：Windows 构建（6.0 验收）可排；10.10.6 后续 EditMode 再验证由 Codex/QA 按需补跑。C# wire 边界同步任务（mailbox 上一条 🔵 派发段）仍待 Codex。
 
 — PL（DeepSeek v4 Flash）· 2026-08-15 凌晨
+
+---
+
+## 🟢 [PL 决策记录] 统领机制三裁决（2026-08-15）
+
+**人类裁决（已拍板，PL 落地中）**：
+
+1. **删除 DISABLE_ENEMY_LEADER 机制**（命运之影）：游戏初期设置"禁用对方特殊胜利条件"太危险 → 机制级删除，不作保留。
+2. **所有统领重新设计** → 派 QA + 策划（DeepSeek）：machine 卡因 COMMIT/PUSH/PULL/ROLLBACK 规则（RULES §12.4）刚定，需全部重做；其他统领也存在不合理处，一并重新设计。
+3. **machine_alpha 特殊胜利条件 = 下载轴**：改为"通过下载达成特定条件"获胜，与惩罚抽卡（OPP_PUNISH_DRAW_TURN_GE）无关；具体协议组合/阈值由 QA/策划定稿。
+
+**PL 已同步文档**：RULES §11.2 示例 / §12.4；合同 §6 残留 + changelog；effects.contract §4.1；WBS 追加队列项。
+**路由**：机制删除 → Codex（下 🔵）；统领重设计 → DeepSeek（下 🔵）。
+
+---
+
+## 🔵 [PL → DeepSeek] 统领重设计批次（QA + 策划）
+
+**背景**：人类裁决所有统领重新设计。machine 卡因 COMMIT/PUSH/PULL 规则刚定需全部重做；其余统领（flame/sea/wood/gate/shadow 等）不合理处一并修订。
+
+**范围**：
+1. 全部统领卡重设计提案（数据层 `data/cards/*.json` + 平衡理由）
+2. machine 阵营：围绕 Commit/Push/Rollback/Pull（RULES §12.4）的完整卡组重做；**machine_alpha 胜利条件 = 下载轴**（通过下载达成特定条件），给出具体协议组合与阈值
+3. shadow_of_fate：DISABLE_ENEMY_LEADER 机制已删，需给新身份；其 winCondition=NONE 缺口也在此批次解决（评审⑬ Q1：非随从统领须有显式 winCondition）
+
+**验收**：每统领给出设计稿（字段/效果/胜利条件/平衡理由），回填 data + RULES §12 对应章节，交 PL 审 → 人类拍板 → Codex 实现。
+**路由**：DeepSeek（QA/策划）先出提案 → PL 审 → 人类定 → Codex 实现。只出提案，不改生产代码。
+
+---
+
+## 🔵 [PL → Codex] DISABLE_ENEMY_LEADER 机制删除
+
+**人类裁决**：机制级删除 DISABLE_ENEMY_LEADER，不作保留。
+
+**范围**（数据 + 引擎 + parity + 测试）：
+1. `data/cards/neutral.json` shadow_of_fate：移除 `persistentEffects:[{action:"DISABLE_ENEMY_LEADER"}]` + 更新卡面 text（去掉"对方统领效果与特殊胜利条件被禁用"表述）
+2. `data/schema/cards.schema.json` L88-91 `PersistentEffectAction` 枚举（现仅含 DISABLE_ENEMY_LEADER）：机制删除后该枚举无合法值——删除该枚举 + `PersistentEffectSpec` 定义，或保留结构待重设计批次启用（倾向删除，避免空枚举；shadow 重设计如需新 persistent 光环随批次重建）
+3. `src/Data/CardCatalog.cs`：PersistentActions 移除 DISABLE_ENEMY_LEADER
+4. Java parity：`Game.java:816`（disable 处理）+ `TestMain.java:627`（shadow persistent 测试）
+5. C# 合同测试：ContractBoundaryTests / EffectsSpecContractTests 断言更新（DISABLE 不再存在于 schema persistent actions）
+6. 相关文档提及同步（effects.contract §4.1、合同 §6、RULES §11.2 — 已由 PL 完成）
+
+**注意**：RULES §11.2 三步校验链（kingSlayer→vulnerabilities→disable_resistance）是通用统领交互模型，**保留**；仅删 DISABLE_ENEMY_LEADER 这个具体 persistent 动作。shadow 卡最终形态待重设计批次（上 🔵）。
+**验收**：dotnet test 全绿；schema 校验 0 fail；Java 38/38；报告改动清单。
+**路由**：Codex 实现 + 报告；不 push（人类定）。
+
+— PL（DeepSeek v4 Flash）· 2026-08-15

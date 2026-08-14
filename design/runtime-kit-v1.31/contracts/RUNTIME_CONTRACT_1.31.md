@@ -86,8 +86,8 @@
 - E. Buff 负值：RULES §11.1 确认；amount=0 fail-closed 拒绝启动（PL 裁定）✅
 
 **残留 HUMAN_REQUIRED（不阻塞 Step 1 schema 主体，阻塞完整冻结）**：
-- **shadow_of_fate 可达胜利条件**：评审⑬ Q1 已定"只有随从型首领可被击败"，非随从首领只能靠自身 winCondition 获胜。shadow_of_fate（`winCondition=NONE`）作为非随从首领，不可被击败，因此必须有一个可达的显式 winCondition 才能获胜。老板仍在考虑（Q5 标注 shadow NONE 暂缓）；DeepSeek 曾建议 OPP_PUNISH_TRIGGERED_GE 6（评审⑫ D 类）仍未落盘。**待人类 + PL 拍板 shadow 的可达胜利条件**，不虚构。
-- **machine_alpha 胜利条件定稿**：评审⑬ Q5 已定改为**上传/下载相关轴**（替换 `OPP_PUNISH_DRAW_TURN_GE`），待老板定稿后回填 data/cards + RULES §12.4 + 本合同；定稿前保持当前值。
+- **shadow_of_fate 可达胜利条件**：2026-08-15 人类裁决**删除 DISABLE_ENEMY_LEADER 机制**（初期禁用对方特殊胜利条件过险），shadow 压制身份移除；其 winCondition=NONE 缺口并入"统领重设计批次"（已派 QA/策划），由重设计给出新身份与显式 winCondition（评审⑬ Q1：非随从统领须有显式 winCondition）。**待重设计提案回填**。
+- **machine_alpha 胜利条件定稿**：2026-08-15 人类裁决明确为**下载轴（Pull）**——通过累计下载达成特定条件即获胜，与惩罚抽卡无关（替换 OPP_PUNISH_DRAW_TURN_GE）。具体协议组合/阈值交 QA/策划定稿（统领重设计批次）；定稿前保持当前值。
 
 **胜利体系决策链（评审⑬，2026-08-14）已闭合项**：
 - Q1 只有随从首领可被击败（随从首领获更强效果补偿）；非随从首领只能靠 winCondition 获胜
@@ -121,12 +121,13 @@
 | 1.31-victory | 2026-08-14 | 回填胜利体系决策链（评审⑬ Q1–Q5）：只有随从首领可被击败；王城被破坏被动触发持有 ROYAL_CASTLE_BREAK 的首领获胜；破城方叫出自己首领；双方随从首领局主动破城方直接获胜；per-leader 显式（flame 保留 / alpha 上传下载轴待定稿 / shadow 考虑中）。RULES §7/§9.1/§12.4 同步；勿写全局内置"破城即胜" |
 | 1.31-rules-sync | 2026-08-14 | 同步 RULES.md v1.0 规范化修订：王城默认 75（改"推荐"）；§1 门限例外；§7 伏击形态+AMBUSH_TRIGGER_WIN；§12.2 木 512 主题目标+连乘目标限制；§12.4 机械协议字段白名单 + machine_alpha 确定上传/下载轴。合同与规则书口径一致 |
 | 1.31-wire-entity-id | 2026-08-14 | 定案 wire 实体 ID = 裸 JSON integer（64-bit ≥1）；sourceId/targetId/targetIds 为整数∪命名ID字符串联合；纯实体字段纯整数。castle 禁用统一 `{enabled:false}`（删 `castle:null` 备选）。schema 4 文件 + fixture minimal + 合同同步 |
+| 1.31-leader-reroll | 2026-08-15 | 人类裁决：① 删除 DISABLE_ENEMY_LEADER 机制（初期禁用对方特殊胜利条件过险，机制级删除）；② 所有统领重新设计（machine 因 COMMIT/PUSH/PULL 规则刚定全量重做，其余一并修订）→ 派 QA/策划；③ machine_alpha 胜利条件明确为下载轴（Pull，累计下载达成条件，与惩罚抽卡无关）。§6 残留两项更新；RULES §11.2/§12.4 同步 |
 
 ## 9. 批准记录
 
 - [x] 人类负责人裁决 2026-08-14（mailbox L3495）：批准按 Runtime Contract 1.31 推进，C# Engine = Unity 运行时权威，Java 仅 parity；不新增独立费用系统但保留扩展接口；王城共用中立无攻击 75；牌库循环胜利阈值 10、破城计数≥9；动作/目标/可见性按 A-E 收敛。
 - [x] QA/策划 A-E 答案 2026-08-13/14 已回填（mailbox L2793-2798）。
-- [ ] 残留：shadow_of_fate 可达胜利条件（§6）待人类 + PL 拍板（老板考虑中）。
-- [ ] machine_alpha 上传/下载胜利条件定稿（评审⑬ Q5，§6 跟踪）。
+- [ ] 残留：shadow_of_fate 可达胜利条件 → 已并入统领重设计批次（QA/策划，2026-08-15 裁决）。
+- [ ] machine_alpha 胜利条件：下载轴（Pull）已定方向（2026-08-15）；具体协议组合/阈值待 QA/策划定稿（统领重设计批次）。
 - 胜利体系决策链评审⑬（2026-08-14）Q1–Q5 已确认并回填 RULES §7/§9.1/§12.4 + 本合同 §6（见 changelog 1.31-victory）。
 - 批准后：Gate 已解除 BLOCKED → 实现者可进入 Step 1（strict wire schema）；shadow 语义作为独立 HUMAN_REQUIRED 单点跟踪。

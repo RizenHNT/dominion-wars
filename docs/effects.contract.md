@@ -30,7 +30,7 @@
 
 每节格式：**做什么 / 参数 / target 解释 / 副作用 / 反制规则 / 卡引用**
 
-> `EffectAction` 的 24 个值是普通 `IEffect` 动作。`DISABLE_ENEMY_LEADER` 不属于这 24 个动作：当前只能作为 `leaderDef.persistentEffects` 的显式光环描述；未来临时/触发型控制必须使用独立的 `*Controls` 结构，由上层规则/状态投影解释，不能注册进普通 `EffectDispatcher`。
+> `EffectAction` 的 24 个值是普通 `IEffect` 动作。`DISABLE_ENEMY_LEADER` **不再属于任何动作集**：2026-08-15 人类裁决已将该机制**整体删除**（初期禁用对方特殊胜利条件过险）。未来若需临时/触发型控制，必须使用独立的 `*Controls` 结构，由上层规则/状态投影解释，不能注册进普通 `EffectDispatcher`。
 
 ### 3.1 DAMAGE
 - 做什么：对目标造成 N 点伤害
@@ -202,7 +202,7 @@
 
 ### 4.1 Persistent aura
 
-`leaderDef.persistentEffects` 是独立的持久光环数组。当前唯一允许的值是 `DISABLE_ENEMY_LEADER`，表示该统领在场时禁用对方统领效果与特殊胜利条件。它与 `leaderDef.enterEffects`、`punishEffects` 的一次性结算分离，也不计入 24 个普通动作。
+`leaderDef.persistentEffects` 是独立的持久光环数组。**2026-08-15 人类裁决删除 DISABLE_ENEMY_LEADER 机制**：该值不再被任何卡使用，也不属于允许值集合（shadow_of_fate 的压制光环已移除，重设计并入统领重设计批次）。`leaderDef.persistentEffects` 目前无允许值，预留用于未来显式光环；它与 `leaderDef.enterEffects`、`punishEffects` 的一次性结算分离，也不计入 24 个普通动作。
 
 ### 4.2 Effect-level kingSlayer
 

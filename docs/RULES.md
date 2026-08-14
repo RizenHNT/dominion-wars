@@ -192,7 +192,7 @@ Flag 可以在规定时点被读取、写入和恢复；时点不改变 Flag 的
 
 #### D. 示例
 
-- shadow_of_fate 反制：kingSlayer=true 且效果类型列入 vulnerabilities，依次通过第 1、2 步后生效。
+- 对统领的伤害反制：kingSlayer=true 且效果类型（如 DAMAGE）列入 vulnerabilities，依次通过第 1、2 步后生效。
 - 沉默入场效果：若 Silence 不在 vulnerabilities 列表中，第 2 步拦截，入场效果正常触发。
 - 冰冻统领：冰冻类效果通常 kingSlayer=false，第 1 步直接拦截，与 vulnerabilities 无关。
 
@@ -248,7 +248,7 @@ Flag 可以在规定时点被读取、写入和恢复；时点不改变 Flag 的
 - 机械随从的重设计基线是普通出牌惩罚值为 0、基础身材偏低，再通过 Commit、Push、Rollback 与 Pull 形成转换收益；具体身材和单卡效果由卡牌数据与平衡测试确定。
 - **协议字段**是机械统领用于读取构筑进度的标准化能力标识，可以来自机械动作、关键词或效果时点，例如 COMMIT、PUSH、ROLLBACK、PULL、CHARGE（冲锋）、STEALTH（潜行）、TAUNT（嘲讽）、BATTLECRY（战吼）、DEATHRATTLE（亡语）。相同字段无论由多少张牌提供，在同一次集合判定中只计一次。
 - 每名机械统领必须在自身定义中明确声明可计入的协议字段白名单、所需组合或数量，以及胜利检查时点。以后新增的协议字段不会自动计入旧统领的胜利条件；只有对应统领定义明确纳入后才生效，从而避免字段池扩张导致旧胜利条件自然贬值。
-- machine_alpha 的胜利条件确定改为 Commit／Push／Pull 等上传下载相关轴，替换现有 OPP_PUNISH_DRAW_TURN_GE；其具体协议组合与阈值仍待定稿。在新定义完成数据、引擎与测试接入前，当前运行时继续使用原值。
+- machine_alpha 的胜利条件确定为**下载轴（Pull）**：通过累计下载（Pull）达成特定条件即获胜，与惩罚抽卡无关（替换现有 OPP_PUNISH_DRAW_TURN_GE，2026-08-15 人类裁决）。具体协议组合与阈值交 QA/策划定稿（统领重设计批次）；在新定义完成数据、引擎与测试接入前，当前运行时继续使用原值。
 
 #### 12.4.1 规范化示例
 
