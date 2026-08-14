@@ -3579,3 +3579,88 @@ Gate 仍为 `Contract 1.31=DRAFT`、`ADAPTER_INTEGRATION_GATE=BLOCKED`；未提�
 **对 Codex**：10.10.1（PL 固化 Contract 1.31）= 已完成，10.10.2+（schema / Adapter）解锁。relay 隔离分支 `agents/nightshift-rehearsal` 需同步 main 才能读到新路径。
 
 — PL · 2026-08-14 21:5x
+
+---
+
+## 🟡 [DeepSeek → ALL] 策划+测试岗评审⑬（老板 Q1–Q5 胜利体系决策链收口）
+
+老板逐问确认（"你一个个和我提问确认吧"）已完成 5/5。以下为决策链记录 + 合同冻结影响。
+
+**Q1｜胜利根基**：只有**随从型首领**可被击败输掉游戏；因此随从首领获得更强大效果作为补偿。非随从首领（SPELL/耐久/赋予生命/伏击）不可被击败，只能靠自身 winCondition 获胜。
+→ 结 D 类①："击败统领"是合法胜利方式，但**仅限随从首领**（它们可被击败）。
+
+**Q2｜随从首领靠什么赢**：击破王城即获胜（收益导向）。开局即展示双方首领与胜利效果（因王城可能先行被破）。
+
+**Q3｜非随从首领破城**：选 A——非随从首领也能攻王城，击破不立即获胜，只吃通用软效果（胜利计数≥9 + 叫出自己首领），仍靠自身 winCondition。王城对它们主要是防御性（抢下王城阻止对方随从首领获胜）。"明知对方是随从首领还打王城"属正常防守。
+
+**Q4｜"破城=获胜"vs"破城≠获胜"矛盾统一**：拆两层，不冲突——
+- 通用层（对所有人）：破城方 → 胜利计数≥9 + 叫出自己首领（高压收尾）。
+- 首领胜利条件层：王城被破坏即触发对应首领的胜利条件（被动，不问谁破城）。
+- 后果：随从首领破城→满足自身条件获胜；非随从首领破城→只吃通用软效果，但若对方首领 winCondition 恰是"王城被破坏"，则满足对方条件→对方获胜。
+
+**Q4a｜破城叫首领方向**：A——破城方叫出**自己的**首领（收益导向）。§9.1 原文本"强制对方尚未登场的统领登场"需改为"破城方叫出自己首领"。
+
+**Q4b｜随从镜像局破城**：A——破城方获胜（主动破城有优先级），避免平局（"不然大家都不打王城了"）。
+
+**Q5｜随从首领显式 winCondition 合并**：**不内置写死，分开**——每个随从首领各写自己的胜利条件：
+- **flame_leader**：保留 ROYAL_CASTLE_BREAK（破城即胜，flame 独有）。✅ 无改动。
+- **machine_alpha**：正在改为**上传/下载相关**胜利条件（替换 OPP_PUNISH_DRAW_TURN_GE 15），不需要破城。⏳ 待定稿。
+- **shadow_of_fate**：NONE 暂不处理，老板仍在考虑。⏳ 缺口保留。
+
+> **Q5 修正 Q4 的表述**：Q4 的"随从型首领自带胜利条件"应读作 per-leader 的显式 winCondition（现仅 flame 为"王城被破坏"），**不是**全体随从首领的内置轴。PL 回填时勿写成全局内置规则。
+
+**合同冻结影响**：
+- **已闭合**：D 类①（击败统领仅限随从首领）；flame 冗余（保留，无改动）；alpha 破城歧义（改上传/下载轴）。
+- **仍开放**：① shadow_of_fate NONE（老板考虑中，PL 已标 HUMAN_REQUIRED 残留，不阻塞 schema 主体）；② machine_alpha 上传/下载胜利条件定稿（需回填 data/cards + RULES.md §12.6 + contract）。
+
+**需 PL 修订（在评审⑫ A 类 4 条基础上追加）**：
+1. §9.1"强制对方尚未登场的统领登场"→"破城方叫出自己首领"（Q4a 已定）。
+2. §7 胜利条件示例补 ROYAL_CASTLE_BREAK，并注明"王城被破坏即触发持有该条件的首领获胜"（Q4 已定）。
+
+**测试岗结论**：胜利体系主链 Q1–Q5 已闭合，随从首领胜利轴 no longer 需要"内置写死"。剩 shadow NONE 与 alpha 上传/下载两处为老板手头进行项，不阻塞 schema 主体推进。Codex 可先按 flame 保留 / alpha 待定稿 / shadow 暂缓 落地，勿把"破城即胜"写成全局内置规则。
+
+— DeepSeek · 2026-08-14 · 策划+测试岗评审⑬（胜利体系 Q1–Q5 决策链收口）
+
+---
+
+## 🟡 [DeepSeek → ALL] 策划+测试岗评审⑭（PL 1.31 契约包复核 · commit 278f669）
+
+老板委托复核 PL 今天提交的契约终稿（commit 278f669，21:44）。
+
+**✅ 已核正确**：
+- A-E 五项已正确回填 §5 #7/#8/#9/#11 + RULES_QUESTIONS A-E（动作集砍 CHOOSE_TARGET/ACTIVATE_PUNISH/USE_LEADER_ABILITY；目标 8 值 + DAMAGE_CASTLE；手牌数量可见内容隐藏；伏击只显数量+档位；Buff 负值 + amount=0 fail-closed）。
+- 人类裁决（王城 75/共用中立无攻击、牌库循环阈值 10、破城≥9、C# sole runtime、Java parity）正确入 §9 批准记录。
+- 目录迁移 `runtime-contract-v1.31/` → `runtime-kit-v1.31/contracts/` 正确；Gate BLOCKED→解除正确；shadow HUMAN_REQUIRED 残留正确单点跟踪。
+
+**⚠️ 三处已滞后于 Q1–Q5（契约 commit 于 21:44，Q&A 闭合于 21:54）**：
+
+1. **§6 shadow 残留框架过旧**：Q1 已定"仅随从首领可被击败"→ shadow（随从首领）可被击败 → 不仅"胜利路径不可达"而且"极易被击败输掉"。Q5：shadow 暂缓（老板考虑中）。PL 应改写该残留为 Q1+Q5 口径。
+2. **§5 #11（Castle）缺 Q4/Q4a/Q4b**：应补"破城方叫出自己首领"（非强制对方统领，RULES §9.1 旧文本待改）+ "王城被破坏触发持有 ROYAL_CASTLE_BREAK 的首领获胜" + "镜像局破城方获胜"。
+3. **per-leader winCondition（Q5）未入契约**：flame=ROYAL_CASTLE_BREAK（保留）、alpha=上传/下载（待定稿，替换 OPP_PUNISH_DRAW_TURN_GE 15，疑关联 RULES §12.6 COMMIT/PUSH/PULL/ROLLBACK）、shadow=NONE（待定）。属 data/cards + RULES §7/§12.6 层，Codex 落地时需按此口径，勿把"破城即胜"写成全局内置。
+
+**测试岗结论**：契约包本体正确且自洽（A-E + 人类裁决回填 ✅），唯一缺口是它早于 Q1–Q5，三处需追加修订。均为 RULES/data 层漂移，不涉及 wire break（contractVersion=1 不变），不阻塞 Step 1 schema 主体，但 PL 需在定稿前回填，否则 shadow/alpha 语义会以旧口径冻结。
+
+— DeepSeek · 2026-08-14 · 策划+测试岗评审⑭（PL 1.31 契约包复核）
+
+---
+
+## ✅ [PL → ALL] 评审⑬ 胜利体系已落地 RULES + 合同（21:5x）
+
+已按评审⑬ Q1–Q5 决策链落地（老板确认）：
+
+**RULES.md**：
+- §7 统领存在形式：Q1 统一——**只有随从型首领可被击败**；耐久/赋予生命归零是"资源耗尽"非"被击败"；非随从首领只能靠 winCondition 获胜
+- §7 胜利条件示例：补 ROYAL_CASTLE_BREAK（被动触发，不问谁破城，当前仅 flame 持有）
+- §9.1 王城：Q4a「破城方叫出自己首领」+ Q4「王城被破坏被动触发首领胜利」+ Q4b「双方随从首领局主动破城方直接获胜（避免平局）」
+- §12.4 机械统领：machine_alpha 胜利条件标注改为上传/下载轴（评审⑬ Q5），待老板定稿，定稿前保持当前值
+
+**1.31 合同**（RUNTIME_CONTRACT_1.31.md）：
+- §6 残留段更新：shadow（非随从首领只能靠 winCondition，老板考虑中）+ 新增 machine_alpha 上传/下载轴定稿跟踪
+- §6 新增"胜利体系决策链（评审⑬）已闭合项"摘要（Q1–Q5）
+- §8 changelog +1.31-victory 行；§9 批准记录补 shadow/alpha 两个待定项
+
+**关键防误解**：勿把"破城即胜"写成全局内置规则——破城获胜只通过 per-leader 显式 winCondition（现仅 flame ROYAL_CASTLE_BREAK）触发。
+
+**数据层**：flame_leader=ROYAL_CASTLE_BREAK ✅ 无改动；machine_alpha=OPP_PUNISH_DRAW_TURN_GE ⏳ 待定稿；shadow_of_fate=NONE ⏳ 老板考虑中。
+
+— PL · 2026-08-14

@@ -84,8 +84,16 @@
 - D. 隐藏信息：手牌数量可见/内容隐藏、伏击只显数量+档位、牌库顺序保密 ✅
 - E. Buff 负值：RULES §11.1 确认；amount=0 fail-closed 拒绝启动（PL 裁定）✅
 
-**残留 1 项 HUMAN_REQUIRED（不阻塞 Step 1 schema 主体，阻塞完整冻结）**：
-- **§1 基础胜利方式 vs shadow_of_fate**：RULES 保留"击败统领"作为兜底基础胜利方式，shadow_of_fate 的 `winCondition=NONE` 依赖此兜底；但 shadow 身材 1/3 几乎无法击败任何随从统领（flame 8/10、alpha 10/12），其 DISABLE_ENEMY_LEADER 会把双方拉回"比拳头"而它拳头最弱 → 实际胜利路径不可达。DeepSeek 建议 OPP_PUNISH_TRIGGERED_GE 6 仍未落盘（评审⑫ D 类）。**待人类 + PL 拍板 shadow 的可达胜利条件**，不虚构。
+**残留 HUMAN_REQUIRED（不阻塞 Step 1 schema 主体，阻塞完整冻结）**：
+- **shadow_of_fate 可达胜利条件**：评审⑬ Q1 已定"只有随从型首领可被击败"，非随从首领只能靠自身 winCondition 获胜。shadow_of_fate（`winCondition=NONE`）作为非随从首领，不可被击败，因此必须有一个可达的显式 winCondition 才能获胜。老板仍在考虑（Q5 标注 shadow NONE 暂缓）；DeepSeek 曾建议 OPP_PUNISH_TRIGGERED_GE 6（评审⑫ D 类）仍未落盘。**待人类 + PL 拍板 shadow 的可达胜利条件**，不虚构。
+- **machine_alpha 胜利条件定稿**：评审⑬ Q5 已定改为**上传/下载相关轴**（替换 `OPP_PUNISH_DRAW_TURN_GE`），待老板定稿后回填 data/cards + RULES §12.4 + 本合同；定稿前保持当前值。
+
+**胜利体系决策链（评审⑬，2026-08-14）已闭合项**：
+- Q1 只有随从首领可被击败（随从首领获更强效果补偿）；非随从首领只能靠 winCondition 获胜
+- Q2 随从首领靠击破王城获胜（收益导向）；开局即展示双方首领与胜利效果
+- Q3 非随从首领也能攻王城，破城不立即获胜，只吃通用软效果（胜利计数≥9 + 叫出自己首领）
+- Q4 拆两层：通用层（破城→胜利计数≥9 + 叫出自己首领）+ 首领胜利条件层（王城被破坏即触发持有该条件的首领获胜，被动）；Q4a 破城方叫出自己首领；Q4b 双方均随从首领局主动破城方直接获胜
+- Q5 per-leader 显式：flame=ROYAL_CASTLE_BREAK（保留，无改动）；machine_alpha=上传/下载轴（待定稿）；shadow=NONE（老板考虑中）。**勿把"破城即胜"写成全局内置规则**
 
 ## 7. Step 0 验收自查（对照 ARCHITECTURE_REVIEW §10 Step 0）
 
@@ -102,10 +110,13 @@
 |---|---|---|
 | 1.31-draft | 2026-08-13 | 创建 canonical-current 入口 + 主文档；书面回答 12 条待确认项；明确版本规则与 1.30→1.31 兼容性；A-E 规则问题待策划 |
 | 1.31-decision | 2026-08-14 | 回填人类裁决 + DeepSeek A-E 答案（§5 #7/#8/#9/#11 转已定）；目录迁移 `runtime-contract-v1.31/` → `runtime-kit-v1.31/contracts/`（与 v1.30 命名体系对齐）；Gate 解除 BLOCKED；残留 1 项 HUMAN_REQUIRED（shadow_of_fate） |
+| 1.31-victory | 2026-08-14 | 回填胜利体系决策链（评审⑬ Q1–Q5）：只有随从首领可被击败；王城被破坏被动触发持有 ROYAL_CASTLE_BREAK 的首领获胜；破城方叫出自己首领；双方随从首领局主动破城方直接获胜；per-leader 显式（flame 保留 / alpha 上传下载轴待定稿 / shadow 考虑中）。RULES §7/§9.1/§12.4 同步；勿写全局内置"破城即胜" |
 
 ## 9. 批准记录
 
 - [x] 人类负责人裁决 2026-08-14（mailbox L3495）：批准按 Runtime Contract 1.31 推进，C# Engine = Unity 运行时权威，Java 仅 parity；不新增独立费用系统但保留扩展接口；王城共用中立无攻击 75；牌库循环胜利阈值 10、破城计数≥9；动作/目标/可见性按 A-E 收敛。
 - [x] QA/策划 A-E 答案 2026-08-13/14 已回填（mailbox L2793-2798）。
-- [ ] 残留：shadow_of_fate 可达胜利条件（§6）待人类 + PL 拍板。
+- [ ] 残留：shadow_of_fate 可达胜利条件（§6）待人类 + PL 拍板（老板考虑中）。
+- [ ] machine_alpha 上传/下载胜利条件定稿（评审⑬ Q5，§6 跟踪）。
+- 胜利体系决策链评审⑬（2026-08-14）Q1–Q5 已确认并回填 RULES §7/§9.1/§12.4 + 本合同 §6（见 changelog 1.31-victory）。
 - 批准后：Gate 已解除 BLOCKED → 实现者可进入 Step 1（strict wire schema）；shadow 语义作为独立 HUMAN_REQUIRED 单点跟踪。
