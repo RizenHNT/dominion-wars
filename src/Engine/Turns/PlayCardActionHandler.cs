@@ -12,15 +12,29 @@ namespace DominionWars.Engine.Turns
 /// <summary>Resolves ACTION card plays and synchronous punish-response chains.</summary>
 public sealed class PlayCardActionHandler : ITurnActionHandler
 {
-    private const int DefaultChainLimit = 20;
+    internal const int DefaultChainLimit = 20;
     private readonly CardTargetValidator _targets;
     private readonly IPunishResponsePolicy _punishResponses;
     private readonly int _chainLimit;
+    private readonly ICardCostModel _costModel;
 
     public PlayCardActionHandler(
         TargetPolicy? targetPolicy = null,
         IPunishResponsePolicy? punishResponses = null,
         int chainLimit = DefaultChainLimit)
+        : this(targetPolicy, punishResponses, chainLimit, PunishOnlyCostModel.Instance)
+    {
+    }
+
+    /// <summary>
+    /// Extension overload for a future cost model. The original three-argument
+    /// constructor remains unchanged for compiled Unity/client assemblies.
+    /// </summary>
+    public PlayCardActionHandler(
+        TargetPolicy? targetPolicy,
+        IPunishResponsePolicy? punishResponses,
+        int chainLimit,
+        ICardCostModel? costModel)
     {
         if (chainLimit < 1)
         {
@@ -30,6 +44,7 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         _targets = new CardTargetValidator(targetPolicy ?? new TargetPolicy());
         _punishResponses = punishResponses ?? new DeclinePunishResponsePolicy();
         _chainLimit = chainLimit;
+        _costModel = costModel ?? PunishOnlyCostModel.Instance;
     }
 
     public bool CanHandle(string phaseId, string actionType)
@@ -100,7 +115,18 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         var effects = card.PunishActivated
             ? card.Definition.PunishEffects
             : card.Definition.OnPlayEffects;
-        var cost = CardPlayRules.EffectivePunish(player, card);
+        var resolvedCost = _costModel.Evaluate(state, player, card);
+        if (resolvedCost is null)
+        {
+            return PreparedPlay.Reject("action.invalid_cost");
+        }
+
+        if (resolvedCost.HasUnsupportedResources)
+        {
+            return PreparedPlay.Reject("action.cost_system_unavailable");
+        }
+
+        var cost = resolvedCost.EffectivePunish;
         var fizzle = !player.PunishToSelfDiscardThisTurn
             && cost > state.GetOpponent(player.PlayerIndex).Deck.Count;
         var runtime = new EffectRuntime(state);

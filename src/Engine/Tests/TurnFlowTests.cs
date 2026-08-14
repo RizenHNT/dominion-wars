@@ -250,6 +250,38 @@ public sealed class TurnFlowTests
     }
 
     [Test]
+    public void ActionSubmittedAfterGameOverIsRejectedWithoutStateOrEventMutation()
+    {
+        var game = new EffectTestFixture();
+        game.State.GetPlayer(0).Field.Add(new CardInstance(20, 0, game.LeaderDefinition)
+        {
+            IsLeaderEntity = true,
+        });
+        game.State.GetPlayer(1).Field.Add(new CardInstance(21, 1, game.LeaderDefinition)
+        {
+            IsLeaderEntity = true,
+        });
+        game.Dispatcher.Apply(new EffectSpec(EffectNames.WinGame), game.Context());
+        var router = new TurnActionRouter(TurnFlow.CreateDefault());
+        var eventCount = game.State.Events.Items.Count;
+        var winner = game.State.WinnerPlayerIndex;
+        var phase = game.State.Turn.PhaseId;
+
+        var result = router.Execute(game.State, new GameActionRequest(
+            game.State.CurrentPlayerIndex,
+            LegalActionGenerator.EndTurn));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Accepted, Is.False);
+            Assert.That(result.ReasonKey, Is.EqualTo("action.game_over"));
+            Assert.That(game.State.Events.Items.Count, Is.EqualTo(eventCount));
+            Assert.That(game.State.WinnerPlayerIndex, Is.EqualTo(winner));
+            Assert.That(game.State.Turn.PhaseId, Is.EqualTo(phase));
+        });
+    }
+
+    [Test]
     public void SnapshotUsesEngineOwnedTurnMetadataAndMapsTurnEvents()
     {
         var state = new GameState();

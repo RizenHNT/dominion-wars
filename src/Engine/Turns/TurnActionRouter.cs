@@ -44,6 +44,24 @@ public sealed class TurnActionRouter
         });
     }
 
+    /// <summary>
+    /// Extension factory for a future cost model. The original CreateDefault
+    /// signature remains unchanged for compiled Unity/client assemblies.
+    /// </summary>
+    public static TurnActionRouter CreateDefault(
+        TurnFlow flow,
+        TargetPolicy? targetPolicy,
+        IPunishResponsePolicy? punishResponses,
+        ICardCostModel? costModel)
+    {
+        return new TurnActionRouter(flow, new ITurnActionHandler[]
+        {
+            new PlayCardActionHandler(targetPolicy, punishResponses, PlayCardActionHandler.DefaultChainLimit, costModel),
+            new AttackActionHandler(),
+            new DiscardPhaseHandler(),
+        });
+    }
+
     public GameActionResult Execute(GameState state, GameActionRequest request)
     {
         if (state is null)

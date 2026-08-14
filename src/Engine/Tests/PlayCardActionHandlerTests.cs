@@ -381,6 +381,57 @@ public sealed class PlayCardActionHandlerTests
         });
     }
 
+    [Test]
+    public void UnsupportedExpansionResourceCostFailsClosedBeforeCardPlayed()
+    {
+        var state = CreateStateInActionPhase(out var flow, out _);
+        var card = new CardInstance(90, 0, new CardDefinition("future", "Future", punish: 1));
+        state.GetPlayer(0).Hand.Add(card);
+        var router = new TurnActionRouter(flow, new ITurnActionHandler[]
+        {
+            new PlayCardActionHandler(null, null, 20, new FutureResourceCostModel()),
+        });
+        var eventCount = state.Events.Items.Count;
+
+        var result = router.Execute(state, new GameActionRequest(
+            0, LegalActionGenerator.PlayCard, sourceEntityId: card.InstanceId));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Accepted, Is.False);
+            Assert.That(result.ReasonKey, Is.EqualTo("action.cost_system_unavailable"));
+            Assert.That(state.GetPlayer(0).Hand, Does.Contain(card));
+            Assert.That(state.Events.Items, Has.Count.EqualTo(eventCount));
+        });
+    }
+
+    [Test]
+    public void CustomPunishCostModelPreservesExistingPlayPath()
+    {
+        var state = CreateStateInActionPhase(out var flow, out _);
+        var card = new CardInstance(91, 0, new CardDefinition("custom", "Custom", punish: 1));
+        state.GetPlayer(0).Hand.Add(card);
+        for (var id = 100; id < 104; id++)
+        {
+            state.GetPlayer(1).Deck.Add(new CardInstance(id, 1, new CardDefinition("draw" + id, "Draw")));
+        }
+
+        var router = new TurnActionRouter(flow, new ITurnActionHandler[]
+        {
+            new PlayCardActionHandler(null, null, 20, new FixedPunishCostModel(3)),
+        });
+
+        var result = router.Execute(state, new GameActionRequest(
+            0, LegalActionGenerator.PlayCard, sourceEntityId: card.InstanceId));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Accepted, Is.True);
+            Assert.That(state.GetPlayer(1).Hand, Has.Count.EqualTo(3));
+            Assert.That(state.GetPlayer(0).Graveyard, Does.Contain(card));
+        });
+    }
+
     private static GameState CreateStateInActionPhase(
         out TurnFlow flow,
         out TurnActionRouter router)
@@ -414,6 +465,25 @@ public sealed class PlayCardActionHandlerTests
             CallCount++;
             return _decision;
         }
+    }
+
+    private sealed class FixedPunishCostModel : ICardCostModel
+    {
+        private readonly int _punish;
+
+        public FixedPunishCostModel(int punish)
+        {
+            _punish = punish;
+        }
+
+        public CardPlayCost Evaluate(GameState state, PlayerState player, CardInstance card)
+            => CardPlayCost.PunishOnly(_punish);
+    }
+
+    private sealed class FutureResourceCostModel : ICardCostModel
+    {
+        public CardPlayCost Evaluate(GameState state, PlayerState player, CardInstance card)
+            => new CardPlayCost(1, new Dictionary<string, int> { ["mana"] = 1 });
     }
 }
 }
