@@ -678,7 +678,7 @@ public class GameWindow extends JFrame {
         if (!d.tags.isEmpty()) sb.append(" ｜ ").append(I18n.t("kw.tags")).append("：").append(esc(String.join("、", d.tags)));
         if (!d.keywords.isEmpty()) sb.append(" ｜ ").append(esc(String.join(" ", d.keywords)));
         if (d.guard) sb.append(" ｜ ").append(I18n.t("kw.guard"));
-        if (d.kingSlayer) sb.append(" ｜ ").append(I18n.t("kw.kingSlayer"));
+        if (d.hasKingSlayer()) sb.append(" ｜ ").append(I18n.t("kw.kingSlayer"));
         sb.append("<br>");
         if (d.isMinion()) sb.append(I18n.t("kw.atkHp")).append(" ").append(d.attack).append("/").append(d.health).append("<br>");
         if (d.chant > 0) sb.append(I18n.t("info.chant")).append(" ").append(d.chant).append("<br>");

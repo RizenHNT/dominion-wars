@@ -185,7 +185,7 @@ public class CardPanel extends JComponent {
         if (h >= 130) {
             for (String k : inst.keywords.isEmpty() ? d.keywords : inst.keywords) chips.add(k);
             if (d.guard) chips.add("护卫");
-            if (d.kingSlayer) chips.add("弑君");
+            if (d.hasKingSlayer()) chips.add("弑君");
             if (inst.shield) chips.remove(CardDef.KW_SHIELD); // 用宝石呈现
         }
         int cx = pad + in + 3;

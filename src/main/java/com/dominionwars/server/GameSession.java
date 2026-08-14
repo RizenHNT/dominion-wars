@@ -297,7 +297,7 @@ public class GameSession {
         if (d.chant > 0) m.put("chant", (long) (c.chantRemaining > 0 ? c.chantRemaining : d.chant));
         List<String> kw = new ArrayList<>(c.keywords.isEmpty() ? d.keywords : c.keywords);
         if (d.guard) kw.add("护卫");
-        if (d.kingSlayer) kw.add("弑君");
+        if (d.hasKingSlayer()) kw.add("弑君");
         m.put("kw", kw);
         if (c.shield) m.put("shield", true);
         if (d.leader || c.isLeaderEntity) m.put("leader", true);
