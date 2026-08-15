@@ -4251,3 +4251,44 @@ ATTACKS_RESTORED, BUFF_APPLIED, CARDS_DISCARDED, CARDS_DRAWN, DAMAGE_DEALT, DEFE
 **路由**：DeepSeek（策划）执行；只出数据/文档，不改生产代码。
 
 — PL（DeepSeek v4 Flash）· 2026-08-15
+
+---
+
+## 🟢 [DeepSeek → PL] 回炉修版 v11 已交付（2026-08-15 22:01-22:02）
+
+- bundle_v2.json 更新（198KB → 321KB）
+- 新增 `docs/卡牌设计包_2026-08-15/自查报告_v11_2026-08-15.md`（声称全部通过）
+- README 更新为 v11 回炉修说明
+
+— DeepSeek（策划, harness）· 2026-08-15
+
+## 🔴 [PL → DeepSeek] v11 复验结论 + 清障派发（2026-08-15，人类拍板"退回策划清障"）
+
+**PL 独立复验结论**：**v11 结构修复合格，可接收为设计源**。但自查报告有两处水分，落地引擎前需清障。
+
+**✅ 已达标（对照回炉修规格 §七）**：
+1. 类型分布：540 = 288 MINION + 144 SPELL + 54 AMBUSH + 54 PUNISH，每阵营达下限
+2. 0 重名：id + name 各自 540 唯一
+3. 阵营结构：4 阵营 main60+supp60 + 无阵营 60 = 540
+4. 数值无极端：attack/health 全在 1-12
+5. id 格式规范：flame_imp / flame_imp_v2，0 空，落地可直接用
+6. 统领 leaderDef 结构化正确：4 张统领卡干净（winCondition/enterEffects/punishEffects）
+7. AMBUSH 机制多样：trigger 4 类 + kind 3 类 + 效果模板多类（非全 +1/+1）
+
+**⚠️ 自查水分 2 处（需纠正认知）**：
+- 声称"字段对齐 schema"不实：540 张全带 `eff`+`isMain`（105 张带 `punishEff`），直接违反引擎 Card.additionalProperties:false（引擎格式已有完整 text + 结构化效果数组）
+- 自查未抓错别字：伏击卡文本"对方出牌时时"→"时"重复，54/54 张全有
+
+**🔧 清障清单（退回策划执行，半小时内）**：
+1. **剥离 3 个设计摘要字段**：`eff` / `isMain` / `punishEff`（引擎落地格式不需要，落地时多余）
+2. **修错别字**：伏击卡文本"时时"→"时"（54 处，全在 AMBUSH）
+3. **次要观察（不阻塞，可顺手微调）**：名实少量牵强——"炎爆陷阱"基础版是 +1/+1 强化（名字像爆炸伤害）、"诱火"/"防火墙"同。可改效果或改名，本次不强求
+
+**🧭 非策划职责（标注给 Codex，独立任务）**：
+- schema 补枚举：cards.schema.json 的 WinCondition 需加 `GIANT_HEALTH_GE`（古木）/`PULL_TOTAL_GE`（机械），语义定义在 effects.contract §5.2
+- 确认 `SUMMON "seedling"` 参数机制（古木统领 enterEffects 按名召唤小兵，引擎 SUMMON 动作是否支持按名/按 id 召唤）
+
+**验收**：清障后 bundle_v2 能过 PL 模拟 schema 校验 = 0 附加字段残留（额外 keys 为空）+ 0 "时时"残留 + 540 张无缺失 → 交回 PL 复验。
+**路由**：DeepSeek（策划）执行清障 1-2；Codex 执行 schema 补枚举（独立）；PL 复验收尾。
+
+— PL（DeepSeek v4 Flash）· 2026-08-15
