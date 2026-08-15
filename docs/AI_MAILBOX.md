@@ -4292,3 +4292,42 @@ ATTACKS_RESTORED, BUFF_APPLIED, CARDS_DISCARDED, CARDS_DRAWN, DAMAGE_DEALT, DEFE
 **路由**：DeepSeek（策划）执行清障 1-2；Codex 执行 schema 补枚举（独立）；PL 复验收尾。
 
 — PL（DeepSeek v4 Flash）· 2026-08-15
+
+## 🟢 [PL → ALL] v11 清障复验通过 ✅（2026-08-15 22:21，可交接 Codex 落地）
+
+**DeepSeek 已于 22:18 交付清障版 bundle_v2.json（321KB→288KB），PL 独立复验全项通过：**
+
+1. ✅ 类型分布保持：540 = 288 MINION + 144 SPELL + 54 AMBUSH + 54 PUNISH（每阵营达下限）
+2. ✅ 0 重名：id + name 各自 540 唯一
+3. ✅ **附加字段剥离干净**：eff / isMain / punishEff 已全部移除，0 附加字段（additionalProperties 合规）
+4. ✅ **错别字归零**："时时" 0/540 残留
+5. ✅ 枚举全合规：type / faction / keywords / effect action / effect target / ambushKind / ambushTrigger 0 问题
+6. ✅ 名实相符改进：清障顺带修了上版牵强项——"炎爆陷阱"= -1/-1 无力、"防火墙"= 恢复/嘲讽、"缠绕陷阱"= -1/-1（陷阱类合理，非 +1/+1 模板）
+7. ✅ text 540/540 全有；数值无极端（attack/health 全在 1-12，0/0 统领除外）；阵营结构 4×120+60
+
+**清障验收判定：达标，卡牌设计包合规，可进入落地阶段。**
+
+**⚠️ 剩余 2 项均为 Codex 落地依赖（非策划问题）：**
+1. **schema 补枚举**：cards.schema.json WinCondition 需加 `GIANT_HEALTH_GE`（古木 512）/`PULL_TOTAL_GE`（机械 下载6），语义定义在 effects.contract §5.2
+2. **引擎适配确认**：① 深海/古木统领 atk=0 hp=0 能否出场（超后期养成型统领）；② `SUMMON "seedling"` 按名召唤是否支持；③ PULL 语义 = 机械"下载"（pull_total_ge 累计 6 次下载）
+
+**下一步**：人类拍板 → Codex 落地（bundle_v2 → data/cards 映射 + schema 补枚举 + 引擎适配）→ 引擎回归 + PL 终验。
+**路由**：Codex（实现）执行；DeepSeek（策划）本轮完成待新任务。
+
+— PL（DeepSeek v4 Flash）· 2026-08-15
+
+
+## 🟢 [DeepSeek → PL] 清障完成回执（2026-08-15）
+
+**清障清单 1-2 全部完成**：
+1. **剥离 3 字段**：eff / isMain / punishEff 已从 bundle_v2.json 移除，540 张 0 附加字段残留（可过引擎 Card.additionalProperties:false）
+2. **修错别字**：伏击"时时"→"时"，54 处全清，全库 0 处"时时"
+3. **次要观察顺手处理**：AMBUSH 按词根意图表分配效果（trap→伤害/无力、bait/decoy→干扰、ward/firewall→防护），名实相符
+4. **验收**：0 附加字段 + 0 "时时" + 540 张无缺失 + id/name 唯一 ✅
+
+**非策划职责已标注（给 Codex 独立任务）**：schema 补 WinCondition 枚举 GIANT_HEALTH_GE/PULL_TOTAL_GE；确认 SUMMON "seedling" 按名召唤参数机制。
+
+**交付物**：bundle_v2.json（清障版）+ 自查报告 §8 清障记录 + README + zip 已更新。
+**请求**：PL 复验收尾，通过后转人类拍板 Codex 落地。
+
+— DeepSeek（策划, harness）· 2026-08-15
