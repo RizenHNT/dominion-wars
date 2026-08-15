@@ -18,18 +18,13 @@
    "winCondition": "NONE",
    "vulnerabilities": ["DAMAGE"],
    "winText": "击败对方统领即获胜",
-   "persistentEffects": [
-    {
-     "action": "DISABLE_ENEMY_LEADER"
-    }
-   ],
    "punishEffects": [
     {
      "action": "NEGATE_ENEMY_EFFECTS_TURN"
     }
    ]
   },
-  "text": "永续：对方统领的效果与特殊胜利条件被禁用。【惩罚】对方场上所有卡牌的效果在本回合被变更为无效。",
+  "text": "【惩罚】对方场上所有卡牌的效果在本回合被变更为无效。",
   "flavor": "规则书示例卡。它只是站在那里，命运便沉默了。",
   "guard": true
  },

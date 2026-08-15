@@ -24,7 +24,11 @@
     },
     "Keyword": {
       "type": "string",
-      "enum": ["嘲讽", "圣盾", "扰魔", "突袭"]
+      "enum": [
+        "嘲讽", "圣盾", "扰魔", "突袭",
+        "降临", "同归", "献祭", "复活", "秒杀", "震慑",
+        "沉默", "占星", "寄生", "潜行", "吸血"
+      ]
     },
     "Tag": {
       "type": "string",
@@ -39,7 +43,9 @@
         "AMBUSH_TRIGGER_WIN",
         "OPP_DISCARD_TOTAL_GE",
         "OPP_PUNISH_DRAW_TURN_GE",
-        "NO_DAMAGE_TURNS_GE"
+        "NO_DAMAGE_TURNS_GE",
+        "GIANT_HEALTH_GE",
+        "PULL_TOTAL_GE"
       ]
     },
     "EffectTarget": {
@@ -76,26 +82,16 @@
       "enum": [
         "DAMAGE", "HEAL", "DRAW", "OPP_DRAW",
         "DISCARD_OPP_RANDOM", "DISCARD_DRAWN", "DESTROY",
+        "ENFEEBLE", "BANISH", "CONTROL",
         "BUFF", "GRANT_KEYWORD", "SUMMON", "SUMMON_LEADER",
         "END_TURN",
         "ADD_OPP_PUNISH_TURN", "ADD_SELF_PUNISH_TURN",
         "CONVERT_PUNISH_TO_DISCARD", "PROTECT_TURN",
         "NEGATE", "NEGATE_ENEMY_EFFECTS_TURN",
         "SKIP_RESHUFFLE", "RESTORE_ATTACKS",
-        "GAIN_LIFE", "LOSE_LIFE", "DAMAGE_CASTLE", "WIN_GAME"
+        "GAIN_LIFE", "LOSE_LIFE", "DAMAGE_CASTLE", "WIN_GAME",
+        "COMMIT", "PUSH", "PULL", "ROLLBACK"
       ]
-    },
-    "PersistentEffectAction": {
-      "type": "string",
-      "enum": ["DISABLE_ENEMY_LEADER"]
-    },
-    "PersistentEffectSpec": {
-      "type": "object",
-      "required": ["action"],
-      "additionalProperties": false,
-      "properties": {
-        "action": { "$ref": "#/$defs/PersistentEffectAction" }
-      }
     },
     "PunishCondition": {
       "type": "string",
@@ -131,10 +127,6 @@
         "winParam": { "type": "integer", "minimum": 0, "maximum": 999 },
         "durability": { "type": "integer", "minimum": 1, "maximum": 999 },
         "grantLife": { "type": "integer", "minimum": 1, "maximum": 99 },
-        "persistentEffects": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/PersistentEffectSpec" }
-        },
         "enterEffects": {
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }
