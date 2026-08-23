@@ -50,3 +50,4 @@ web.backup-*/
 # Local build and remote-session scratch files
 /target/
 /.codex-remote-attachments/
+/unity/*.log
