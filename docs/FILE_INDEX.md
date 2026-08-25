@@ -59,3 +59,17 @@
 ## 设计包状态
 
 Runtime Design Kit v1.30 已于 2026-08-08 解压到 `design/runtime-kit-v1.30/`。包内 365 个清单项已通过 SHA-256 校验。该目录是设计和接口基线，不表示现有 Web UI 已完成其中列出的功能。
+
+## External historical archive (2026-08-25)
+
+The following six zero-current-reference historical/package artifacts are preserved outside the repository:
+
+- Archive root: `C:\Users\USER\Documents\dominion-wars-worktree-archive-2026-08-25\docs-pass2`
+- `docs/RULES_DATA_ASSET_ARCHITECTURE_REVIEW_2026-08-12.md`
+- `docs/卡牌设计包_2026-08-15.zip`
+- `docs/卡牌设计包_v2_2026-08-15.zip`
+- `docs/古木卡池_2026-08-15_v4.xlsx`
+- `docs/古木卡组_完整版_2026-08-15.xlsx`
+- `Dominion_Wars_Runtime_Design_Kit_v1.30.zip`
+
+See the external `ARCHIVE_INDEX.md` in that archive root for SHA-256 records and restoration instructions.
