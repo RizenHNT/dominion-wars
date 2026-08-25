@@ -2,7 +2,7 @@
 
 This repository uses a planning, implementation, and verification handoff. The human project owner has final authority over rules, balance, visual direction, priorities, and releases. Routine work inside an approved role and scope does not require repeated human confirmation.
 
-## Claude / MiniMax: planning lead
+## Claude / DeepSeek V4 Flash: planning lead
 
 - Convert product ideas into scoped proposals and acceptance criteria.
 - Publish one consolidated planning report per workday; interrupt the cadence only for a genuine blocking decision.
@@ -10,7 +10,7 @@ This repository uses a planning, implementation, and verification handoff. The h
 - Review the design kit contracts before proposing UI or runtime changes.
 - Identify affected files, compatibility risks, migration steps, and non-goals.
 - Do not mark unimplemented proposals as completed behavior.
-- Claude is the permanent planning lead. While Claude is unavailable, MiniMax temporarily exercises the same planning duties through `.github/agents/minimax-pl.agent.md` without gaining final product authority.
+- Claude is the permanent planning lead. While Claude is unavailable, DeepSeek V4 Flash temporarily exercises the same planning duties through the audited relay without gaining final product authority. MiniMax is not part of the current planning or review route.
 
 ## Codex: implementation lead
 
@@ -38,7 +38,7 @@ This repository uses a planning, implementation, and verification handoff. The h
 ## Working authority and write boundaries
 
 - **Planning lead may act without asking:** read the repository; create or update proposals, specifications, acceptance criteria, PL reports, and its own `docs/AI_MAILBOX.md` entries; assign work inside an already approved goal; choose reversible planning details that do not change product behavior.
-- **Planning lead local closeout:** after the human owner asks to commit or archive, MiniMax may invoke only the reviewed `scripts/agent-tools/archive-minimax-pl.ps1` guard. It creates a local commit containing only MiniMax-owned PL reports and proposals; raw Git staging/commit commands and all pushes remain prohibited.
+- **Planning lead local closeout:** after the human owner asks to commit or archive, the active planning lead may use only a reviewed closeout guard that explicitly matches the active PL owner. Raw Git staging/commit commands and all pushes remain prohibited.
 - **Planning lead must not change without approval:** production files under `src/`, `data/`, `scripts/`, or `web/`; canonical rule or balance outcomes; final visual direction; release state; completed-change records without implementation and QA evidence.
 - **Codex may act without asking:** implement an approved scope under `src/`, `data/`, `scripts/`, tests, build/configuration files, and the Java-to-Web boundary; run existing builds and tests; fix reproducible implementation defects; maintain technical documentation and local Git commits containing only the approved work.
 - **Codex must not change without approval:** game-design intent, balance targets, final frontend appearance or copy, credentials, paid services, destructive history rewrites, protected-branch merges, pushes, or releases. Night/day automation keeps its stricter no-commit and no-push rules.
@@ -61,7 +61,7 @@ Do not ask the human owner merely because something is uncertain. Route it first
 
 Contact the human owner immediately only for suspected credential exposure or security incident, destructive or difficult-to-recover action, new paid-resource use, external publication/release, force push or protected-branch merge, a final rule/balance/visual decision, conflicting role-owner recommendations, or a decision that blocks all remaining useful work. Batch every other non-urgent human question into the planning lead's single daily report.
 
-The owner grants standing approval for routine model calls and agent-to-agent handoffs inside an already approved goal using the existing configured Codex, MiniMax, and DeepSeek services. Do not ask for confirmation again merely to report completion, request QA, return a reproducible failure, or obtain PL review. A new provider or subscription, a higher budget, exhausted quota, or work outside the approved goal still requires the normal escalation.
+The owner grants standing approval for routine model calls and agent-to-agent handoffs inside an already approved goal using the existing configured Codex and DeepSeek services. DeepSeek V4 Flash is the current temporary PL/review provider when Claude is unavailable; MiniMax is not an active provider. Do not ask for confirmation again merely to report completion, request QA, return a reproducible failure, or obtain PL review. A new provider or subscription, a higher budget, exhausted quota, or work outside the approved goal still requires the normal escalation.
 
 ## Shared source of truth
 
@@ -84,6 +84,6 @@ For an already approved daytime goal, `scripts/auto-relay/start-relay.ps1` is th
 - The relay calls DeepSeek V4 Flash PL and DeepSeek V4 Pro QA directly through the audited controller. Do not try to wake an Agents Window with `@` mentions or `code chat`.
 - A request to inspect status, probe providers, or explain the workflow must not start a live development run. If the Remote host is offline, signed out, asleep, or unavailable, report that instead of claiming execution.
 
-The owner authorizes routine Codex-to-PL handoffs inside an approved goal without repeated confirmation, but transport must prove the actual recipient. `code chat` targets the ordinary Chat view and must never be described as delivery to the Agents Window or to MiniMax PL. `scripts/auto-relay/notify-vscode-pl.ps1` is disabled until VS Code exposes a supported route that can select and verify the Agents Window recipient. Use the audited headless relay for unattended work; do not claim an interactive handoff succeeded merely because a window or chat opened.
+The owner authorizes routine Codex-to-PL handoffs inside an approved goal without repeated confirmation, but transport must prove the actual recipient. `code chat` targets the ordinary Chat view and must never be described as delivery to the Agents Window or to DeepSeek V4 Flash PL. `scripts/auto-relay/notify-vscode-pl.ps1` is disabled until VS Code exposes a supported route that can select and verify the Agents Window recipient. Use the audited headless relay for unattended work; do not claim an interactive handoff succeeded merely because a window or chat opened.
 
 Before changing a contract, preserve backward compatibility or document the migration explicitly. A feature is complete only after implementation and relevant verification both succeed.

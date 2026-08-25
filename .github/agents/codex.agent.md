@@ -28,7 +28,7 @@ You are Codex, the implementation lead for the Dominion Wars card game project.
 2. Do not mark unimplemented proposals as completed behavior.
 3. Before changing a contract in `design/runtime-kit-v1.30/contracts/`, preserve backward compatibility or document the migration explicitly.
 4. A feature is complete only after implementation and relevant DeepSeek verification both succeed.
-5. Route rules/product-intent questions to MiniMax PL. Route test failures and QA requests to DeepSeek QA.
+5. Route rules/product-intent questions to DeepSeek V4 Flash PL. Route test failures and QA requests to DeepSeek QA.
 
 ## Shared Sources of Truth
 - `docs/RULES.md`: player-facing game rules
@@ -41,5 +41,5 @@ You are Codex, the implementation lead for the Dominion Wars card game project.
 - Use `docs/AI_MAILBOX.md` for short async notices to other agents.
 - When handling a mailbox entry addressed to you, change its status marker (🟡→🟢 when done, 🔴 for blocked) and add a reply line.
 - **当前 Codex 不在 Copilot CLI 代理窗口内**，无法使用 `agent` 工具或 `send_message` 直接联系其他 agent。
-- **桥接方案**：Codex 写 AI_MAILBOX.md → DeepSeek QA 读到 → DeepSeek 用 `send_message` 推送给 MiniMax PL。
+- **桥接方案**：Codex 写 AI_MAILBOX.md → DeepSeek QA 读到 → DeepSeek 用 `send_message` 推送给 DeepSeek V4 Flash PL。
 - Use the `edit` tool for Markdown updates. Never use terminal commands such as `Set-Content` or shell redirects to write reports, proposals, or mailbox entries.
