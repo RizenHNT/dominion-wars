@@ -4,3 +4,7 @@
 /UserSettings/
 /obj/
 /Builds/
+# Local/generated authoring artifacts
+/Assets/Temp/
+/Assets/Temp.meta
+/ProjectSettings/SceneTemplateSettings.json
