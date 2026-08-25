@@ -1,3 +1,5 @@
+> ⚠️ **已废弃（2026-08-16）**：本 spec 的扎根数值"×4"已被人类纠正（每层 +1/+1），且机械地标方案已由 `SPEC_MECH_LANDMARK_WOOD_COUNTERS_v2_2026-08-16.md` 取代。仅保留作历史参考，勿据此实现。
+
 # 木计数器因果链 Spec + machine_alpha 下载轴 Spec
 
 > 日期：2026-08-16 · 作者：DeepSeek（策划）· 目标读者：Codex（实现）+ PL（验收）

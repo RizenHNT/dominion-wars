@@ -11,24 +11,32 @@
   "leader": true,
   "leaderDef": {
    "durability": 20,
-   "winCondition": "NO_DAMAGE_TURNS_GE",
+   "winCondition": "GIANT_HEALTH_GE",
    "vulnerabilities": ["DAMAGE"],
-   "winParam": 7,
-   "winText": "连续7个己方回合未受任何伤害",
+   "winParam": 512,
+   "winText": "己方封印随从生命≥512时获胜",
    "enterEffects": [
     {
      "action": "SUMMON",
      "amount": 2,
      "param": "wood_sapling"
+    },
+    {
+     "action": "ADD_RAMPANT",
+     "amount": 1
     }
    ],
    "punishEffects": [
     {
      "action": "PROTECT_TURN"
+    },
+    {
+     "action": "ADD_RAMPANT",
+     "amount": 2
     }
    ]
   },
-  "text": "耐久20。登场：召唤两个新芽树灵。胜利：连续7个己方回合未受任何伤害。【惩罚】本回合己方卡牌不会被破坏与反制。",
+  "text": "耐久20。登场：召唤两个新芽树灵，疯长1。胜利：己方封印随从生命≥512时获胜。【惩罚】疯长2，本回合己方卡牌不会被破坏与反制。",
   "flavor": "根须之下，岁月静默生长。"
  },
  {

@@ -793,30 +793,19 @@ public class Game {
         }
         computeAuras();
         Effects.Ctx ctx = new Effects.Ctx();
-        if (!card.def.leaderDef.enterEffects.isEmpty() && !p.leaderDisabled)
+        if (!card.def.leaderDef.enterEffects.isEmpty())
             Effects.resolve(this, p.idx, card, card.def.leaderDef.enterEffects, ctx);
         if (byPunish) {
-            if (p.leaderDisabled) {
-                log("【" + card.def.name + "】的惩罚效果被禁用！");
-            } else {
-                log("⚡ 被惩罚抽到——统领【" + card.def.name + "】的强力惩罚效果发动！");
-                Effects.resolve(this, p.idx, card, card.def.leaderDef.punishEffects, ctx);
-            }
+            log("⚡ 被惩罚抽到——统领【" + card.def.name + "】的强力惩罚效果发动！");
+            Effects.resolve(this, p.idx, card, card.def.leaderDef.punishEffects, ctx);
         }
         checkAll();
     }
 
-    /** 重新计算永续光环（目前：命运之影类「禁用对方统领」） */
+    /** 兼容旧调用点；已删除的统领压制光环不再产生任何状态。 */
     public void computeAuras() {
-        boolean[] disable = new boolean[2];
-        for (int i = 0; i < 2; i++) {
-            CardInstance l = players[i].leaderOnField;
-            if (l == null || players[i].effectsNegatedThisTurn) continue;
-            for (CardDef.EffectSpec e : l.def.leaderDef.persistentEffects)
-                if ("DISABLE_ENEMY_LEADER".equals(e.action)) disable[1 - i] = true;
-        }
-        players[0].leaderDisabled = disable[0];
-        players[1].leaderDisabled = disable[1];
+        players[0].leaderDisabled = false;
+        players[1].leaderDisabled = false;
     }
 
     // ===================== 战斗 =====================
@@ -974,7 +963,7 @@ public class Game {
     void checkSpecialWins() {
         if (over()) return;
         for (PlayerState p : players) {
-            if (!p.leaderFielded() || p.leaderDisabled) continue;
+            if (!p.leaderFielded()) continue;
             CardDef.LeaderDef ld = p.leaderOnField.def.leaderDef;
             PlayerState opp = opponentOf(p.idx);
             boolean met = false;

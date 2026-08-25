@@ -620,21 +620,20 @@ public class TestMain {
             check(g.over() && g.winner == 0, "统领齐后条件达成即获胜");
         });
 
-        test("命运之影：永续禁用对方统领效果", () -> {
+        test("命运之影：删除压制光环后统领效果正常结算", () -> {
             Game g = freshGame(bal(), new TestAgent(), new TestAgent());
             fillDeck(g, 0, 20); fillDeck(g, 1, 20);
             CardDef shadow = leaderMinion("命运之影", 1, 3);
-            shadow.leaderDef.persistentEffects.add(fx("DISABLE_ENEMY_LEADER", "NONE", 0, ""));
             CardInstance sh = new CardInstance(shadow, 0);
             sh.isLeaderEntity = true; g.players[0].leaderOnField = sh; g.players[0].field.add(sh);
             g.computeAuras();
-            check(g.players[1].leaderDisabled, "对方统领被禁用");
+            check(!g.players[1].leaderDisabled, "已删除的统领压制光环不再生效");
             CardDef ld = leaderMinion("雷帝", 6, 8);
             ld.leaderDef.punishEffects.add(fx("ADD_OPP_PUNISH_TURN", "NONE", 5, ""));
             stackDeck(g, 1, ld);
             CardInstance c = toHand(g, 0, spell("急令", 1, fx("DAMAGE", "ENEMY_FACE", 0, "")));
             g.playFromHand(c);
-            eq(0, g.players[0].turnPunishDelta, "被禁用统领的惩罚效果未生效");
+            eq(5, g.players[0].turnPunishDelta, "统领惩罚效果正常生效");
         });
 
         test("伏击统领：触发后以自身效果洗回卡组（唯一离场例外）", () -> {

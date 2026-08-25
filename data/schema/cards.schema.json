@@ -90,6 +90,7 @@
         "NEGATE", "NEGATE_ENEMY_EFFECTS_TURN",
         "SKIP_RESHUFFLE", "RESTORE_ATTACKS",
         "GAIN_LIFE", "LOSE_LIFE", "DAMAGE_CASTLE", "WIN_GAME",
+        "ADD_ROOT", "ADD_RAMPANT",
         "COMMIT", "PUSH", "PULL", "ROLLBACK"
       ]
     },
@@ -111,6 +112,21 @@
         "OPPONENT_DRAWS"
       ]
     },
+    "LandmarkTier": {
+      "type": "object",
+      "required": ["tier"],
+      "additionalProperties": false,
+      "properties": {
+        "tier": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "effect": { "type": "string", "maxLength": 256 },
+        "effectSpecs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "chant": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "summon": { "$ref": "#/$defs/StableId" }
+      }
+    },
     "LeaderDef": {
       "type": "object",
       "required": ["winCondition"],
@@ -127,6 +143,11 @@
         "winParam": { "type": "integer", "minimum": 0, "maximum": 999 },
         "durability": { "type": "integer", "minimum": 1, "maximum": 999 },
         "grantLife": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "isLandmark": { "type": "boolean" },
+        "landmarkTiers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/LandmarkTier" }
+        },
         "enterEffects": {
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }
@@ -192,6 +213,21 @@
           "items": { "$ref": "#/$defs/EffectSpec" }
         },
         "onPlayEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "commitCost": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "uploadCost": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "downloadCost": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "commitEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "pushEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EffectSpec" }
+        },
+        "pullEffects": {
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }
         },
