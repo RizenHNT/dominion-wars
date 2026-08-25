@@ -1,0 +1,106 @@
+{
+  "manifestVersion": 1,
+  "schemaVersion": "1.0.0",
+  "contentVersion": "1.0.0",
+  "assets": [
+    {
+      "id": "card_art_flame_leader",
+      "kind": "card_art",
+      "sourceType": "file",
+      "relativePath": "authored/card_art/flame_leader.png",
+      "sha256": "29c856b87b69009dd4ef833106803d8768159696cc78d7ebcf41771cc34ec526",
+      "fallbackId": "placeholder_card_art_flame",
+      "status": "approved"
+    },
+    {
+      "id": "card_art_machine_alpha",
+      "kind": "card_art",
+      "sourceType": "file",
+      "relativePath": "authored/card_art/machine_alpha.png",
+      "sha256": "e6d0d425154e876ecad74cea963398bcacab4afa6505683dc26aa188c4023ee6",
+      "fallbackId": "placeholder_card_art_machine",
+      "status": "approved"
+    },
+    {
+      "id": "card_art_sea_leader",
+      "kind": "card_art",
+      "sourceType": "file",
+      "relativePath": "authored/card_art/sea_leader.png",
+      "sha256": "d2dfbee2a29ad762b8a49b7c0599f5f121e439b92d29ff996df01389206bbd4e",
+      "fallbackId": "placeholder_card_art_sea",
+      "status": "approved"
+    },
+    {
+      "id": "card_art_wood_leader",
+      "kind": "card_art",
+      "sourceType": "file",
+      "relativePath": "authored/card_art/wood_leader.png",
+      "sha256": "68984fa0b1482c8908ac9742a03ace5def4c72baaab757872e34b7c5d0a5b9e5",
+      "fallbackId": "placeholder_card_art_wood",
+      "status": "approved"
+    },
+    {
+      "id": "placeholder_card_art_flame",
+      "kind": "card_art",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "placeholder_card_art_machine",
+      "kind": "card_art",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "placeholder_card_art_sea",
+      "kind": "card_art",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "placeholder_card_art_wood",
+      "kind": "card_art",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "placeholder_card_art_neutral",
+      "kind": "card_art",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    }
+  ],
+  "aliases": [
+    {
+      "fromId": "flame_leader",
+      "toId": "card_art_flame_leader"
+    },
+    {
+      "fromId": "machine_leader",
+      "toId": "card_art_machine_alpha"
+    },
+    {
+      "fromId": "sea_leader",
+      "toId": "card_art_sea_leader"
+    },
+    {
+      "fromId": "wood_leader",
+      "toId": "card_art_wood_leader"
+    }
+  ]
+}

@@ -164,6 +164,7 @@
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/$defs/StableId" },
+        "artId": { "$ref": "#/$defs/StableId" },
         "name": { "type": "string", "minLength": 1, "maxLength": 32 },
         "faction": { "$ref": "#/$defs/Faction" },
         "type": { "$ref": "#/$defs/CardType" },

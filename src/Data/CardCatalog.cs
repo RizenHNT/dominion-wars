@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DominionWars.Engine.Effects;
@@ -20,7 +21,8 @@ namespace DominionWars.Data
         private static readonly HashSet<string> PunishConditions = new HashSet<string>(new[] { "ALWAYS", "ENEMY_MINIONS_GE_1", "ENEMY_MINIONS_GE_2", "HAND_GE_3" }, StringComparer.Ordinal);
         private static readonly HashSet<string> AmbushKinds = new HashSet<string>(new[] { "NORMAL", "FOCUS", "LOCKDOWN" }, StringComparer.Ordinal);
         private static readonly HashSet<string> AmbushTriggers = new HashSet<string>(new[] { "OPPONENT_ATTACKS", "OPPONENT_PLAYS_SPELL", "OPPONENT_SUMMONS", "OPPONENT_PLAYS_CARD", "OPPONENT_DRAWS" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> KnownCardFields = new HashSet<string>(new[] { "id", "name", "faction", "type", "tags", "punish", "attack", "health", "keywords", "leader", "leaderDef", "punishActivatable", "punishCost", "punishCondition", "punishEffects", "ambushKind", "ambushTrigger", "ambushEffects", "chant", "chantEffects", "attacksPerTurn", "onOpponentDiscardEffects", "onPlayEffects", "commitCost", "uploadCost", "downloadCost", "commitEffects", "pushEffects", "pullEffects", "text", "flavor", "guard", "kingSlayer", "summonedThisTurn", "cost", "rarity" }, StringComparer.Ordinal);
+        private static readonly Regex StableId = new Regex("^[a-z][a-z0-9_]*\\z", RegexOptions.CultureInvariant);
+        private static readonly HashSet<string> KnownCardFields = new HashSet<string>(new[] { "id", "name", "faction", "type", "tags", "punish", "attack", "health", "keywords", "leader", "leaderDef", "punishActivatable", "punishCost", "punishCondition", "punishEffects", "ambushKind", "ambushTrigger", "ambushEffects", "chant", "chantEffects", "attacksPerTurn", "onOpponentDiscardEffects", "onPlayEffects", "commitCost", "uploadCost", "downloadCost", "commitEffects", "pushEffects", "pullEffects", "text", "flavor", "guard", "kingSlayer", "summonedThisTurn", "cost", "rarity", "artId" }, StringComparer.Ordinal);
         private static readonly HashSet<string> KnownLeaderFields = new HashSet<string>(new[] { "winCondition", "vulnerabilities", "winText", "winAmount", "winParam", "durability", "grantLife", "enterEffects", "punishEffects", "isLandmark", "landmarkTiers" }, StringComparer.Ordinal);
         private static readonly HashSet<string> KnownLandmarkTierFields = new HashSet<string>(new[] { "tier", "effect", "effectSpecs", "chant", "summon" }, StringComparer.Ordinal);
 
@@ -84,6 +86,7 @@ namespace DominionWars.Data
             var attack = OptionalInt(element, "attack", 0, 0, 99, source);
             var health = OptionalInt(element, "health", isMinion ? 1 : 1, 1, 99, source);
             var cost = OptionalInt(element, "cost", 0, 0, 99, source);
+            var artId = OptionalStableId(element, "artId", source);
             var punish = OptionalInt(element, "punish", 0, 0, 20, source);
             var hasExplicitPunishActivatable = TryGetProperty(element, "punishActivatable", out _);
             var hasExplicitPunishCost = TryGetProperty(element, "punishCost", out _);
@@ -163,6 +166,7 @@ namespace DominionWars.Data
                 text: text,
                 flavor: OptionalString(element, "flavor", source, 256),
                 cost: cost,
+                artId: artId,
                 keywords: keywords,
                 tags: ValidateArrayStrings(element, "tags", source, 4, 1, 8, null),
                 punishActivatable: punishActivatable,
@@ -305,6 +309,13 @@ namespace DominionWars.Data
         private static void ValidateEnum(JToken parent, string property, HashSet<string> allowed, string source) { if (TryGetProperty(parent, property, out var value) && !allowed.Contains(ReadString(value, source, property))) throw Invalid(source, "invalid " + property); }
         private static string RequiredString(JToken parent, string property, string source, int min, int max) { if (!TryGetProperty(parent, property, out var value)) throw Invalid(source, property + " is required"); var result = ReadString(value, source, property); if (result.Length < min || result.Length > max) throw Invalid(source, property + " length is invalid"); return result; }
         private static string? OptionalString(JToken parent, string property, string source, int max) { if (!TryGetProperty(parent, property, out var value)) return null; var result = ReadString(value, source, property); if (result.Length > max) throw Invalid(source, property + " is too long"); return result; }
+        private static string? OptionalStableId(JToken parent, string property, string source)
+        {
+            if (!TryGetProperty(parent, property, out var value)) return null;
+            var result = ReadString(value, source, property);
+            if (result.Length < 3 || result.Length > 64 || !StableId.IsMatch(result)) throw Invalid(source, property + " is invalid stable id");
+            return result;
+        }
         private static bool OptionalBool(JToken parent, string property, bool fallback, string source) { if (!TryGetProperty(parent, property, out var value)) return fallback; if (value.Type != JTokenType.Boolean) throw Invalid(source, property + " must be boolean"); return value.Value<bool>(); }
         private static int OptionalInt(JToken parent, string property, int fallback, int min, int max, string source) { if (!TryGetProperty(parent, property, out var value)) return fallback; ValidateInt(value, source, property, min, max); return value.Value<int>(); }
         private static void ValidateInt(JToken value, string source, string property, int min, int max) { if (!TryReadInt64(value, out var number) || number < min || number > max) throw Invalid(source, property + " is outside its allowed range"); }
