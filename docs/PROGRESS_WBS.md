@@ -1,7 +1,7 @@
 # Progress WBS — Dominion Wars 重做
 
-> **更新时间**：2026-08-15 · **负责人**：PL (MiniMax M3 / DeepSeek v4) / Codex implementation evidence
-> **更新**：10.10.2-10.10.9 attended 批已复核并 push 到 origin/main（0/0 分叉）；工作树已清理（.meta 全部入库 + 旧文档归档 + Java 冻结修复提交）— 见 10.10 节；wire 实体 ID 决策落地（80591fe）；**10.10.6 Unity EditMode 已解锁（2026-08-15 凌晨人类 Hub 打开 + Test Runner 通过）**
+> **更新时间**：2026-08-23 · **负责人**：PL (MiniMax M3 / DeepSeek v4) / Codex implementation evidence
+> **更新**：10.10.2-10.10.9 attended 批已复核并 push 到 origin/main（0/0 分叉）；工作树已清理（.meta 全部入库 + 旧文档归档 + Java 冻结修复提交）— 见 10.10 节；wire 实体 ID 决策落地（80591fe）；**10.10.6 Unity EditMode 已解锁（2026-08-15 凌晨人类 Hub 打开 + Test Runner 通过）**；**8/21 Codex Unity runtime slice 实机验收通过（EditMode 24/24、PlayMode 2/2、Windows build 0 error 0 warning），证据 docs/UNITY_RUNTIME_VERIFICATION_2026-08-21.md**；**8/23 人类已答 5 项阻塞决策（①-③ 冻结、④-⑤ 委托策划），见 §10.11**
 > **目的**：树状分解 + 完成度 % + 阻塞标记；替代 / 增强 `IMPLEMENTATION_TODO.csv` 的平铺视图
 > **配套仪表盘**：[PROGRESS_DASHBOARD.md](/path/to/docs/PROGRESS_DASHBOARD.md)
 > **权威源**：Java 行为基线 + RULES.md + SPEC.md + 设计/contracts/
@@ -16,13 +16,13 @@
 | 2. 数据契约与加载 (Schema + Effects Contract) | **100%** | ✅ | 91 卡 schema 全过；C# CardCatalog/DeckLoader 已完成（3d0c23b、b48b008） |
 | 3. 决策与规则同步 (RULES + Decisions) | **100%** | ✅ | Decision A/B/C/D/E 已落 RULES §11 |
 | 4. 适配层 (Adapters → Unity) | **85%** | 🟢 | 4.4-4.7 已完成；证据 e1b53d2 + cbc270f |
-| 5. 测试矩阵 (Unit + Spec + Contract) | **95%** | 🟢 | 当前 .NET 386/386（Release，2026-08-14 复验）、Java 38/38；Unity 实机、安装包和性能验收仍未完成 |
-| 6. 前端 / Unity 渲染 | **0%** | 🔴 | 未启动 — 需 Unity Editor 装好 |
-| 7. 资产 / 美术 | **0%** | 🔴 | 未启动 — 需外部依赖 |
+| 5. 测试矩阵 (Unit + Spec + Contract) | **99%** | 🟢 | .NET **435/435（2026-08-23 实测）**、Java 38/38、schema 91/91、deck 4/4、design manifest 320/320；**8/21 Unity 实机验收：EditMode 24/24 + PlayMode 2/2 + Windows build 0 error 0 warning**；剩性能/多分辨率/无障碍（10.6.3-10.6.5，依赖前端） |
+| 6. 前端 / Unity 渲染 | **15%** | 🟡 | **6.0 Unity shell + RuntimeAdapter + Windows 构建已过（8/21 验收）**；6.1 牌桌布局 / 6.2 对战 UI / 6.3 目标选择 / 6.4 惩罚链渲染 / 6.5 动效 仍 🔴 pending — 这是"能玩"的最大缺口 |
+| 7. 资产 / 美术 | **0%** | 🔴 | 未启动 — 91 卡专属图 + skin manifest 需人类/GPT Web/美术（10.4.4） |
 | 8. 运行时 QA (Sim + A11y + Perf) | **10%** | 🟡 | 8.2 本地化已建立；8.1 仍为 P3 backlog |
 | 9. 自动化 / 接力 | **20%** | 🟡 | scripts/auto-relay 框架已存在未激活 |
 
-**项目总进度**：**~45%**（按 DASHBOARD 权重：引擎 100 / 数据 100 / 决策 100 / 适配 85 / 测试 95 / 其余 0-20）
+**项目总进度**：**~50%**（按 DASHBOARD 权重：引擎 100 / 数据 100 / 决策 100 / 适配 85 / 测试 99 / 前端 15 / 资产 0 / 其余 0-20）
 
 ---
 
@@ -243,6 +243,23 @@
 
 自动执行规则：按 10.10.1 → 10.10.8 的依赖顺序领取；单项遇到 `HUMAN_REQUIRED` 或环境阻塞时，记录后继续所有独立项；时间不足时完成当前可验证批次，不留下未经测试的半编辑；10.10.9 永远必做。不得因本队列进入 Renderer/UI、Windows 发布或 Java 删除。
 
+### 10.11 2026-08-23 人类 5 项决策冻结与派工（Added 2026-08-23 PL）
+
+人类已逐条答复 5 项阻塞级决策，①-③ 冻结可派工，④-⑤ 委托策划确认。完整记录见 `docs/PL_REPORT_2026-08-23.md` §6。
+
+| ID | 决策/任务 | 负责人 | 状态 | 依赖/验收证据 |
+|---|---|---|---|---|
+| 10.11.1 | 统领形态：离开卡组即直接出场（不入手牌）；主动出场按自出结算、被惩罚按惩罚结算；后续同普通出牌；卡特殊规则优先 | Codex（实施）+ DeepSeek（验收测试） | 🟢 已实现并通过 DeepSeek 验收 | Codex 已实现三区直接出场路径 + ForceLeaderOut 统一路径 + fail-closed（CODEX_IMPLEMENTATION_REPORT_2026-08-23.md）；基线 456/456 已由 PL 独立复测；DeepSeek 独立验收 TC1-1~1-6 全过（QA_REPORT_2026-08-23_ROUND1.md），TC1-2/1-5/1-6 建议补直接断言（非缺陷） |
+| 10.11.2 | 手动下载：云端发光 → 点顶端卡拉箭头选目标 → 支付惩罚 → 结算顶端下载效果 | Codex（实施）+ DeepSeek（验收测试） | 🟢 已实现（引擎部分）并通过 DeepSeek 验收 | 引擎 PULL 法律动作 + fail-closed 处理器 + PULL_DECLARED/CARD_PULLED 事件已落地；正价下载费未臆造资源（cost_system_unavailable）；实机拖拽 UI 仍归 6.3；DeepSeek 独立验收 TC2-1/2-4/2-5 全过（QA_REPORT_2026-08-23_ROUND1.md），TC2-2 实机拖拽依赖 6.3 跳过、TC2-3 建议补支付惩罚路径断言；**人类需定惩罚模型**（当前 22 张机械卡 downloadCost 全 0，不阻塞现卡） |
+| 10.11.3 | 破城：抽牌计数扣到剩 1 → 对方首领普通抽牌方式强制出场 → 我方获增益 | Codex（实施）+ DeepSeek（验收测试） | 🟢 已实现并通过 DeepSeek 验收（"我方抽牌"语义仍待人类最终确认） | 破城单次结算 + CycleWinCount=max(existing,9) + 对立首领强制出场 + minion 双统领即时胜 win.castle_break_minion + ROYAL_CASTLE_BREAK 被动双查（CODEX_IMPLEMENTATION_REPORT_2026-08-23.md）；DeepSeek 独立验收 TC3-1~3-5 全过（QA_REPORT_2026-08-23_ROUND1.md，破城 6/6）；**增益归属（记在破城方）语义人类未最终确认，后续内容包会踩坑** |
+| 10.11.4 | 古木 512 数值 → 数值策划决定 | DeepSeek（策划/QA）→ Codex 实施 | 🟢 已确认 + 🟢 已实现已验收 | **确认 512 + 疯长仅统领结算**（×8 疯长 10 步达 521；384 仅差 1 步且破坏 2^9 主题，不采纳）。Codex 已实现：ADD_RAMPANT/ADD_ROOT action + wood_leader 迁 GIANT_HEALTH_GE/512（enter SUMMON2+ADD_RAMPANT1，punish PROTECT_TURN+ADD_RAMPANT2）+ 移除普通木卡疯长 tag（保留 Root）；rampant 上限 3 + 非法输入 fail-closed。DeepSeek 独立验收木方 3/3 通过（QA_REPORT_2026-08-23_ROUND1.md）。依赖 10.11.7 BUFF SELF→FRIENDLY 已随批完成。详见 CODEX_IMPLEMENTATION_REPORT_2026-08-23.md |
+| 10.11.5 | 深海潮位 → 游戏策划决定 | DeepSeek（策划/QA）→ Codex 实施 | 🟢 已确认 + 🟢 已实现已验收 | **确认本包不做潮位，留扩展包**（0 张为预期；弃牌+潮蚀轴已完整；上限/来源/衰减/交换全未冻结）。Codex 已清理 sea_leader bundle 文本残留"对方获得 1 潮位"；未引入任何未冻结潮位 action。DeepSeek 独立验收确认（QA_REPORT_2026-08-23_ROUND1.md）。详见 CODEX_IMPLEMENTATION_REPORT_2026-08-23.md |
+| 10.11.6 | winParam 跨栈断裂（schema 双字段） | PL 建议 + Codex 确认 | 🟡 待人类/Codex 确认迁移决策 | Java 只读 winParam（CardDef L103）+ C# 双字段兼容；Codex 报告：loader/schema 当前同时接受 winAmount 与 winParam（向后兼容），**bundle winAmount→winParam 显式迁移决策未做**（HUMAN_REQUIRED）；PL 建议 schema 统一为 winParam、移除 winAmount（详见 PL_REPORT §3） |
+| 10.11.7 | 全局修复：幽灵 P'145 / BUFF:SELF 47 / 防御回补 | Codex（实施）+ DeepSeek（验证） | 🟢 机械部分已实现并通过验收，剩余 2 项 HUMAN_REQUIRED | 机械部分完成：AMBUSH punishCost:0（54 张检查，23 张修正）+ BUFF SELF→FRIENDLY_MINION 54 处/47 卡 + CardCatalog 保留显式 punishCost/punishActivatable（含旧 fallback）；DeepSeek 独立验收全过（QA_REPORT_2026-08-23_ROUND1.md）。**遗留**：① 122 张非 AMBUSH 幽灵 P'（punishCost>0 无惩罚效果）需设计/平衡决策（清成本 vs 补效果）；② 防御回补卡数/数值/破城 heal-buff 语义需设计决策 |
+| 10.11.8 | 牌库循环胜负方向反转（人类 2026-08-23 14:17 裁决"按我的意思来"） | PL（转写/文档）+ Codex（实施）+ **游戏策划/DeepSeek（QA 审核）** | 🟡 派工中（Codex 实施中） | 新规则：被抽空方自己胜利计数+1，满 10 被抽空方获胜（=磨空对方者输）；破城方自己=9 不变；自己抽空自己同样计数。RULES.md L18/§9 已由 PL 同步（PL_REPORT §12）。Codex 改 EffectRuntime.Cards.cs Reshuffle 方向 + 测试预期；**已登记需 QA 审核列表（docs/QA_REVIEW_LIST.md），审核归属游戏策划** |
+
+**派工顺序（2026-08-23 更新）**：Codex 已完成 10.11.1/10.11.2/10.11.3 引擎部分 + 10.11.4/10.11.5 实现 + 10.11.7 机械部分（证据 CODEX_IMPLEMENTATION_REPORT_2026-08-23.md，基线 456/456 已由 PL 复测确认）；**DeepSeek 已用 TC1-1~1-6 / TC2-1~2-5 / TC3-1~3-5 完成独立验收，全部通过、无必须修的缺陷**（证据 QA_REPORT_2026-08-23_ROUND1.md）。人类需拍板：③"我方抽牌/增益归属"语义最终确认 + ② 下载惩罚模型 + winParam（10.11.6）迁移决策 + 10.11.7 遗留 ① 幽灵 P'122 与 ② 防御回补设计决策 + 前端视觉方向（解锁 6.1-6.5）。
+
 ---
 
 ## Backlog 优先级映射（18 行 → WBS 节点）
@@ -291,9 +308,11 @@
 
 | 阻塞 | 影响范围 | 解锁条件 |
 |---|---|---|
-| Unity 编译/构建环境 | 6.1-6.5, 7.2-7.3, 8.1 全部 P0/P1 | Unity 6 LTS 已装（6000.3.21f1）+ 许可证已激活 + Hub 已交互打开（2026-08-15 解锁）；EditMode 已通过，剩 Windows 构建补跑 |
-| DeepSeek 接力无 bot | 9.4-9.5 | Codex 接力任务完成 |
+| Unity 实机/构建环境 | 6.1-6.5, 7.2-7.3, 8.1 全部 P0/P1 | ✅ 8/21 已解锁（EditMode 24/24 + PlayMode 2/2 + Windows build PASS）；**但 6.1-6.5 需要人类视觉方向（10.3.4 human_required）** |
+| 前端视觉方向 | 6.1-6.5, 10.3.4, 10.5.2, 10.5.4 | 人类 + GPT Web 出视觉/文案方向 |
+| 91 卡专属美术 | 7.1, 10.4.4, 10.3.4 | 人类 + GPT Web/美术 产图 + 版权确认 |
 | 10.10.8 缺独立 DeepSeek 复核 | 10.10.8 门禁 | DeepSeek 复核 10.10.2-10.10.5 离线 PASS（已转 DeepSeek） |
+| 8/23 决策④⑤ | 古木 512 数值 / 深海潮位 | 数值策划（DeepSeek）+ 游戏策划（DeepSeek）确认 PL 草案后回填（见 §10.11） |
 
 ---
 
