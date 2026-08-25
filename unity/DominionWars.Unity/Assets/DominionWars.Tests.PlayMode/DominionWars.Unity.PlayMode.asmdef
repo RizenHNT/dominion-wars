@@ -1,16 +1,13 @@
 {
-  "name": "DominionWars.Unity.EditMode",
-  "rootNamespace": "DominionWars.Unity.EditMode",
+  "name": "DominionWars.Unity.PlayMode",
+  "rootNamespace": "DominionWars.Unity.PlayMode",
   "references": [
-    "DominionWars.Engine",
     "DominionWars.Adapters",
-    "DominionWars.Data",
     "DominionWars.Runtime",
     "DominionWars.UI",
-    "DominionWars.Editor",
     "TestAssemblies"
   ],
-  "includePlatforms": [ "Editor" ],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,

@@ -1,0 +1,9 @@
+{
+  "name": "NON_AUTHORITATIVE U03 fixture machine deck",
+  "faction": "机械遗迹",
+  "leader": "u03_fixture_leader_0",
+  "cards": {
+    "u03_fixture_machine_carrier": 1,
+    "u03_fixture_machine_commit": 1
+  }
+}

@@ -1,0 +1,60 @@
+[
+  {
+    "id": "u03_fixture_leader_0",
+    "name": "U03 Fixture Leader 0",
+    "faction": "机械遗迹",
+    "type": "MINION",
+    "leader": true,
+    "attack": 1,
+    "health": 10,
+    "leaderDef": {
+      "winCondition": "NONE",
+      "vulnerabilities": ["DAMAGE"]
+    },
+    "text": "NON_AUTHORITATIVE test leader."
+  },
+  {
+    "id": "u03_fixture_leader_1",
+    "name": "U03 Fixture Leader 1",
+    "faction": "烈焰帝国",
+    "type": "MINION",
+    "leader": true,
+    "attack": 1,
+    "health": 10,
+    "leaderDef": {
+      "winCondition": "NONE",
+      "vulnerabilities": ["DAMAGE"]
+    },
+    "text": "NON_AUTHORITATIVE test leader."
+  },
+  {
+    "id": "u03_fixture_machine_carrier",
+    "name": "U03 Fixture Carrier",
+    "faction": "机械遗迹",
+    "type": "MINION",
+    "attack": 1,
+    "health": 3,
+    "commitCost": 0,
+    "uploadCost": 0,
+    "downloadCost": 0,
+    "text": "NON_AUTHORITATIVE mechanical download carrier."
+  },
+  {
+    "id": "u03_fixture_machine_commit",
+    "name": "U03 Fixture Commit Card",
+    "faction": "机械遗迹",
+    "type": "MINION",
+    "attack": 1,
+    "health": 2,
+    "commitCost": 0,
+    "uploadCost": 0,
+    "downloadCost": 0,
+    "onPlayEffects": [
+      {
+        "action": "COMMIT",
+        "target": "SELF"
+      }
+    ],
+    "text": "NON_AUTHORITATIVE fixture: commit this card on play."
+  }
+]

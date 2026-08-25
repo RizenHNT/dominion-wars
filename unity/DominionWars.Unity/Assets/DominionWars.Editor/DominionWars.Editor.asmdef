@@ -1,0 +1,18 @@
+{
+  "name": "DominionWars.Editor",
+  "rootNamespace": "DominionWars.Unity.EditorTools",
+  "references": [
+    "DominionWars.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

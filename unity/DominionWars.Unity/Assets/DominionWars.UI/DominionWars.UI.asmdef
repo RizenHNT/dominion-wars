@@ -1,7 +1,10 @@
 {
-  "name": "DominionWars.Runtime",
-  "rootNamespace": "DominionWars.Unity.Runtime",
-  "references": ["DominionWars.Engine", "DominionWars.Adapters", "DominionWars.Data"],
+  "name": "DominionWars.UI",
+  "rootNamespace": "DominionWars.Unity.UI",
+  "references": [
+    "DominionWars.Runtime",
+    "DominionWars.Adapters"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
