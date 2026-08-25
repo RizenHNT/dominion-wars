@@ -186,6 +186,7 @@ public sealed class TurnFlow
     private void CompleteTurn(GameState state)
     {
         var outgoing = state.CurrentPlayer;
+        ResolveControlExpiry(state, outgoing.PlayerIndex);
         Execute(state, item =>
         {
             outgoing.PunishDeltaThisTurn = 0;
@@ -202,6 +203,41 @@ public sealed class TurnFlow
         });
         state.Events.Append("TURN_CHANGED", null, Data("currentPlayer", state.CurrentPlayerIndex, "turn", state.Turn.Number));
         state.Events.Append("PHASE_CHANGED", null, Data("from", TurnPhase.End, "to", TurnPhase.Start, "reason", "turn_handoff"));
+    }
+
+    private static void ResolveControlExpiry(GameState state, int controllerPlayerIndex)
+    {
+        var controlled = new List<CardInstance>();
+        foreach (var player in state.Players)
+        {
+            foreach (var card in player.Field)
+            {
+                if (card.ControlledByPlayerIndex == controllerPlayerIndex)
+                {
+                    controlled.Add(card);
+                }
+            }
+        }
+
+        foreach (var card in controlled)
+        {
+            var controller = state.GetPlayer(controllerPlayerIndex);
+            var owner = state.GetPlayer(card.OwnerPlayerIndex);
+            if (card.ControlTurnsRemaining > 1)
+            {
+                card.ControlTurnsRemaining--;
+                continue;
+            }
+
+            controller.Field.Remove(card);
+            if (!owner.Field.Contains(card))
+            {
+                owner.Field.Add(card);
+            }
+
+            card.ControlledByPlayerIndex = null;
+            card.ControlTurnsRemaining = 0;
+        }
     }
 
     private void Transition(GameState state, string destination, string reason)

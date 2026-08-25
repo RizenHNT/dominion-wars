@@ -93,6 +93,16 @@ public sealed class DiscardPhaseHandler : IPhaseHandler, ITurnActionHandler
             flow.Advance(state, request.ActorPlayerIndex);
         }
 
+        // CompleteTurn deliberately lands on START so the phase lifecycle is
+        // observable. A player command must nevertheless finish the automatic
+        // START work for the incoming player; otherwise the public action
+        // gateway would expose an empty action list and the match would stall
+        // after its first handoff.
+        if (!state.WinnerPlayerIndex.HasValue && state.Turn.PhaseId == TurnPhase.Start)
+        {
+            flow.Advance(state, state.CurrentPlayerIndex);
+        }
+
         return GameActionResult.Accept();
     }
 

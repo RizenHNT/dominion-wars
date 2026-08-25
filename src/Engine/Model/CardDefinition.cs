@@ -16,6 +16,10 @@ public sealed class CardDefinition
     private readonly IReadOnlyList<EffectSpec> _onOpponentDiscardEffects;
     private readonly IReadOnlyList<EffectSpec> _leaderEnterEffects;
     private readonly IReadOnlyList<EffectSpec> _leaderPunishEffects;
+    private readonly IReadOnlyList<EffectSpec> _commitEffects;
+    private readonly IReadOnlyList<EffectSpec> _pushEffects;
+    private readonly IReadOnlyList<EffectSpec> _pullEffects;
+    private readonly IReadOnlyList<LandmarkTierDefinition> _landmarkTiers;
 
     public CardDefinition(
         string id,
@@ -56,7 +60,15 @@ public sealed class CardDefinition
         string? leaderWinCondition = null,
         string? leaderWinText = null,
         int leaderDurability = 0,
-        int leaderWinParam = 0)
+        int leaderWinParam = 0,
+        int commitCost = 0,
+        int uploadCost = 0,
+        int downloadCost = 0,
+        IEnumerable<EffectSpec>? commitEffects = null,
+        IEnumerable<EffectSpec>? pushEffects = null,
+        IEnumerable<EffectSpec>? pullEffects = null,
+        bool isLandmark = false,
+        IEnumerable<LandmarkTierDefinition>? landmarkTiers = null)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -108,6 +120,21 @@ public sealed class CardDefinition
             throw new ArgumentOutOfRangeException(nameof(leaderWinParam));
         }
 
+        if (commitCost < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(commitCost));
+        }
+
+        if (uploadCost < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(uploadCost));
+        }
+
+        if (downloadCost < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(downloadCost));
+        }
+
         Id = id;
         Name = name;
         Attack = attack;
@@ -136,6 +163,10 @@ public sealed class CardDefinition
         LeaderWinText = leaderWinText;
         LeaderDurability = leaderDurability;
         LeaderWinParam = leaderWinParam;
+        CommitCost = commitCost;
+        UploadCost = uploadCost;
+        DownloadCost = downloadCost;
+        IsLandmark = isLandmark;
         // Legacy compatibility only. New data should mark the individual EffectSpec.
         KingSlayer = kingSlayer;
 
@@ -187,6 +218,10 @@ public sealed class CardDefinition
         _onOpponentDiscardEffects = CopyEffects(onOpponentDiscardEffects);
         _leaderEnterEffects = CopyEffects(leaderEnterEffects);
         _leaderPunishEffects = CopyEffects(leaderPunishEffects);
+        _commitEffects = CopyEffects(commitEffects);
+        _pushEffects = CopyEffects(pushEffects);
+        _pullEffects = CopyEffects(pullEffects);
+        _landmarkTiers = CopyLandmarkTiers(landmarkTiers);
     }
 
     public string Id { get; }
@@ -217,6 +252,14 @@ public sealed class CardDefinition
     public string? LeaderWinText { get; }
     public int LeaderDurability { get; }
     public int LeaderWinParam { get; }
+    /// <summary>Declared fee for moving a card into the public commit queue.</summary>
+    public int CommitCost { get; }
+    /// <summary>Declared fee for pushing a queued card into the cloud stack.</summary>
+    public int UploadCost { get; }
+    /// <summary>Declared fee for pulling this card from the cloud stack.</summary>
+    public int DownloadCost { get; }
+    /// <summary>Declarative landmark shape marker; it does not activate landmark rules.</summary>
+    public bool IsLandmark { get; }
     /// <summary>Legacy card-level fallback. EffectSpec.KingSlayer takes precedence when present.</summary>
     public bool KingSlayer { get; }
     public IReadOnlyCollection<string> Keywords => _keywords;
@@ -229,6 +272,10 @@ public sealed class CardDefinition
     public IReadOnlyList<EffectSpec> OnOpponentDiscardEffects => _onOpponentDiscardEffects;
     public IReadOnlyList<EffectSpec> LeaderEnterEffects => _leaderEnterEffects;
     public IReadOnlyList<EffectSpec> LeaderPunishEffects => _leaderPunishEffects;
+    public IReadOnlyList<EffectSpec> CommitEffects => _commitEffects;
+    public IReadOnlyList<EffectSpec> PushEffects => _pushEffects;
+    public IReadOnlyList<EffectSpec> PullEffects => _pullEffects;
+    public IReadOnlyList<LandmarkTierDefinition> LandmarkTiers => _landmarkTiers;
 
     private static IReadOnlyList<EffectSpec> CopyEffects(IEnumerable<EffectSpec>? effects)
     {
@@ -238,6 +285,23 @@ public sealed class CardDefinition
             foreach (var effect in effects)
             {
                 copy.Add(effect ?? throw new ArgumentException("Effect lists cannot contain null.", nameof(effects)));
+            }
+        }
+
+        return copy.AsReadOnly();
+    }
+
+    private static IReadOnlyList<LandmarkTierDefinition> CopyLandmarkTiers(
+        IEnumerable<LandmarkTierDefinition>? tiers)
+    {
+        var copy = new List<LandmarkTierDefinition>();
+        if (tiers is not null)
+        {
+            foreach (var tier in tiers)
+            {
+                copy.Add(tier ?? throw new ArgumentException(
+                    "Landmark tier lists cannot contain null.",
+                    nameof(tiers)));
             }
         }
 

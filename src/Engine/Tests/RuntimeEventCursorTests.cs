@@ -13,7 +13,7 @@ public sealed class RuntimeEventCursorTests
     {
         var cursor = new RuntimeEventCursor();
         var first = Event(1, null, "PHASE_CHANGED");
-        var second = Event(2, first.EventId, "TURN_CHANGED");
+        var second = Event(2, first.EventId, "PULL_DECLARED");
 
         Assert.Multiple(() =>
         {

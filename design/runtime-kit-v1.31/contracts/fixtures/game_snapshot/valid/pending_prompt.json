@@ -1,0 +1,16 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 4,
+  "turn": 2,
+  "phase": "ACTION",
+  "currentPlayer": 0,
+  "viewerPlayerId": "player_0",
+  "players": [
+    { "playerId": "player_0", "life": 20, "deckCount": 5, "handCount": 1, "fieldCount": 0, "graveyardCount": 0, "ambushCount": 0, "hand": [{ "entityId": 7, "cardId": "flame_scout", "ownerPlayer": 0 }], "field": [], "graveyard": [] },
+    { "playerId": "player_1", "life": 20, "deckCount": 5, "handCount": 1, "fieldCount": 0, "graveyardCount": 0, "ambushCount": 0, "hand": [{ "entityId": 8, "cardId": "sea_scout", "ownerPlayer": 1 }], "field": [], "graveyard": [] }
+  ],
+  "castle": { "enabled": true, "health": 75 },
+  "legalActions": [],
+  "pendingPrompt": { "promptId": "prompt_target_7", "kind": "choose_target" }
+}

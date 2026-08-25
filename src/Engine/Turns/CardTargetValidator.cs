@@ -38,6 +38,37 @@ internal sealed class CardTargetValidator
         return requirement;
     }
 
+    public IReadOnlyList<TargetReference> GetLegalTargets(
+        GameState state,
+        int sourcePlayerIndex,
+        CardInstance sourceCard,
+        IReadOnlyList<EffectSpec> effects)
+    {
+        var requirement = GetRequirement(effects);
+        if (requirement == TargetRequirement.None)
+        {
+            return Array.Empty<TargetReference>();
+        }
+
+        var result = new List<TargetReference>();
+        foreach (var candidate in _policy.GetEnemyCandidates(state, sourcePlayerIndex))
+        {
+            if (TryResolve(
+                state,
+                sourcePlayerIndex,
+                candidate.Id,
+                sourceCard,
+                effects,
+                requirement,
+                out _))
+            {
+                result.Add(candidate);
+            }
+        }
+
+        return result.AsReadOnly();
+    }
+
     public bool TryResolve(
         GameState state,
         int sourcePlayerIndex,

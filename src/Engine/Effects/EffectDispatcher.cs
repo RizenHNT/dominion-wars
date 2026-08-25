@@ -43,6 +43,9 @@ public sealed class EffectDispatcher : IEffectDispatcher
             new DiscardOppRandomEffect(),
             new DiscardDrawnEffect(),
             new DestroyEffect(),
+            new EnfeebleEffect(),
+            new BanishEffect(),
+            new ControlEffect(),
             new BuffEffect(),
             new GrantKeywordEffect(),
             new SummonEffect(),
@@ -60,6 +63,12 @@ public sealed class EffectDispatcher : IEffectDispatcher
             new LoseLifeEffect(),
             new DamageCastleEffect(),
             new WinGameEffect(),
+            new AddRootEffect(),
+            new AddRampantEffect(),
+            new CommitEffect(),
+            new PushEffect(),
+            new PullEffect(),
+            new RollbackEffect(),
         });
     }
 

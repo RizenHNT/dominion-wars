@@ -77,7 +77,7 @@ public sealed class TurnFlowTests
         {
             Assert.That(state.GetPlayer(0).Hand.Single().InstanceId, Is.EqualTo(3));
             Assert.That(state.GetPlayer(0).ReshuffleCount, Is.EqualTo(1));
-            Assert.That(state.GetPlayer(1).CycleWinCount, Is.EqualTo(1));
+            Assert.That(state.GetPlayer(0).CycleWinCount, Is.EqualTo(1));
             Assert.That(state.Events.Items.Any(item => item.EventType == "DECK_CYCLED"), Is.True);
         });
     }
@@ -93,9 +93,9 @@ public sealed class TurnFlowTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(state.GetPlayer(1).CycleWinCount, Is.EqualTo(1));
-            Assert.That(state.WinnerPlayerIndex, Is.EqualTo(1));
-            Assert.That(state.WinReason, Is.EqualTo("win.opponent_deck_cycles"));
+            Assert.That(state.GetPlayer(0).CycleWinCount, Is.EqualTo(1));
+            Assert.That(state.WinnerPlayerIndex, Is.EqualTo(0));
+            Assert.That(state.WinReason, Is.EqualTo("win.deck_cycles"));
             Assert.That(state.Turn.PhaseId, Is.EqualTo(TurnPhase.Over));
         });
     }
@@ -231,6 +231,38 @@ public sealed class TurnFlowTests
         {
             TargetKind.EnemyMinion, TargetKind.EnemyLife,
         }));
+    }
+
+    [Test]
+    public void TargetPolicyFailsClosedForMultipleActiveLeaders()
+    {
+        var state = new GameState(new PlayerState(0, 20), new PlayerState(1, 20))
+        {
+            CastleEnabled = true,
+            CastleHealth = 75,
+        };
+        var definition = new CardDefinition(
+            "leader",
+            "Leader",
+            isLeader: true,
+            isMinion: true);
+        state.GetPlayer(1).LeaderZone.Add(new CardInstance(20, 1, definition)
+        {
+            IsLeaderEntity = true,
+        });
+        state.GetPlayer(1).AmbushZone.Add(new CardInstance(21, 1, definition)
+        {
+            IsLeaderEntity = true,
+        });
+
+        var candidates = new TargetPolicy().GetEnemyCandidates(state, 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.GetPlayer(1).HasMultipleActiveLeaders, Is.True);
+            Assert.That(state.GetPlayer(1).Leader, Is.Null);
+            Assert.That(candidates, Is.Empty);
+        });
     }
 
     [Test]

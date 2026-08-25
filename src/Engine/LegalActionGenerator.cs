@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using DominionWars.Engine.Effects;
 using DominionWars.Engine.Model;
+using DominionWars.Engine.Targeting;
 using DominionWars.Engine.Turns;
 
 namespace DominionWars.Engine
@@ -13,17 +15,20 @@ namespace DominionWars.Engine
 public sealed class LegalActionGenerator
 {
     private readonly AttackTargetPolicy _attackTargets;
+    private readonly CardTargetValidator _cardTargets;
 
-    public LegalActionGenerator(AttackTargetPolicy? attackTargets = null)
+    public LegalActionGenerator(
+        AttackTargetPolicy? attackTargets = null,
+        TargetPolicy? cardTargets = null)
     {
         _attackTargets = attackTargets ?? new AttackTargetPolicy();
+        _cardTargets = new CardTargetValidator(cardTargets ?? new TargetPolicy());
     }
 
     public const string PlayCard = "PLAY_CARD";
     public const string Attack = "ATTACK";
+    public const string Pull = "PULL";
     public const string EndTurn = "END_TURN";
-    public const string ActivatePunish = "ACTIVATE_PUNISH";
-    public const string UseLeaderAbility = "USE_LEADER_ABILITY";
 
     public IReadOnlyList<LegalAction> Generate(GameState state, int playerIdx)
     {
@@ -53,11 +58,12 @@ public sealed class LegalActionGenerator
                 continue;
             }
 
+            var effectivePunish = CardPlayRules.EffectivePunish(player, card);
             var playPayload = new Dictionary<string, object?>
             {
-                ["punish"] = CardPlayRules.EffectivePunish(player, card),
+                ["punish"] = effectivePunish,
             };
-            if (player.PunishToSelfDiscardThisTurn && CardPlayRules.EffectivePunish(player, card) > 0)
+            if (player.PunishToSelfDiscardThisTurn && effectivePunish > 0)
             {
                 var candidates = new List<long>();
                 foreach (var discard in player.Hand)
@@ -69,22 +75,66 @@ public sealed class LegalActionGenerator
                 }
 
                 playPayload["discardRequired"] = Math.Min(
-                    CardPlayRules.EffectivePunish(player, card),
+                    effectivePunish,
                     candidates.Count);
                 playPayload["discardCandidateIds"] = candidates;
             }
 
-            actions.Add(new LegalAction
+            var effects = card.PunishActivated
+                ? card.Definition.PunishEffects
+                : card.Definition.OnPlayEffects;
+            var targetRequirement = _cardTargets.GetRequirement(effects);
+            var fizzle = !player.PunishToSelfDiscardThisTurn
+                && effectivePunish > opponent.Deck.Count;
+            if (!fizzle && targetRequirement != TargetRequirement.None)
             {
-                ActionId = $"play_{card.InstanceId}",
-                Type = PlayCard,
-                Actor = playerIdx,
-                SourceId = card.InstanceId,
-                CardId = card.Definition.Id,
-                ReasonKey = "action.play_card",
-                Payload = playPayload,
-            });
+                foreach (var target in _cardTargets.GetLegalTargets(
+                    state,
+                    playerIdx,
+                    card,
+                    effects))
+                {
+                    actions.Add(CreatePlayAction(
+                        card,
+                        playerIdx,
+                        playPayload,
+                        target));
+                }
+                continue;
+            }
 
+            actions.Add(CreatePlayAction(card, playerIdx, playPayload));
+
+        }
+
+        if (player.CloudStack.Count > 0)
+        {
+            var top = player.CloudStack[player.CloudStack.Count - 1];
+            if (top.Definition.DownloadCost == 0
+                && PullActionHandler.HasSupportedPullEffects(state, top))
+            {
+                var pullSources = new List<CardInstance>(player.Field.Count + player.LeaderZone.Count);
+                pullSources.AddRange(player.Field);
+                pullSources.AddRange(player.LeaderZone);
+                foreach (var source in pullSources)
+                {
+                    if (!EffectRuntime.IsDownloadCarrier(player, source))
+                    {
+                        continue;
+                    }
+
+                    actions.Add(new LegalAction
+                    {
+                        ActionId = $"pull_{source.InstanceId}_{top.InstanceId}",
+                        Type = Pull,
+                        Actor = playerIdx,
+                        SourceId = source.InstanceId,
+                        TargetId = top.InstanceId,
+                        CardId = top.Definition.Id,
+                        ReasonKey = "action.pull",
+                    });
+                }
+            }
         }
 
         foreach (var source in player.Field)
@@ -103,18 +153,6 @@ public sealed class LegalActionGenerator
                 });
             }
 
-            if (source.IsLeaderEntity && source.Definition.HasLeaderAbility && source.IsAlive)
-            {
-                actions.Add(new LegalAction
-                {
-                    ActionId = $"leader_ability_{source.InstanceId}",
-                    Type = UseLeaderAbility,
-                    Actor = playerIdx,
-                    SourceId = source.InstanceId,
-                    CardId = source.Definition.Id,
-                    ReasonKey = "action.use_leader_ability",
-                });
-            }
         }
 
         actions.Add(new LegalAction
@@ -126,6 +164,33 @@ public sealed class LegalActionGenerator
         });
 
         return actions;
+    }
+
+    internal static string PlayActionId(long sourceId, string? targetReferenceId = null)
+    {
+        return string.IsNullOrWhiteSpace(targetReferenceId)
+            ? $"play_{sourceId}"
+            : $"play_{sourceId}_{targetReferenceId}";
+    }
+
+    private static LegalAction CreatePlayAction(
+        CardInstance card,
+        int playerIdx,
+        IReadOnlyDictionary<string, object?> payload,
+        TargetReference? target = null)
+    {
+        return new LegalAction
+        {
+            ActionId = PlayActionId(card.InstanceId, target?.Id),
+            Type = PlayCard,
+            Actor = playerIdx,
+            SourceId = card.InstanceId,
+            TargetId = target?.EntityId,
+            TargetReferenceId = target?.EntityId.HasValue == true ? null : target?.Id,
+            CardId = card.Definition.Id,
+            ReasonKey = "action.play_card",
+            Payload = payload,
+        };
     }
 
 }

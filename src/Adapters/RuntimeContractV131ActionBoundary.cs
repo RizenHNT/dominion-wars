@@ -29,6 +29,11 @@ public sealed class RuntimePlayerSnapshot
     public int FieldCount { get; set; }
     public int GraveyardCount { get; set; }
     public int AmbushCount { get; set; }
+    public int RootStacks { get; set; }
+    public int RampantStacks { get; set; }
+    public int PullCount { get; set; }
+    public int CommitQueueCount { get; set; }
+    public int CloudStackCount { get; set; }
     public IReadOnlyList<RuntimeCardSnapshot> Hand { get; set; } = Array.Empty<RuntimeCardSnapshot>();
     public IReadOnlyList<RuntimeCardSnapshot> Field { get; set; } = Array.Empty<RuntimeCardSnapshot>();
     public IReadOnlyList<RuntimeCardSnapshot> Graveyard { get; set; } = Array.Empty<RuntimeCardSnapshot>();
@@ -36,9 +41,10 @@ public sealed class RuntimePlayerSnapshot
 
 public sealed class RuntimeCardSnapshot
 {
-    public string EntityId { get; set; } = string.Empty;
+    public long EntityId { get; set; }
     public string CardId { get; set; } = string.Empty;
     public int OwnerPlayer { get; set; }
+    public bool Sealed { get; set; }
 }
 
 public sealed class RuntimeCastleSnapshot
@@ -54,8 +60,8 @@ public sealed class RuntimeLegalAction
     public string ActionId { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public int Actor { get; set; }
-    public string? SourceId { get; set; }
-    public string? TargetId { get; set; }
+    public object? SourceId { get; set; }
+    public object? TargetId { get; set; }
     public string? CardId { get; set; }
     public string? ReasonKey { get; set; }
     public IReadOnlyDictionary<string, object?> Payload { get; set; } = new Dictionary<string, object?>();
@@ -69,8 +75,8 @@ public sealed class RuntimeGameAction
     public string ActionId { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public int Actor { get; set; }
-    public string? SourceId { get; set; }
-    public string? TargetId { get; set; }
+    public object? SourceId { get; set; }
+    public object? TargetId { get; set; }
     public string? CardId { get; set; }
     public IReadOnlyDictionary<string, object?> Payload { get; set; } = new Dictionary<string, object?>();
 }
@@ -121,16 +127,17 @@ public static class RuntimeActionBoundary
         }
         if (advertised is null) return RuntimeActionValidation.Reject("action.not_advertised");
         if (advertised.Type != action.Type || advertised.Actor != action.Actor || advertised.ContractVersion != action.ContractVersion ||
-            advertised.SnapshotRevision != action.SnapshotRevision || advertised.SourceId != action.SourceId ||
-            advertised.TargetId != action.TargetId || advertised.CardId != action.CardId || !ValuesEqual(advertised.Payload, action.Payload))
+            advertised.SnapshotRevision != action.SnapshotRevision || !ValuesEqual(advertised.SourceId, action.SourceId) ||
+            !ValuesEqual(advertised.TargetId, action.TargetId) || advertised.CardId != action.CardId || !ValuesEqual(advertised.Payload, action.Payload))
             return RuntimeActionValidation.Reject("action.advertisement_mismatch");
         return RuntimeActionValidation.Accept();
     }
 
-    private static bool ValuesEqual(object? left, object? right)
+    internal static bool ValuesEqual(object? left, object? right)
     {
         if (ReferenceEquals(left, right)) return true;
         if (left is null || right is null) return false;
+        if (Equals(RuntimeWireValue.Normalize(left), RuntimeWireValue.Normalize(right))) return true;
         if (left is IReadOnlyDictionary<string, object?> leftMap && right is IReadOnlyDictionary<string, object?> rightMap)
         {
             if (leftMap.Count != rightMap.Count) return false;
@@ -151,6 +158,7 @@ public static class RuntimeActionBoundary
         }
         return Equals(left, right);
     }
+
 }
 
 public sealed class RuntimeActionValidation

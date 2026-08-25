@@ -22,6 +22,43 @@ public sealed partial class EffectRuntime
         ApplyPunishDelta(State.GetPlayer(context.SourcePlayerIndex), spec.Amount, context);
     }
 
+    public void AddRoot(EffectSpec spec, EffectContext context)
+    {
+        if (!TryPositiveAmount(spec, context, out var amount))
+        {
+            return;
+        }
+
+        var player = State.GetPlayer(context.SourcePlayerIndex);
+        var before = player.RootStacks;
+        var after = SaturatingAdd(before, amount);
+        Commit(_ => player.RootStacks = after);
+        Emit("ROOT_STACKS_ADDED", context, Data(
+            "player", player.PlayerIndex,
+            "amount", after - before,
+            "requested", amount,
+            "total", after));
+    }
+
+    public void AddRampant(EffectSpec spec, EffectContext context)
+    {
+        if (!TryPositiveAmount(spec, context, out var amount))
+        {
+            return;
+        }
+
+        var player = State.GetPlayer(context.SourcePlayerIndex);
+        var before = player.RampantStacks;
+        var after = (int)Math.Min(3L, (long)before + amount);
+        Commit(_ => player.RampantStacks = after);
+        Emit("RAMPANT_STACKS_ADDED", context, Data(
+            "player", player.PlayerIndex,
+            "amount", after - before,
+            "requested", amount,
+            "total", after,
+            "capped", after != (long)before + amount));
+    }
+
     public void ConvertPunishToDiscard(EffectSpec spec, EffectContext context)
     {
         var enemy = State.GetOpponent(context.SourcePlayerIndex);
@@ -38,7 +75,7 @@ public sealed partial class EffectRuntime
 
     public void Negate(EffectSpec spec, EffectContext context)
     {
-        var protectedPlayerIndex = (context.PlayedCard ?? context.Attacker ?? context.SourceCard)?.OwnerPlayerIndex
+        var protectedPlayerIndex = (context.PlayedCard ?? context.Attacker ?? context.SourceCard)?.ControllerPlayerIndex
             ?? context.SourcePlayerIndex;
         if (State.GetPlayer(protectedPlayerIndex).ProtectedThisTurn)
         {
@@ -149,21 +186,57 @@ public sealed partial class EffectRuntime
             Commit(_ => breaker.CycleWinCount = Math.Max(
                 breaker.CycleWinCount,
                 State.CastleBreakVictoryCount));
-            ForceLeaderOut(State.GetOpponent(context.SourcePlayerIndex), context);
-            var breakerLeader = FindLeaderAnywhere(breaker);
+            var defender = State.GetOpponent(context.SourcePlayerIndex);
+            ForceLeaderOut(defender, context);
+
+            // When both active leaders are minions, resolve the castle break
+            // first, before any per-leader castle condition can create a tie.
+            var breakerLeader = breaker.Leader;
+            var defenderLeader = defender.Leader;
             if (breakerLeader is not null
-                && string.Equals(
-                    breakerLeader.Definition.LeaderWinCondition,
-                    "ROYAL_CASTLE_BREAK",
-                    StringComparison.Ordinal))
+                && defenderLeader is not null
+                && breakerLeader.IsMinion
+                && defenderLeader.IsMinion)
             {
-                DeclareWinner(context.SourcePlayerIndex, "win.royal_castle_break", context);
+                DeclareWinner(context.SourcePlayerIndex, "win.castle_break_minion", context);
+                return;
             }
+
+            // ROYAL_CASTLE_BREAK is a passive condition of the currently
+            // active leader only. Hidden leaders must not win from the deck,
+            // hand, or graveyard; two simultaneous holders fail closed.
+            var breakerHasCastleWin = HasCastleBreakWinCondition(breakerLeader);
+            var defenderHasCastleWin = HasCastleBreakWinCondition(defenderLeader);
+            if (breakerHasCastleWin == defenderHasCastleWin)
+            {
+                return;
+            }
+
+            DeclareWinner(
+                breakerHasCastleWin
+                    ? context.SourcePlayerIndex
+                    : defender.PlayerIndex,
+                "win.royal_castle_break",
+                context);
         }
+    }
+
+    private static bool HasCastleBreakWinCondition(CardInstance? leader)
+    {
+        return leader is not null
+            && string.Equals(
+                leader.Definition.LeaderWinCondition,
+                "ROYAL_CASTLE_BREAK",
+                StringComparison.Ordinal);
     }
 
     private void ForceLeaderOut(PlayerState player, EffectContext context)
     {
+        if (player.HasMultipleActiveLeaders)
+        {
+            return;
+        }
+
         if (player.Leader is not null)
         {
             return;
@@ -178,33 +251,7 @@ public sealed partial class EffectRuntime
             return;
         }
 
-        Commit(_ =>
-        {
-            player.Hand.Remove(leader);
-            player.Deck.Remove(leader);
-            player.Graveyard.Remove(leader);
-            leader.ResetRuntimeState();
-            leader.IsLeaderEntity = true;
-            leader.SummonedThisTurn = leader.Definition.IsMinion;
-            leader.ChantRemaining = leader.Definition.Chant;
-            player.Field.Add(leader);
-            if (leader.Definition.GrantLife > 0)
-            {
-                player.Life = leader.Definition.GrantLife;
-            }
-        });
-        Emit("LEADER_MANIFESTED", context, Data(
-            "player", player.PlayerIndex,
-            "target", leader.InstanceId));
-        if (leader.Definition.LeaderEnterEffects.Count > 0)
-        {
-            EffectDispatcher.CreateDefault(this).ApplyAll(
-                leader.Definition.LeaderEnterEffects,
-                new EffectContext(
-                    player.PlayerIndex,
-                    context.RootEventId,
-                    sourceCard: leader));
-        }
+        ManifestLeader(player, leader, context, byPunish: false);
     }
 
     private static CardInstance? FindLeader(System.Collections.Generic.IEnumerable<CardInstance> cards)
@@ -220,12 +267,5 @@ public sealed partial class EffectRuntime
         return null;
     }
 
-    private static CardInstance? FindLeaderAnywhere(PlayerState player)
-    {
-        return player.Leader
-            ?? FindLeader(player.Hand)
-            ?? FindLeader(player.Deck)
-            ?? FindLeader(player.Graveyard);
-    }
 }
 }

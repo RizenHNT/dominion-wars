@@ -83,6 +83,40 @@ public sealed class MatchControllerTests
     }
 
     [Test]
+    public void LegalActionsFollowTheFlowAfterEachPhaseBoundary()
+    {
+        var state = new GameState(new PlayerState(0, 20), new PlayerState(1, 20));
+        var flow = TurnFlow.CreateDefault();
+        var controller = new MatchController(state, flow, TurnActionRouter.CreateDefault(flow));
+
+        flow.Advance(state, 0);
+        var ambush = controller.GetLegalActions(0);
+        var skip = controller.Submit(new GameActionRequest(0, TurnAction.SkipAmbush));
+        var action = controller.GetLegalActions(0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ambush.Select(item => item.Type), Is.EqualTo(new[] { TurnAction.SkipAmbush }));
+            Assert.That(skip.Accepted, Is.True);
+            Assert.That(state.Turn.PhaseId, Is.EqualTo(TurnPhase.Action));
+            Assert.That(action, Is.Not.Empty);
+            Assert.That(action.All(item => item.Actor == 0), Is.True);
+        });
+    }
+
+    [Test]
+    public void NullSubmissionFailsBeforeReadingOrMutatingTheMatch()
+    {
+        var state = new GameState(new PlayerState(0, 20), new PlayerState(1, 20));
+        var flow = TurnFlow.CreateDefault();
+        var controller = new MatchController(state, flow, TurnActionRouter.CreateDefault(flow));
+        var before = state.Events.Count;
+
+        Assert.Throws<ArgumentNullException>(() => controller.Submit(null!));
+        Assert.That(state.Events.Count, Is.EqualTo(before));
+    }
+
+    [Test]
     public void GameOverHasNoActionsAndRejectsSubmissionWithoutEvents()
     {
         var state = new GameState(new PlayerState(0, 20), new PlayerState(1, 20));

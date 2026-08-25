@@ -41,6 +41,11 @@ public sealed class PlayerDto
     public int PunishDrawnThisTurn { get; set; }
     public bool DamagedThisCycle { get; set; }
     public int NoDamageTurns { get; set; }
+    public int PullCount { get; set; }
+    public int RootStacks { get; set; }
+    public int RampantStacks { get; set; }
+    public int CommitQueueCount { get; set; }
+    public int CloudStackCount { get; set; }
 }
 
 public sealed class CardDto
@@ -74,6 +79,7 @@ public sealed class CardDto
     public bool Shield { get; set; }
     public int AttacksUsed { get; set; }
     public bool SummonedThisTurn { get; set; }
+    public bool Sealed { get; set; }
     public IReadOnlyList<string> Keywords { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
 }

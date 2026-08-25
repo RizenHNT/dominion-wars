@@ -1,0 +1,15 @@
+{
+  "contractVersion": 1,
+  "eventId": "evt_000000000012",
+  "parentEventId": null,
+  "type": "PULL_DECLARED",
+  "turn": 1,
+  "phase": "ACTION",
+  "snapshotRevision": 5,
+  "targetIds": [21],
+  "data": {
+    "player": 0,
+    "source": 10,
+    "target": 21
+  }
+}

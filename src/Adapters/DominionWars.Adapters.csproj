@@ -10,5 +10,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Engine\DominionWars.Engine.csproj" />
+    <ProjectReference Include="..\Data\DominionWars.Data.csproj" />
   </ItemGroup>
 </Project>

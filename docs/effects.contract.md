@@ -19,18 +19,18 @@
 6. **结算顺序 = 数组顺序**。卡 JSON 里 effect 数组 = 严格顺序；引擎不重排
 7. **失败必须可观测**：目标不存在 / 条件不满足 / 超上限 → 写一个 log 事件，**不算 bug**
 
-## 2. 动作清单（24 个，20 个动作被卡数据实际引用）
+## 2. 动作清单（33 个，21 个动作被当前 91 张卡数据实际引用）
 
 枚举定义：`data/schema/cards.schema.json` → `$defs/EffectAction`
 91 卡扫描结果（所有普通 `*Effects` 数组）：
-**已用 20 个**：`DAMAGE / HEAL / DRAW / DISCARD_OPP_RANDOM / DISCARD_DRAWN / DESTROY / BUFF / GRANT_KEYWORD / SUMMON / SUMMON_LEADER / END_TURN / ADD_OPP_PUNISH_TURN / CONVERT_PUNISH_TO_DISCARD / PROTECT_TURN / NEGATE / NEGATE_ENEMY_EFFECTS_TURN / SKIP_RESHUFFLE / RESTORE_ATTACKS / DAMAGE_CASTLE / WIN_GAME`
-**预留 4 个**：`OPP_DRAW / ADD_SELF_PUNISH_TURN / GAIN_LIFE / LOSE_LIFE`（Effects.java 实现了但当前 91 张卡无引用）
+**已用 21 个**：`DAMAGE / HEAL / DRAW / DISCARD_OPP_RANDOM / DISCARD_DRAWN / DESTROY / BUFF / GRANT_KEYWORD / SUMMON / SUMMON_LEADER / END_TURN / ADD_OPP_PUNISH_TURN / CONVERT_PUNISH_TO_DISCARD / PROTECT_TURN / NEGATE / NEGATE_ENEMY_EFFECTS_TURN / SKIP_RESHUFFLE / RESTORE_ATTACKS / DAMAGE_CASTLE / WIN_GAME / ADD_RAMPANT`
+**预留 4 个**：`OPP_DRAW / ADD_SELF_PUNISH_TURN / GAIN_LIFE / LOSE_LIFE`（Effects.java 实现了但当前 91 张卡无引用；`ADD_ROOT` 作为木计数器扩展动作已实现但尚未被 91 张运行时卡数据引用）
 
 ## 3. 单动作合约（24 节）
 
 每节格式：**做什么 / 参数 / target 解释 / 副作用 / 反制规则 / 卡引用**
 
-> `EffectAction` 的 24 个值是普通 `IEffect` 动作。`DISABLE_ENEMY_LEADER` **不再属于任何动作集**：2026-08-15 人类裁决已将该机制**整体删除**（初期禁用对方特殊胜利条件过险）。未来若需临时/触发型控制，必须使用独立的 `*Controls` 结构，由上层规则/状态投影解释，不能注册进普通 `EffectDispatcher`。
+> `EffectAction` 的 33 个值是普通 `IEffect` 动作；新增动作的细节见 §11。`DISABLE_ENEMY_LEADER` **不再属于任何动作集**：2026-08-15 人类裁决已将该机制**整体删除**（初期禁用对方特殊胜利条件过险）。未来若需临时/触发型控制，必须使用独立的 `*Controls` 结构，由上层规则/状态投影解释，不能注册进普通 `EffectDispatcher`。
 
 ### 3.1 DAMAGE
 - 做什么：对目标造成 N 点伤害
@@ -202,7 +202,7 @@
 
 ### 4.1 Persistent aura
 
-`leaderDef.persistentEffects` 是独立的持久光环数组。**2026-08-15 人类裁决删除 DISABLE_ENEMY_LEADER 机制**：该值不再被任何卡使用，也不属于允许值集合（shadow_of_fate 的压制光环已移除，重设计并入统领重设计批次）。`leaderDef.persistentEffects` 目前无允许值，预留用于未来显式光环；它与 `leaderDef.enterEffects`、`punishEffects` 的一次性结算分离，也不计入 24 个普通动作。
+`leaderDef.persistentEffects` 是独立的持久光环数组。**2026-08-15 人类裁决删除 DISABLE_ENEMY_LEADER 机制**：该值不再被任何卡使用，也不属于允许值集合（shadow_of_fate 的压制光环已移除，重设计并入统领重设计批次）。`leaderDef.persistentEffects` 目前无允许值，预留用于未来显式光环；它与 `leaderDef.enterEffects`、`punishEffects` 的一次性结算分离，也不计入 33 个普通动作。
 
 ### 4.2 Effect-level kingSlayer
 
@@ -246,7 +246,7 @@ public sealed class EffectDispatcher {
 }
 ```
 
-24 个 IEffect 实现位于 `src/Engine/Effects/{ActionName}Effect.cs`，**禁止把动作逻辑留在 Dispatcher 里**。
+33 个 IEffect 实现位于 `src/Engine/Effects/{ActionName}Effect.cs`，**禁止把动作逻辑留在 Dispatcher 里**。
 
 ## 8. 版本与契约一致性
 
@@ -257,7 +257,7 @@ public sealed class EffectDispatcher {
 
 ## 9. 待办（移交 Codex）
 
-1. ✅ C# 侧已把 Effects.java 24 个动作平移为 24 个 IEffect 实现（`src/Engine/Effects/`）
+1. ✅ C# 侧已把 Effects.java 的 24 个基线动作平移，并扩展为契约声明的 33 个 IEffect 实现（`src/Engine/Effects/`）
 2. ✅ `ContractBoundaryTests` 覆盖未知 action fail-closed 与 dispatcher/schema 数量对齐
 3. ✅ `EffectRuntimeTests` / `EffectSafetyTests` 覆盖 DAMAGE + NEGATE 顺序与无效结算事件
 4. ⏳ SPEC.md §10 适配器签名定稿
@@ -293,18 +293,38 @@ public sealed class EffectDispatcher {
 
 | 动作 | 中文 | 语义 |
 |---|---|---|
-| COMMIT | 提交 | 付费将卡移入提交队列 |
-| PUSH | 上传 | 结束阶段队列卡进入云端栈并触发上传效果 |
-| PULL | 下载 | 付费拉取云端栈顶结算下载效果 |
+| COMMIT | 提交 | 玩家主动动作：选己方场上机械卡，付费移入提交队列，触发提交效果（出牌≠提交，B 模式） |
+| PUSH | 上传 | **付费**将队列卡送入云端栈并触发上传效果（2026-08-16：上传与下载都需付费，非 Upload） |
+| PULL | 下载 | 需己方场上下载载体（tag="机械"）才可发起：付费拉取云端栈顶，触发被下载卡声明的下载效果（写在卡自身固定值，强化目标=载体）；无载体不可下载 |
 | ROLLBACK | 回滚 | 队列卡回手（费用不返还） |
 
-### 11.3 木计数器（非效果动作，玩家级状态）
+### 11.2.1 Card lifecycle and landmark metadata
+
+The card schema may optionally declare `commitCost`, `uploadCost`, and
+`downloadCost` (non-negative integers) together with `commitEffects`,
+`pushEffects`, and `pullEffects` (`EffectSpec[]`). Omitted fields retain the
+backward-compatible defaults of zero and an empty effect list. The current C#
+runtime exposes the declared costs as action metadata; selecting a concrete
+resource/payment source remains a separate rules decision.
+
+`leaderDef.isLandmark` and `leaderDef.landmarkTiers` are also optional
+declarative metadata. Each tier has a positive `tier`, optional display
+`effect`, optional `effectSpecs`, optional `chant`, and optional stable `summon`
+card id. Loading these fields does not choose a leader shape or advance tiers;
+those behaviors remain gated by the approved landmark rules batch.
+
+### 11.3 木计数器与计数动作（玩家级状态）
 
 | 计数器 | 中文 | 语义 |
 |---|---|---|
-| rootStacks | 扎根 | 加法蓄力层：施加强化时按层数加 buff（基础 + 层数×4），应用后消耗 |
+| rootStacks | 扎根 | 加法叠层：使用扎根卡 → 层数+1（累计不消耗）；施加强化时按层数加 buff（每层 +1/+1，2026-08-16 人类定稿，非×4） |
 | rampantStacks | 疯长 | 乘法倍增层（统领专属，上限 3）：每施加 buff 累乘 ×2^层，不消耗 |
 | sealed | 封印 | 受扎根/疯长增幅的强化目标：无法攻击 + 失去特殊能力 |
+
+| 动作 | 语义 |
+|---|---|
+| ADD_ROOT | 将来源玩家的 `rootStacks` 增加 `amount`，累计不消耗；非正 amount 拒绝并记录失败事件 |
+| ADD_RAMPANT | 将来源玩家的 `rampantStacks` 增加 `amount`，上限 3；超出部分不生效但可观测 |
 
 ### 11.4 关键词新值（Keyword 枚举）
 

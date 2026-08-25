@@ -14,6 +14,7 @@ public sealed class AttackTargetPolicy
         return attacker is not null
             && attacker.IsMinion
             && attacker.IsAlive
+            && !attacker.Sealed
             && attacker.Attack > 0
             && (!attacker.SummonedThisTurn || HasCharge(attacker))
             && attacker.AttacksUsed < attacker.Definition.AttacksPerTurn;
@@ -31,7 +32,17 @@ public sealed class AttackTargetPolicy
             return Array.Empty<AttackTarget>();
         }
 
-        var enemy = state.GetOpponent(attacker.OwnerPlayerIndex);
+        var controller = attacker.ControllerPlayerIndex;
+        var enemy = state.GetOpponent(controller);
+        // A malformed state with more than one active leader has no
+        // authoritative leader target.  Fail closed instead of falling
+        // through to the player's life core (or exposing an arbitrary
+        // leader) while the state is awaiting repair/rejection.
+        if (enemy.HasMultipleActiveLeaders)
+        {
+            return Array.Empty<AttackTarget>();
+        }
+
         var taunts = new List<CardInstance>();
         foreach (var card in enemy.Field)
         {
@@ -62,6 +73,7 @@ public sealed class AttackTargetPolicy
 
         var leader = enemy.Leader;
         if (leader is not null
+            && !string.Equals(leader.Definition.Type, "AMBUSH", StringComparison.OrdinalIgnoreCase)
             && (!IsGuarded(leader, enemy) || attacker.Definition.KingSlayer))
         {
             result.Add(AttackTarget.ForEntity(leader));

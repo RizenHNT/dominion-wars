@@ -29,6 +29,14 @@ public sealed partial class EffectRuntime
 
         ExpireInactivePunish(player, context);
         TrackNoDamageTurn(player, context);
+        if (IsGameOver)
+        {
+            return;
+        }
+
+        // All other END effects settle first; only then does the queue push
+        // FIFO into the public cloud stack.
+        PushQueue(player, context);
         EvaluateLeaderWinConditions(context);
     }
 
@@ -140,6 +148,20 @@ public sealed partial class EffectRuntime
                     break;
                 case "OPP_PUNISH_DRAW_TURN_GE":
                     current = opponent.PunishDrawnThisTurn;
+                    break;
+                case "PULL_TOTAL_GE":
+                    current = player.PullCount;
+                    break;
+                case "GIANT_HEALTH_GE":
+                    foreach (var card in player.Field)
+                    {
+                        if (card.IsMinion && card.Sealed && card.Health >= leader.Definition.LeaderWinParam)
+                        {
+                            current = leader.Definition.LeaderWinParam;
+                            break;
+                        }
+                    }
+
                     break;
                 default:
                     continue;

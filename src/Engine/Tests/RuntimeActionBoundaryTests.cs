@@ -431,7 +431,7 @@ public sealed class RuntimeActionBoundaryTests
                     ActionId = "play_1",
                     Type = "PLAY_CARD",
                     Actor = 0,
-                    SourceId = "entity_1",
+                    SourceId = 1L,
                     Payload = new Dictionary<string, object?> { ["count"] = 1 },
                 },
             },
@@ -447,7 +447,7 @@ public sealed class RuntimeActionBoundaryTests
             ActionId = "play_1",
             Type = "PLAY_CARD",
             Actor = 0,
-            SourceId = "entity_1",
+            SourceId = 1L,
             Payload = new Dictionary<string, object?> { ["count"] = 1 },
         };
     }

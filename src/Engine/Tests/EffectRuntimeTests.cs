@@ -1,5 +1,7 @@
+using System.Linq;
 using DominionWars.Engine.Effects;
 using DominionWars.Engine.Model;
+using DominionWars.Engine.Turns;
 using NUnit.Framework;
 
 namespace DominionWars.Engine.Tests
@@ -42,6 +44,200 @@ public sealed class EffectRuntimeTests
         game.State.Players[1].Deck.Add(new CardInstance(10, 1, game.SoldierDefinition));
         game.Apply(EffectNames.OppDraw, amount: 1);
         Assert.That(game.State.Players[1].Hand, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void DrawingLeaderManifestsWithoutHandAndRunsOnlyEnterEffects()
+    {
+        var game = new EffectTestFixture();
+        var leaderDefinition = new CardDefinition(
+            "drawn_leader",
+            "Drawn Leader",
+            isLeader: true,
+            grantLife: 10,
+            leaderEnterEffects: new[]
+            {
+                new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 2),
+            },
+            leaderPunishEffects: new[]
+            {
+                new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 7),
+            });
+        var leader = new CardInstance(11, 0, leaderDefinition);
+        game.State.Players[0].Deck.Add(leader);
+
+        game.Apply(EffectNames.Draw, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.Players[0].Deck, Does.Not.Contain(leader));
+            Assert.That(game.State.Players[0].Hand, Does.Not.Contain(leader));
+            Assert.That(game.State.Players[0].LeaderZone, Has.Exactly(1).EqualTo(leader));
+            Assert.That(game.State.Players[0].Field, Does.Not.Contain(leader));
+            Assert.That(game.State.Players[0].Leader, Is.SameAs(leader));
+            Assert.That(game.State.Players[0].Life, Is.EqualTo(12));
+            Assert.That(game.State.Events.Items.Count(item => item.EventType == "LEADER_MANIFESTED"),
+                Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void DrawingLeaderFormsManifestIntoTheirDedicatedZones()
+    {
+        var cases = new[]
+        {
+            (id: "drawn_minion_leader", type: "MINION", isMinion: true),
+            (id: "drawn_ambush_leader", type: "AMBUSH", isMinion: false),
+            (id: "drawn_spell_leader", type: "SPELL", isMinion: false),
+        };
+
+        foreach (var testCase in cases)
+        {
+            var game = new EffectTestFixture();
+            var definition = new CardDefinition(
+                testCase.id,
+                testCase.id,
+                isMinion: testCase.isMinion,
+                isLeader: true,
+                type: testCase.type);
+            var leader = new CardInstance(12, 0, definition);
+            game.State.Players[0].Deck.Add(leader);
+
+            game.Apply(EffectNames.Draw, amount: 1);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(game.State.Players[0].Leader, Is.SameAs(leader));
+                Assert.That(game.State.Players[0].Field.Contains(leader), Is.EqualTo(testCase.isMinion));
+                Assert.That(game.State.Players[0].AmbushZone.Contains(leader),
+                    Is.EqualTo(!testCase.isMinion && testCase.type == "AMBUSH"));
+                Assert.That(game.State.Players[0].LeaderZone.Contains(leader),
+                    Is.EqualTo(!testCase.isMinion && testCase.type != "AMBUSH"));
+                Assert.That(game.State.Players[0].ActiveLeaderCount, Is.EqualTo(1));
+            });
+        }
+    }
+
+    [Test]
+    public void DrawingAmbushLeaderPreservesItsSpecialZoneAndTargetRule()
+    {
+        var game = new EffectTestFixture();
+        var ambushDefinition = new CardDefinition(
+            "drawn_ambush_special",
+            "Drawn Ambush Special",
+            isLeader: true,
+            type: "AMBUSH",
+            ambushKind: "REVEAL",
+            ambushTrigger: "OPPONENT_ATTACK");
+        var ambush = new CardInstance(15, 1, ambushDefinition);
+        game.State.GetPlayer(1).Deck.Add(ambush);
+
+        game.Apply(EffectNames.OppDraw, amount: 1);
+        var targets = new AttackTargetPolicy().GetLegalTargets(game.State, game.Friendly);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.GetPlayer(1).Deck, Does.Not.Contain(ambush));
+            Assert.That(game.State.GetPlayer(1).Hand, Does.Not.Contain(ambush));
+            Assert.That(game.State.GetPlayer(1).AmbushZone, Has.Exactly(1).EqualTo(ambush));
+            Assert.That(game.State.GetPlayer(1).Leader, Is.SameAs(ambush));
+            Assert.That(game.State.GetPlayer(1).Field, Does.Not.Contain(ambush));
+            Assert.That(targets.Select(target => target.Id),
+                Does.Not.Contain(AttackTarget.ForEntity(ambush).Id));
+        });
+    }
+
+    [Test]
+    public void AmbiguousActiveLeaderDrawFailsClosedWithoutSideEffects()
+    {
+        var game = new EffectTestFixture();
+        var leaderDefinition = new CardDefinition(
+            "reentrant_leader",
+            "Reentrant Leader",
+            isLeader: true,
+            grantLife: 10,
+            leaderEnterEffects: new[]
+            {
+                new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 2),
+            });
+        var leader = new CardInstance(12, 0, leaderDefinition)
+        {
+            IsLeaderEntity = true,
+        };
+        game.State.Players[0].Field.Add(leader);
+        game.State.Players[0].Field.Add(leader);
+        game.State.Players[0].Deck.Add(leader);
+        var lifeBefore = game.State.Players[0].Life;
+
+        game.Apply(EffectNames.Draw, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.Players[0].Field.Count(card => ReferenceEquals(card, leader)),
+                Is.EqualTo(2));
+            Assert.That(game.State.Players[0].Hand, Does.Not.Contain(leader));
+            Assert.That(game.State.Players[0].Deck, Has.Exactly(1).EqualTo(leader));
+            Assert.That(game.State.Players[0].Life, Is.EqualTo(lifeBefore));
+            Assert.That(game.State.Events.Items.Count(item => item.EventType == "LEADER_MANIFESTED"),
+                Is.Zero);
+        });
+    }
+
+    [Test]
+    public void DifferentActiveLeaderDrawFailsClosedWithoutMovingTheCandidate()
+    {
+        var game = new EffectTestFixture();
+        var activeLeader = new CardInstance(13, 0, game.LeaderDefinition)
+        {
+            IsLeaderEntity = true,
+        };
+        var candidateDefinition = new CardDefinition(
+            "candidate_leader",
+            "Candidate Leader",
+            isLeader: true);
+        var candidate = new CardInstance(14, 0, candidateDefinition);
+        game.State.Players[0].Field.Add(activeLeader);
+        game.State.Players[0].Deck.Add(candidate);
+        var lifeBefore = game.State.Players[0].Life;
+
+        game.Apply(EffectNames.Draw, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.Players[0].Leader, Is.SameAs(activeLeader));
+            Assert.That(game.State.Players[0].Field, Has.Exactly(1).EqualTo(activeLeader));
+            Assert.That(game.State.Players[0].Deck, Has.Exactly(1).EqualTo(candidate));
+            Assert.That(game.State.Players[0].LeaderZone, Is.Empty);
+            Assert.That(game.State.Players[0].Life, Is.EqualTo(lifeBefore));
+            Assert.That(game.State.Events.Items.Count(item => item.EventType == "LEADER_MANIFESTED"),
+                Is.Zero);
+        });
+    }
+
+    [Test]
+    public void LeaderZonesParticipateInEntityLookupAndIdAllocation()
+    {
+        var state = new GameState(new PlayerState(0, 20), new PlayerState(1, 20));
+        var ambushDefinition = new CardDefinition(
+            "ambush_leader",
+            "Ambush Leader",
+            isLeader: true,
+            type: "AMBUSH");
+        var leaderDefinition = new CardDefinition(
+            "spell_leader",
+            "Spell Leader",
+            isLeader: true);
+        var ambush = new CardInstance(90, 0, ambushDefinition) { IsLeaderEntity = true };
+        var leader = new CardInstance(91, 0, leaderDefinition) { IsLeaderEntity = true };
+        state.GetPlayer(0).AmbushZone.Add(ambush);
+        state.GetPlayer(0).LeaderZone.Add(leader);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.FindEntity(90), Is.SameAs(ambush));
+            Assert.That(state.FindEntity(91), Is.SameAs(leader));
+            Assert.That(state.AllocateEntityId(), Is.EqualTo(92));
+        });
     }
 
     [Test]
@@ -362,7 +558,10 @@ public sealed class EffectRuntimeTests
             "Breaker Leader",
             isLeader: true,
             leaderWinCondition: "ROYAL_CASTLE_BREAK",
-            leaderWinText: "Break the castle"));
+            leaderWinText: "Break the castle"))
+        {
+            IsLeaderEntity = true,
+        };
         var victimLeader = new CardInstance(31, 1, new CardDefinition(
             "victim_leader",
             "Victim Leader",
@@ -371,8 +570,9 @@ public sealed class EffectRuntimeTests
             isMinion: true,
             isLeader: true,
             grantLife: 10,
-            leaderEnterEffects: new[] { new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 2) }));
-        game.State.GetPlayer(0).Deck.Add(breakerLeader);
+            leaderEnterEffects: new[] { new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 2) },
+            leaderPunishEffects: new[] { new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 7) }));
+        game.State.GetPlayer(0).LeaderZone.Add(breakerLeader);
         game.State.GetPlayer(1).Deck.Add(victimLeader);
 
         game.Apply(EffectNames.DamageCastle, amount: 2);
@@ -382,11 +582,156 @@ public sealed class EffectRuntimeTests
             Assert.That(game.State.CastleHealth, Is.Zero);
             Assert.That(game.State.GetPlayer(0).CycleWinCount, Is.EqualTo(9));
             Assert.That(game.State.GetPlayer(1).DamagedThisCycle, Is.True);
+            Assert.That(game.State.GetPlayer(0).Leader, Is.SameAs(breakerLeader));
             Assert.That(game.State.GetPlayer(1).Leader, Is.SameAs(victimLeader));
             Assert.That(victimLeader.SummonedThisTurn, Is.True);
             Assert.That(game.State.GetPlayer(1).Life, Is.EqualTo(12));
             Assert.That(game.State.WinnerPlayerIndex, Is.Zero);
             Assert.That(game.State.WinReason, Is.EqualTo("win.royal_castle_break"));
+            var eventTypes = game.State.Events.Items.Select(item => item.EventType).ToList();
+            Assert.That(
+                eventTypes.IndexOf("CASTLE_DAMAGED"),
+                Is.LessThan(eventTypes.IndexOf("CASTLE_BROKEN")));
+            Assert.That(
+                eventTypes.IndexOf("CASTLE_BROKEN"),
+                Is.LessThan(eventTypes.IndexOf("LEADER_MANIFESTED")));
+            Assert.That(
+                eventTypes.IndexOf("LEADER_MANIFESTED"),
+                Is.LessThan(eventTypes.IndexOf("GAME_WON")));
+        });
+    }
+
+    [Test]
+    public void BreakingCastleWithActiveMinionLeadersGivesBreakerPriority()
+    {
+        var game = new EffectTestFixture();
+        game.State.CastleEnabled = true;
+        game.State.CastleHealth = 1;
+        var breakerLeader = new CardInstance(32, 0, new CardDefinition(
+            "breaker_minion_leader",
+            "Breaker Minion Leader",
+            attack: 3,
+            health: 8,
+            isMinion: true,
+            isLeader: true))
+        {
+            IsLeaderEntity = true,
+        };
+        var defenderLeader = new CardInstance(33, 1, new CardDefinition(
+            "defender_minion_leader",
+            "Defender Minion Leader",
+            attack: 3,
+            health: 8,
+            isMinion: true,
+            isLeader: true))
+        {
+            IsLeaderEntity = true,
+        };
+        game.State.GetPlayer(0).Field.Add(breakerLeader);
+        game.State.GetPlayer(1).Field.Add(defenderLeader);
+
+        game.Apply(EffectNames.DamageCastle, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.WinnerPlayerIndex, Is.EqualTo(0));
+            Assert.That(game.State.WinReason, Is.EqualTo("win.castle_break_minion"));
+            Assert.That(game.State.GetPlayer(0).Leader, Is.SameAs(breakerLeader));
+            Assert.That(game.State.GetPlayer(1).Leader, Is.SameAs(defenderLeader));
+        });
+    }
+
+    [Test]
+    public void BreakingCastleRoyalConditionCanAwardActiveDefender()
+    {
+        var game = new EffectTestFixture();
+        game.State.CastleEnabled = true;
+        game.State.CastleHealth = 1;
+        var breakerLeader = new CardInstance(34, 0, new CardDefinition(
+            "ordinary_breaker_leader",
+            "Ordinary Breaker Leader",
+            isLeader: true))
+        {
+            IsLeaderEntity = true,
+        };
+        var defenderLeader = new CardInstance(35, 1, new CardDefinition(
+            "royal_defender_leader",
+            "Royal Defender Leader",
+            isLeader: true,
+            leaderWinCondition: "ROYAL_CASTLE_BREAK"))
+        {
+            IsLeaderEntity = true,
+        };
+        game.State.GetPlayer(0).LeaderZone.Add(breakerLeader);
+        game.State.GetPlayer(1).LeaderZone.Add(defenderLeader);
+
+        game.Apply(EffectNames.DamageCastle, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.WinnerPlayerIndex, Is.EqualTo(1));
+            Assert.That(game.State.WinReason, Is.EqualTo("win.royal_castle_break"));
+        });
+    }
+
+    [Test]
+    public void BreakingCastleIgnoresHiddenRoyalLeader()
+    {
+        var game = new EffectTestFixture();
+        game.State.CastleEnabled = true;
+        game.State.CastleHealth = 1;
+        var activeBreaker = new CardInstance(36, 0, new CardDefinition(
+            "ordinary_active_breaker",
+            "Ordinary Active Breaker",
+            isLeader: true))
+        {
+            IsLeaderEntity = true,
+        };
+        var hiddenRoyalLeader = new CardInstance(37, 0, new CardDefinition(
+            "hidden_royal_leader",
+            "Hidden Royal Leader",
+            isLeader: true,
+            leaderWinCondition: "ROYAL_CASTLE_BREAK"));
+        var defenderLeader = new CardInstance(38, 1, new CardDefinition(
+            "ordinary_active_defender",
+            "Ordinary Active Defender",
+            isLeader: true))
+        {
+            IsLeaderEntity = true,
+        };
+        game.State.GetPlayer(0).LeaderZone.Add(activeBreaker);
+        game.State.GetPlayer(0).Deck.Add(hiddenRoyalLeader);
+        game.State.GetPlayer(1).LeaderZone.Add(defenderLeader);
+
+        game.Apply(EffectNames.DamageCastle, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.WinnerPlayerIndex, Is.Null);
+            Assert.That(game.State.WinReason, Is.Null);
+            Assert.That(game.State.GetPlayer(0).Deck, Does.Contain(hiddenRoyalLeader));
+            Assert.That(game.State.GetPlayer(0).Leader, Is.SameAs(activeBreaker));
+        });
+    }
+
+    [Test]
+    public void BreakingCastleDoesNotLowerCountOrRepeatBreakResolution()
+    {
+        var game = new EffectTestFixture();
+        game.State.CastleEnabled = true;
+        game.State.CastleHealth = 1;
+        game.State.GetPlayer(0).CycleWinCount = 12;
+
+        game.Apply(EffectNames.DamageCastle, amount: 1);
+        game.Apply(EffectNames.DamageCastle, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.GetPlayer(0).CycleWinCount, Is.EqualTo(12));
+            Assert.That(game.State.Events.Items.Count(item => item.EventType == "CASTLE_BROKEN"),
+                Is.EqualTo(1));
+            Assert.That(game.State.Events.Items.Count(item => item.EventType == "CASTLE_DAMAGED"),
+                Is.EqualTo(1));
         });
     }
 

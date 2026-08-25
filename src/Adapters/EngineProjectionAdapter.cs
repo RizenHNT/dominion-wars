@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using DominionWars.Engine.Events;
@@ -29,6 +30,8 @@ public static class EngineProjectionAdapter
             ["LEADER_MANIFESTED"] = "LEADER_MANIFESTED",
             ["LEADER_REPLACED"] = "LEADER_MANIFESTED",
             ["DECK_CYCLED"] = "DECK_CYCLED",
+            ["PULL_DECLARED"] = "PULL_DECLARED",
+            ["CARD_PULLED"] = "CARD_PULLED",
             ["GAME_WON"] = "GAME_OVER",
             ["VICTORY_PROGRESS"] = "VICTORY_PROGRESS",
         };
@@ -85,6 +88,11 @@ public static class EngineProjectionAdapter
                 PunishDrawnThisTurn = player.PunishDrawnThisTurn,
                 DamagedThisCycle = player.DamagedThisCycle,
                 NoDamageTurns = player.NoDamageTurns,
+                PullCount = player.PullCount,
+                RootStacks = player.RootStacks,
+                RampantStacks = player.RampantStacks,
+                CommitQueueCount = player.CommitQueue.Count,
+                CloudStackCount = player.CloudStack.Count,
             });
         }
 
@@ -243,6 +251,7 @@ public static class EngineProjectionAdapter
                 $"Internal event '{gameEvent.EventType}' has no approved UI event mapping.");
         }
 
+        var data = ProjectEventData(gameEvent);
         return new GameEventDto
         {
             ContractVersion = gameEvent.ContractVersion,
@@ -253,11 +262,11 @@ public static class EngineProjectionAdapter
             Type = externalType,
             Turn = turn,
             Phase = phase ?? string.Empty,
-            SourceId = ReadId(gameEvent.Data, "source"),
-            TargetIds = ReadTargets(gameEvent.Data),
-            Amount = ReadNumber(gameEvent.Data, "amount"),
-            ReasonKey = ReadString(gameEvent.Data, "reasonKey"),
-            Data = gameEvent.Data,
+            SourceId = ReadId(data, "sourceId") ?? ReadId(data, "source"),
+            TargetIds = ReadTargets(data),
+            Amount = ReadNumber(data, "amount"),
+            ReasonKey = ReadString(data, "reasonKey"),
+            Data = data,
         };
     }
 
@@ -411,6 +420,7 @@ public static class EngineProjectionAdapter
             Shield = card.Shield,
             AttacksUsed = card.AttacksUsed,
             SummonedThisTurn = card.SummonedThisTurn,
+            Sealed = card.Sealed,
             Keywords = new List<string>(card.Keywords),
             Tags = new List<string>(card.Definition.Tags),
         };
@@ -429,13 +439,40 @@ public static class EngineProjectionAdapter
 
     private static IReadOnlyList<string> ReadTargets(IReadOnlyDictionary<string, object?> data)
     {
-        var target = ReadId(data, "target");
-        return target is null ? Array.Empty<string>() : new[] { target };
+        if (data.TryGetValue("targetIds", out var rawTargets)
+            && rawTargets is IEnumerable targets
+            && rawTargets is not string)
+        {
+            var result = new List<string>();
+            foreach (var rawTarget in targets)
+            {
+                var id = ReadIdValue(rawTarget);
+                if (id is not null)
+                {
+                    result.Add(id);
+                }
+            }
+
+            return result;
+        }
+
+        var canonicalTarget = ReadId(data, "target");
+        return canonicalTarget is null ? Array.Empty<string>() : new[] { canonicalTarget };
     }
 
     private static string? ReadId(IReadOnlyDictionary<string, object?> data, string key)
     {
         if (!data.TryGetValue(key, out var value) || value is null)
+        {
+            return null;
+        }
+
+        return ReadIdValue(value);
+    }
+
+    private static string? ReadIdValue(object? value)
+    {
+        if (value is null)
         {
             return null;
         }
@@ -451,6 +488,45 @@ public static class EngineProjectionAdapter
         }
 
         return Convert.ToString(value, CultureInfo.InvariantCulture);
+    }
+
+    private static IReadOnlyDictionary<string, object?> ProjectEventData(GameEvent gameEvent)
+    {
+        if (gameEvent.EventType == "PULL_DECLARED")
+        {
+            return new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["sourceId"] = ValueOrNull(gameEvent.Data, "source"),
+                ["targetIds"] = SingleTargetList(gameEvent.Data, "target"),
+            };
+        }
+
+        if (gameEvent.EventType == "CARD_PULLED")
+        {
+            return new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["sourceId"] = ValueOrNull(gameEvent.Data, "carrier"),
+                ["targetIds"] = SingleTargetList(gameEvent.Data, "target"),
+                ["amount"] = ValueOrNull(gameEvent.Data, "cost"),
+                ["count"] = ValueOrNull(gameEvent.Data, "pullCount"),
+            };
+        }
+
+        return gameEvent.Data;
+    }
+
+    private static object? ValueOrNull(
+        IReadOnlyDictionary<string, object?> data,
+        string key)
+    {
+        return data.TryGetValue(key, out var value) ? value : null;
+    }
+
+    private static IReadOnlyList<object?> SingleTargetList(
+        IReadOnlyDictionary<string, object?> data,
+        string key)
+    {
+        return new[] { ValueOrNull(data, key) };
     }
 
     private static string? ReadString(IReadOnlyDictionary<string, object?> data, string key)

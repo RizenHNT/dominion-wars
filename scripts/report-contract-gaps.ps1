@@ -5,10 +5,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$contracts = Join-Path $repoRoot 'design/runtime-kit-v1.30/contracts'
+$contracts = Join-Path $repoRoot 'design/runtime-kit-v1.31/contracts'
+$contractSchemas = Join-Path $contracts 'schemas'
 $cardSchemaPath = Join-Path $repoRoot 'data/schema/cards.schema.json'
 $effectNamesPath = Join-Path $repoRoot 'src/Engine/Effects/EffectNames.cs'
 $legalActionsPath = Join-Path $repoRoot 'src/Engine/LegalActionGenerator.cs'
+$turnFlowPath = Join-Path $repoRoot 'src/Engine/Turns/TurnFlow.cs'
+$discardHandlerPath = Join-Path $repoRoot 'src/Engine/Turns/DiscardPhaseHandler.cs'
 $javaEffectsPath = Join-Path $repoRoot 'src/main/java/com/dominionwars/engine/Effects.java'
 $targetResolverPath = Join-Path $repoRoot 'src/Engine/Effects/EffectTargetResolver.cs'
 $adapterPath = Join-Path $repoRoot 'src/Adapters/EngineProjectionAdapter.cs'
@@ -28,18 +31,23 @@ function Get-SwitchSection([string]$Text, [string]$SwitchText, [string]$NextSwit
     }
     return $section
 }
-function Join-OrNone([object[]]$Values) { if ($Values.Count) { return ($Values -join ', ') }; return 'none' }
+function Join-OrNone([object[]]$Values) {
+    $present = @($Values | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($present.Count) { return ($present -join ', ') }
+    return 'none'
+}
 
-$sources = @($cardSchemaPath, $effectNamesPath, $legalActionsPath, $javaEffectsPath, $targetResolverPath, $adapterPath,
-    (Join-Path $contracts 'game_action.schema.json'), (Join-Path $contracts 'ui_event.schema.json'), (Join-Path $contracts 'battle_state_machine.json'))
+$sources = @($cardSchemaPath, $effectNamesPath, $legalActionsPath, $turnFlowPath, $discardHandlerPath, $javaEffectsPath, $targetResolverPath, $adapterPath,
+    (Join-Path $contractSchemas 'game_action.schema.json'), (Join-Path $contractSchemas 'ui_event.schema.json'))
 $sources | ForEach-Object { Require-File $_ }
 
 $cardSchema = Read-Json $cardSchemaPath
-$actionSchema = Read-Json (Join-Path $contracts 'game_action.schema.json')
-$eventSchema = Read-Json (Join-Path $contracts 'ui_event.schema.json')
-$stateMachine = Read-Json (Join-Path $contracts 'battle_state_machine.json')
+$actionSchema = Read-Json (Join-Path $contractSchemas 'game_action.schema.json')
+$eventSchema = Read-Json (Join-Path $contractSchemas 'ui_event.schema.json')
 $effectNames = [IO.File]::ReadAllText($effectNamesPath)
 $legalActions = [IO.File]::ReadAllText($legalActionsPath)
+$turnFlow = [IO.File]::ReadAllText($turnFlowPath)
+$discardHandler = [IO.File]::ReadAllText($discardHandlerPath)
 $javaEffects = [IO.File]::ReadAllText($javaEffectsPath)
 $targetResolver = [IO.File]::ReadAllText($targetResolverPath)
 $adapter = [IO.File]::ReadAllText($adapterPath)
@@ -48,7 +56,14 @@ $effectActions = @(Get-RegexValues $effectNames 'const\s+string\s+\w+\s*=\s*"([A
 $javaActionCases = @(Get-RegexValues (Get-SwitchSection $javaEffects 'switch (e.action)' 'switch (e.target)') 'case\s+"([A-Z][A-Z0-9_]*)"\s*:')
 $cardActions = @($cardSchema.'$defs'.EffectAction.enum)
 $persistentActions = @($cardSchema.'$defs'.PersistentEffectAction.enum)
-$legalTypes = @(Get-RegexValues $legalActions 'const\s+string\s+\w+\s*=\s*"([A-Z][A-Z0-9_]*)"')
+$playerActionSource = $legalActions + "`n" + $turnFlow + "`n" + $discardHandler
+$constantValues = @{}
+[regex]::Matches($playerActionSource, 'const\s+string\s+(\w+)\s*=\s*"([A-Z][A-Z0-9_]*)"') |
+    ForEach-Object { $constantValues[$_.Groups[1].Value] = $_.Groups[2].Value }
+$legalTypes = @([regex]::Matches($playerActionSource, 'Type\s*=\s*(?:\w+\.)?(\w+)') |
+    ForEach-Object { $constantValues[$_.Groups[1].Value] } |
+    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+    Sort-Object -Unique)
 $actionTypes = @($actionSchema.properties.type.enum)
 $cardTargets = @($cardSchema.'$defs'.EffectTarget.enum)
 $javaTargetText = Get-SwitchSection $javaEffects 'switch (e.target)' $null
@@ -59,8 +74,8 @@ $eventTypes = @($eventSchema.properties.type.enum)
 $mappedEventKeys = @(Get-RegexValues $adapter '\["([A-Z][A-Z0-9_]*)"\]\s*=')
 $mappedEvents = @(Get-RegexValues $adapter '\]\s*=\s*"([A-Z][A-Z0-9_]*)"')
 $engineSource = @((Get-ChildItem (Join-Path $repoRoot 'src/Engine') -Recurse -Filter '*.cs' | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n")
-$internalEvents = @(Get-RegexValues $engineSource 'Emit\("([A-Z][A-Z0-9_]*)')
-$phaseTypes = @($stateMachine.phaseOrder) + 'OVER'
+$internalEvents = @(Get-RegexValues $engineSource '(?:Emit|Events\.Append)\("([A-Z][A-Z0-9_]*)')
+$phaseTypes = @($eventSchema.properties.phase.enum)
 $phaseClause = Get-RegexValues $adapter 'snapshot\.Phase is not \(([^)]*)\)'
 $adapterPhases = @(Get-RegexValues ($phaseClause -join ' ') '"([A-Z]+)"')
 
@@ -87,10 +102,10 @@ $lines.Add('')
 $lines.Add('| Check | Result |')
 $lines.Add('|---|---|')
 $lines.Add(('| Card EffectAction missing in C# | {0} |' -f (Join-OrNone $actionMissingCSharp)))
-$lines.Add(('| Card EffectAction missing in Java | {0} |' -f (Join-OrNone $actionMissingJava)))
-$lines.Add(('| Java action cases not in C# EffectNames | {0} |' -f (Join-OrNone $actionJavaOnly)))
-$lines.Add(('| UI action types absent from C# LegalActionGenerator | {0} |' -f (Join-OrNone $uiActionOnly)))
-$lines.Add(('| C# legal action types absent from UI schema | {0} |' -f (Join-OrNone $engineActionOnly)))
+$lines.Add(('| Card EffectAction absent from historical Java reference | {0} |' -f (Join-OrNone $actionMissingJava)))
+$lines.Add(('| Historical Java-only action cases absent from C# | {0} |' -f (Join-OrNone $actionJavaOnly)))
+$lines.Add(('| Contract player actions absent from C# action generators | {0} |' -f (Join-OrNone $uiActionOnly)))
+$lines.Add(('| C# advertised player actions absent from Contract 1.31 | {0} |' -f (Join-OrNone $engineActionOnly)))
 $lines.Add(('| Persistent actions (separate schema family) | {0} |' -f (Join-OrNone $persistentActions)))
 $lines.Add('')
 $lines.Add('## Targets')
@@ -99,22 +114,22 @@ $lines.Add('| Check | Result |')
 $lines.Add('|---|---|')
 $lines.Add(('| Card schema targets | {0} |' -f (Join-OrNone $cardTargets)))
 $lines.Add(('| C# resolver-only targets | {0} |' -f (Join-OrNone $targetCSharpOnly)))
-$lines.Add(('| Java resolver-only targets | {0} |' -f (Join-OrNone $targetJavaOnly)))
+$lines.Add(('| Historical Java resolver-only targets | {0} |' -f (Join-OrNone $targetJavaOnly)))
 $lines.Add('')
 $lines.Add('## Events and phases')
 $lines.Add('')
 $lines.Add('| Check | Result |')
 $lines.Add('|---|---|')
-$lines.Add(('| Internal emitted event types not mapped by Adapter | {0} |' -f (Join-OrNone $eventUnmapped)))
+$lines.Add(('| Internal-only emitted events filtered by batch Adapter projection | {0} |' -f (Join-OrNone $eventUnmapped)))
 $lines.Add(('| UI schema event types absent from Adapter map | {0} |' -f (Join-OrNone $eventSchemaUnmapped)))
 $lines.Add(('| State-machine phases absent from Adapter validation | {0} |' -f (Join-OrNone $phaseMissing)))
 $lines.Add('')
-$lines.Add('## Required decisions')
+$lines.Add('## Current boundaries')
 $lines.Add('')
-$lines.Add('- HUMAN_REQUIRED: choose the canonical action set and whether punish/leader actions are transport actions or internal commands.')
-$lines.Add('- HUMAN_REQUIRED: approve a target union for minions, leaders, castle and life cores; do not expose aliases by guesswork.')
-$lines.Add('- HUMAN_REQUIRED: approve event naming/mapping and root-event policy before filling the unmapped event list.')
-$lines.Add('- BLOCKED: Unity package resolution, compilation, EditMode and Windows build remain runtime gates outside this report.')
+$lines.Add('- Contract 1.31 freezes the six player actions above. Target choice is a PLAY_CARD/ATTACK substep, punish is passive, and leader ability is outside MVP.')
+$lines.Add('- Java is a historical comparison source only; Java differences are inventory, not C# implementation failures.')
+$lines.Add('- Batch Adapter projection intentionally filters unapproved internal events and reparents projectable descendants. Adding public mappings still requires an approved contract event.')
+$lines.Add('- Unity compilation, EditMode and Windows build are outside this report; use `scripts/run-unity-runtime-validation.ps1` for that independent gate.')
 
 $report = $lines -join [Environment]::NewLine
 if ($OutputPath) {
@@ -122,7 +137,7 @@ if ($OutputPath) {
     $parent = Split-Path -Parent $full
     if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
     [IO.File]::WriteAllText($full, $report + [Environment]::NewLine, [Text.Encoding]::UTF8)
-    Write-Output ("CONTRACT_GAPS path={0} actionGaps={1} targetGaps={2} eventGaps={3}" -f $full, ($actionMissingCSharp.Count + $actionMissingJava.Count + $uiActionOnly.Count + $engineActionOnly.Count), ($targetCSharpOnly.Count + $targetJavaOnly.Count), ($eventUnmapped.Count + $eventSchemaUnmapped.Count))
+    Write-Output ("CONTRACT_GAPS path={0} actionGaps={1} targetGaps={2} eventGaps={3}" -f $full, ($actionMissingCSharp.Count + $uiActionOnly.Count + $engineActionOnly.Count), $targetCSharpOnly.Count, $eventSchemaUnmapped.Count)
 } else {
     Write-Output $report
 }

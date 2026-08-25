@@ -84,6 +84,9 @@ public sealed class SnapshotMapperTests
             TotalDiscarded = 6,
             PunishDrawnThisTurn = 7,
             DamagedThisCycle = true,
+            PullCount = 3,
+            RootStacks = 2,
+            RampantStacks = 1,
         };
         var player1 = new PlayerState(1, 20);
         var definition = new CardDefinition(
@@ -97,12 +100,15 @@ public sealed class SnapshotMapperTests
             AttacksUsed = 2,
             SummonedThisTurn = true,
             IsLeaderEntity = true,
+            Sealed = true,
         };
         card.Keywords.Add("额外标记");
         player0.Deck.Add(card);
         player0.Hand.Add(new CardInstance(8, 0, definition));
         player0.Field.Add(new CardInstance(9, 0, definition));
         player0.Graveyard.Add(new CardInstance(10, 0, definition));
+        player0.CommitQueue.Add(new CardInstance(11, 0, definition));
+        player0.CloudStack.Add(new CardInstance(12, 0, definition));
         var state = new GameState(player0, player1) { CastleEnabled = true, CastleHealth = 61 };
 
         var snapshot = EngineProjectionAdapter.ToSnapshot(state, "match_mapper", 12, "ACTION");
@@ -127,6 +133,11 @@ public sealed class SnapshotMapperTests
             Assert.That(mapped.TotalDiscarded, Is.EqualTo(6));
             Assert.That(mapped.PunishDrawnThisTurn, Is.EqualTo(7));
             Assert.That(mapped.DamagedThisCycle, Is.True);
+            Assert.That(mapped.PullCount, Is.EqualTo(3));
+            Assert.That(mapped.RootStacks, Is.EqualTo(2));
+            Assert.That(mapped.RampantStacks, Is.EqualTo(1));
+            Assert.That(mapped.CommitQueueCount, Is.EqualTo(1));
+            Assert.That(mapped.CloudStackCount, Is.EqualTo(1));
             Assert.That(mappedCard.EntityId, Is.EqualTo("entity_000000000007"));
             Assert.That(mappedCard.CardId, Is.EqualTo("mapped_card"));
             Assert.That(mappedCard.Name, Is.EqualTo("Mapped Card"));
@@ -136,6 +147,7 @@ public sealed class SnapshotMapperTests
             Assert.That(mappedCard.Shield, Is.True);
             Assert.That(mappedCard.AttacksUsed, Is.EqualTo(2));
             Assert.That(mappedCard.SummonedThisTurn, Is.True);
+            Assert.That(mappedCard.Sealed, Is.True);
             Assert.That(mappedCard.IsLeaderEntity, Is.True);
             Assert.That(mappedCard.DefinitionAttack, Is.EqualTo(6));
             Assert.That(mappedCard.DefinitionHealth, Is.EqualTo(9));

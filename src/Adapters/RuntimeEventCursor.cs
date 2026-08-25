@@ -18,7 +18,7 @@ public sealed class RuntimeEventEnvelope
     public int Turn { get; set; }
     public string Phase { get; set; } = string.Empty;
     public long SnapshotRevision { get; set; }
-    public IReadOnlyList<string> TargetIds { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<object?> TargetIds { get; set; } = Array.Empty<object?>();
     public IReadOnlyDictionary<string, object?> Data { get; set; }
         = new Dictionary<string, object?>();
 }
@@ -31,7 +31,7 @@ public sealed class RuntimeEventCursor
         "ATTACK_DECLARED", "TARGET_REJECTED", "DAMAGE_APPLIED", "HEAL_APPLIED", "PUNISH_ISSUED",
         "PUNISH_DRAW", "PUNISH_TRIGGERED", "CHAIN_LINK", "CHAIN_RESOLVED", "CASTLE_DAMAGED",
         "CASTLE_BROKEN", "LEADER_MANIFESTED", "LEADER_DISABLED", "VICTORY_PROGRESS", "DECK_CYCLED",
-        "CARD_DISCARDED", "GAME_OVER",
+        "CARD_DISCARDED", "PULL_DECLARED", "CARD_PULLED", "GAME_OVER",
     };
 
     private readonly HashSet<string> _known = new HashSet<string>(StringComparer.Ordinal);

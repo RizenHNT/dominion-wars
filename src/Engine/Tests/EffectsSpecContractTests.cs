@@ -33,7 +33,7 @@ public sealed class EffectsSpecContractTests
     }
 
     [Test]
-    public void SchemaActionEnumMatchesDispatcherRegistry()
+    public void SchemaActionEnumContainsDeclaredActions()
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(
             FindRepositoryRoot(), "data", "schema", "cards.schema.json")));
@@ -45,17 +45,18 @@ public sealed class EffectsSpecContractTests
             .Select(value => value.GetString()!)
             .ToArray();
 
-        Assert.That(schemaActions, Is.EquivalentTo(EffectNames.All));
+        Assert.That(schemaActions, Is.EquivalentTo(EffectNames.DeclaredActions));
+        Assert.That(schemaActions, Is.SupersetOf(EffectNames.All));
     }
 
     [Test]
-    public void PersistentControlIsDocumentedOutsideOrdinaryActionSections()
+    public void DeletedPersistentControlIsDocumentedOutsideOrdinaryActionSections()
     {
         var contract = ReadContract();
         Assert.Multiple(() =>
         {
             Assert.That(contract, Does.Contain("DISABLE_ENEMY_LEADER"));
-            Assert.That(contract, Does.Contain("不属于这 24 个动作"));
+            Assert.That(contract, Does.Contain("不再属于任何动作集"));
             Assert.That(EffectNames.All, Does.Not.Contain("DISABLE_ENEMY_LEADER"));
         });
     }

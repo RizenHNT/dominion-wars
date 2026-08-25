@@ -2,7 +2,8 @@
   "name": "DominionWars.Adapters",
   "rootNamespace": "DominionWars.Adapters",
   "references": [
-    "DominionWars.Engine"
+    "DominionWars.Engine",
+    "DominionWars.Data"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

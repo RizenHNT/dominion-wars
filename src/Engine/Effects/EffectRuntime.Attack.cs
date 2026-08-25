@@ -28,7 +28,7 @@ public sealed partial class EffectRuntime
         }
 
         var context = new EffectContext(
-            attacker.OwnerPlayerIndex,
+            attacker.ControllerPlayerIndex,
             rootEventId,
             sourceCard: attacker,
             attacker: attacker);
@@ -58,7 +58,7 @@ public sealed partial class EffectRuntime
             DamageCard(target, attacker.Attack, context);
             if (retaliation > 0)
             {
-                DamageCard(attacker, retaliation, context.ForSource(target.OwnerPlayerIndex, target));
+                DamageCard(attacker, retaliation, context.ForSource(target.ControllerPlayerIndex, target));
             }
 
             return;
@@ -78,10 +78,10 @@ public sealed partial class EffectRuntime
                 ApplyCastleDamage(attacker.Attack, context);
                 break;
             case CoreTarget.Life:
-                DamagePlayer(State.GetOpponent(attacker.OwnerPlayerIndex), attacker.Attack, context, "ATTACK");
+                DamagePlayer(State.GetOpponent(attacker.ControllerPlayerIndex), attacker.Attack, context, "ATTACK");
                 break;
             case CoreTarget.Leader:
-                var leader = State.GetOpponent(attacker.OwnerPlayerIndex).Leader;
+                var leader = State.GetOpponent(attacker.ControllerPlayerIndex).Leader;
                 if (leader is null)
                 {
                     throw new InvalidOperationException("The validated leader target disappeared.");

@@ -36,7 +36,12 @@ public static class RuntimeSnapshotProjection
                 HandCount = player.Hand.Count,
                 FieldCount = player.Field.Count,
                 GraveyardCount = player.Graveyard.Count,
-                AmbushCount = 0,
+                AmbushCount = player.AmbushZone.Count,
+                RootStacks = player.RootStacks,
+                RampantStacks = player.RampantStacks,
+                PullCount = player.PullCount,
+                CommitQueueCount = player.CommitQueue.Count,
+                CloudStackCount = player.CloudStack.Count,
                 Hand = isViewer ? Cards(player.Hand) : Array.Empty<RuntimeCardSnapshot>(),
                 Field = Cards(player.Field),
                 Graveyard = Cards(player.Graveyard),
@@ -114,23 +119,24 @@ public static class RuntimeSnapshotProjection
         {
             result.Add(new RuntimeCardSnapshot
             {
-                EntityId = EntityId(card.InstanceId)!,
+                EntityId = EntityId(card.InstanceId),
                 CardId = card.Definition.Id,
                 OwnerPlayer = card.OwnerPlayerIndex,
+                Sealed = card.Sealed,
             });
         }
         return result.AsReadOnly();
     }
 
-    private static string? EntityId(long? id) => id.HasValue ? EntityId(id.Value) : null;
+    private static long? EntityId(long? id) => id.HasValue ? EntityId(id.Value) : null;
 
-    private static string EntityId(long id)
+    private static long EntityId(long id)
     {
         if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
-        return $"entity_{id:D12}";
+        return id;
     }
 
-    private static string? TargetId(string? reference, long? numericId)
+    private static object? TargetId(string? reference, long? numericId)
     {
         if (!string.IsNullOrWhiteSpace(reference))
         {

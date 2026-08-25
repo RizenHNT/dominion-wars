@@ -62,7 +62,7 @@ public sealed class PlayCardActionHandlerTests
             "fizzle",
             "Fizzle",
             punish: 2,
-            tags: new[] { "burst" },
+            tags: new[] { "burst", "扎根" },
             onPlayEffects: new[] { new EffectSpec(EffectNames.Damage, "ENEMY_TARGET", 7) });
         var card = new CardInstance(11, 0, definition);
         state.GetPlayer(0).Hand.Add(card);
@@ -79,6 +79,7 @@ public sealed class PlayCardActionHandlerTests
             Assert.That(result.Accepted, Is.True);
             Assert.That(state.GetPlayer(0).Graveyard.Single(), Is.SameAs(card));
             Assert.That(state.GetPlayer(0).UsedTags, Contains.Item("burst"));
+            Assert.That(state.GetPlayer(0).RootStacks, Is.Zero);
             Assert.That(state.GetPlayer(1).Deck, Has.Count.EqualTo(1));
             Assert.That(state.GetPlayer(1).Hand, Is.Empty);
             Assert.That(state.CastleHealth, Is.EqualTo(10));
@@ -177,6 +178,25 @@ public sealed class PlayCardActionHandlerTests
             .ToArray();
 
         Assert.That(plays, Is.EqualTo(new long?[] { 16 }));
+    }
+
+    [Test]
+    public void GrowthTagAdvancesItsPlayerCounterWhenTheCardResolves()
+    {
+        var state = CreateStateInActionPhase(out _, out var router);
+        var card = new CardInstance(18, 0, new CardDefinition(
+            "root_card", "Root Card", type: "SPELL", tags: new[] { "扎根" }));
+        state.GetPlayer(0).Hand.Add(card);
+
+        var result = router.Execute(state, new GameActionRequest(
+            0, LegalActionGenerator.PlayCard, sourceEntityId: card.InstanceId));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Accepted, Is.True);
+            Assert.That(state.GetPlayer(0).RootStacks, Is.EqualTo(1));
+            Assert.That(state.GetPlayer(0).Graveyard, Does.Contain(card));
+        });
     }
 
     [Test]
@@ -357,8 +377,63 @@ public sealed class PlayCardActionHandlerTests
             Assert.That(leader.SummonedThisTurn, Is.False, "A non-minion leader has no summoning sickness flag.");
             Assert.That(state.GetPlayer(1).Life, Is.EqualTo(27));
             Assert.That(state.GetPlayer(0).Life, Is.EqualTo(17));
-            Assert.That(state.Events.Items.Any(item => item.EventType == "LEADER_MANIFESTED"), Is.True);
+            Assert.That(state.Events.Items.Count(item => item.EventType == "LEADER_MANIFESTED"), Is.EqualTo(1));
         });
+    }
+
+    [Test]
+    public void PunishDrawnLeaderFormsUseTheirDedicatedZonesAndPreserveEffectOrder()
+    {
+        var cases = new[]
+        {
+            (id: "punish_minion_leader", type: "MINION", isMinion: true),
+            (id: "punish_ambush_leader", type: "AMBUSH", isMinion: false),
+            (id: "punish_spell_leader", type: "SPELL", isMinion: false),
+        };
+
+        foreach (var testCase in cases)
+        {
+            var state = CreateStateInActionPhase(out _, out var router);
+            state.GetPlayer(0).Hand.Add(new CardInstance(
+                70,
+                0,
+                new CardDefinition("original_" + testCase.type, "Original", punish: 1)));
+            var leader = new CardInstance(71, 1, new CardDefinition(
+                testCase.id,
+                testCase.id,
+                isMinion: testCase.isMinion,
+                isLeader: true,
+                type: testCase.type,
+                grantLife: 25,
+                leaderEnterEffects: new[]
+                {
+                    new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 2),
+                },
+                leaderPunishEffects: new[]
+                {
+                    new EffectSpec(EffectNames.GainLife, "SELF_PLAYER", 7),
+                }));
+            state.GetPlayer(1).Deck.Add(leader);
+
+            var result = router.Execute(state, new GameActionRequest(
+                0,
+                LegalActionGenerator.PlayCard,
+                sourceEntityId: 70));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Accepted, Is.True);
+                Assert.That(state.GetPlayer(1).Leader, Is.SameAs(leader));
+                Assert.That(state.GetPlayer(1).Field.Contains(leader), Is.EqualTo(testCase.isMinion));
+                Assert.That(state.GetPlayer(1).AmbushZone.Contains(leader),
+                    Is.EqualTo(!testCase.isMinion && testCase.type == "AMBUSH"));
+                Assert.That(state.GetPlayer(1).LeaderZone.Contains(leader),
+                    Is.EqualTo(!testCase.isMinion && testCase.type != "AMBUSH"));
+                Assert.That(state.GetPlayer(1).Life, Is.EqualTo(34));
+                Assert.That(state.Events.Items.Count(item => item.EventType == "LEADER_MANIFESTED"),
+                    Is.EqualTo(1));
+            });
+        }
     }
 
     [Test]

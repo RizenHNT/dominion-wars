@@ -1,0 +1,17 @@
+{
+  "contractVersion": 1,
+  "eventId": "evt_000000000002",
+  "parentEventId": "evt_000000000001",
+  "type": "DAMAGE_APPLIED",
+  "turn": 2,
+  "phase": "ACTION",
+  "snapshotRevision": 4,
+  "sourceId": 7,
+  "targetIds": [8],
+  "amount": 3,
+  "data": {
+    "amount": 3,
+    "sourceId": 7,
+    "targetIds": [8]
+  }
+}

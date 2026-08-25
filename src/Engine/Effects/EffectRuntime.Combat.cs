@@ -10,6 +10,7 @@ public sealed partial class EffectRuntime
     private static readonly HashSet<string> SupportedKeywords = new HashSet<string>(StringComparer.Ordinal)
     {
         "嘲讽", "圣盾", "扰魔", "突袭",
+        "降临", "同归", "献祭", "复活", "秒杀", "震慑", "沉默", "占星", "寄生", "潜行", "吸血",
     };
 
     public void Damage(EffectSpec spec, EffectContext context)
@@ -111,6 +112,7 @@ public sealed partial class EffectRuntime
 
         foreach (var target in targets)
         {
+            var controller = State.GetPlayer(target.ControllerPlayerIndex);
             var owner = State.GetPlayer(target.OwnerPlayerIndex);
             if (target.IsLeaderEntity)
             {
@@ -126,7 +128,7 @@ public sealed partial class EffectRuntime
 
             Commit(_ =>
             {
-                owner.Field.Remove(target);
+                controller.Field.Remove(target);
                 owner.Graveyard.Add(target);
             });
             Emit("MINION_DESTROYED", context, Data("target", target.InstanceId));
@@ -141,7 +143,9 @@ public sealed partial class EffectRuntime
             return;
         }
 
-        var mode = string.IsNullOrWhiteSpace(spec.Param) ? "both" : spec.Param!.ToLowerInvariant();
+        var rawMode = string.IsNullOrWhiteSpace(spec.Param) ? "both" : spec.Param!.ToLowerInvariant();
+        var growthRequested = rawMode == "root" || rawMode == "rampant";
+        var mode = growthRequested ? "both" : rawMode;
         if (mode != "atk" && mode != "hp" && mode != "both")
         {
             EmitSkipped(context, spec.Action, "effect.invalid_param");
@@ -155,26 +159,93 @@ public sealed partial class EffectRuntime
             return;
         }
 
+        var player = State.GetPlayer(context.SourcePlayerIndex);
+        var woodSource = string.Equals(
+            context.SourceCard?.Definition.Faction,
+            "古木圣地",
+            StringComparison.Ordinal);
+        var growthTarget = IsGrowthTarget(spec.Target);
+        var rootLayers = growthTarget && (rawMode == "root" || woodSource)
+            ? player.RootStacks
+            : 0;
+        var rampantLayers = growthTarget && (rawMode == "rampant" || woodSource)
+            ? player.RampantStacks
+            : 0;
+        var effectiveAmount = ApplyGrowth(spec.Amount, rootLayers, rampantLayers);
+        var growthApplied = effectiveAmount != spec.Amount;
+
         foreach (var target in targets)
         {
             Commit(_ =>
             {
                 if (mode == "atk" || mode == "both")
                 {
-                    target.Attack = Math.Max(0, target.Attack + spec.Amount);
+                    target.Attack = Math.Max(0, SaturatingAdd(target.Attack, effectiveAmount));
                 }
 
                 if (mode == "hp" || mode == "both")
                 {
-                    target.Health += spec.Amount;
-                    target.MaxHealth = Math.Max(0, target.MaxHealth + spec.Amount);
+                    target.Health = SaturatingAdd(target.Health, effectiveAmount);
+                    target.MaxHealth = Math.Max(0, SaturatingAdd(target.MaxHealth, effectiveAmount));
+                }
+
+                if (growthApplied)
+                {
+                    target.Sealed = true;
+                    target.Attack = 0;
+                    target.Shield = false;
                 }
             });
             Emit("BUFF_APPLIED", context, Data(
                 "target", target.InstanceId,
-                "amount", spec.Amount,
-                "mode", mode));
+                "amount", effectiveAmount,
+                "baseAmount", spec.Amount,
+                "mode", mode,
+                "growthApplied", growthApplied,
+                "sealed", growthApplied));
         }
+    }
+
+    private static bool IsGrowthTarget(string? target)
+    {
+        return string.IsNullOrWhiteSpace(target)
+            || string.Equals(target, "SELF", StringComparison.Ordinal)
+            || string.Equals(target, "FRIENDLY_MINION", StringComparison.Ordinal)
+            || string.Equals(target, "ALL_FRIENDLY_MINIONS", StringComparison.Ordinal);
+    }
+
+    private static int ApplyGrowth(int baseAmount, int rootLayers, int rampantLayers)
+    {
+        if (baseAmount <= 0 || (rootLayers == 0 && rampantLayers == 0))
+        {
+            return baseAmount;
+        }
+
+        var additive = (long)baseAmount + rootLayers;
+        var multiplier = 1L << Math.Min(3, Math.Max(0, rampantLayers));
+        var result = additive * multiplier;
+        if (result > int.MaxValue)
+        {
+            return int.MaxValue;
+        }
+
+        return (int)result;
+    }
+
+    private static int SaturatingAdd(int value, int amount)
+    {
+        var result = (long)value + amount;
+        if (result > int.MaxValue)
+        {
+            return int.MaxValue;
+        }
+
+        if (result < int.MinValue)
+        {
+            return int.MinValue;
+        }
+
+        return (int)result;
     }
 
     public void GrantKeyword(EffectSpec spec, EffectContext context)
@@ -243,7 +314,10 @@ public sealed partial class EffectRuntime
 
     private void DamageCard(CardInstance target, int amount, EffectContext context)
     {
-        if (target.Shield)
+        // Sealed units lose all special abilities, including an already
+        // granted shield.  The raw flag remains in the instance for
+        // round-trip/debug visibility, but it must not absorb damage.
+        if (!target.Sealed && target.Shield)
         {
             Commit(_ => target.Shield = false);
             Emit("DAMAGE_DEALT", context, Data(
@@ -316,6 +390,11 @@ public sealed partial class EffectRuntime
     {
         var result = new List<CoreTarget>();
         var enemy = State.GetOpponent(context.SourcePlayerIndex);
+        if (enemy.HasMultipleActiveLeaders)
+        {
+            return result;
+        }
+
         if (State.CastleEnabled && State.CastleHealth > 0)
         {
             result.Add(CoreTarget.RoyalCastle);

@@ -132,6 +132,32 @@ public sealed class EffectSafetyTests
     }
 
     [Test]
+    public void EnemyFaceFailsClosedWithoutLifeFallbackForMultipleActiveLeaders()
+    {
+        var game = new EffectTestFixture();
+        var first = new CardInstance(20, 1, game.LeaderDefinition)
+        {
+            IsLeaderEntity = true,
+        };
+        var second = new CardInstance(21, 1, game.LeaderDefinition)
+        {
+            IsLeaderEntity = true,
+        };
+        game.State.GetPlayer(1).LeaderZone.Add(first);
+        game.State.GetPlayer(1).AmbushZone.Add(second);
+
+        game.Apply(EffectNames.Damage, "ENEMY_FACE", 3);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.GetPlayer(1).HasMultipleActiveLeaders, Is.True);
+            Assert.That(game.State.GetPlayer(1).Life, Is.EqualTo(20));
+            Assert.That(game.State.CastleHealth, Is.EqualTo(75));
+            Assert.That(game.State.Events.Items[^1].Data["reasonKey"], Is.EqualTo("target.none"));
+        });
+    }
+
+    [Test]
     public void LoseLifeUsesLeaderGateBeforeEndingGame()
     {
         var game = new EffectTestFixture();
@@ -181,6 +207,73 @@ public sealed class EffectSafetyTests
             Assert.That(game.State.WinnerPlayerIndex, Is.Zero);
             Assert.That(game.State.Players[1].Field, Does.Contain(enemyLeader));
             Assert.That(game.State.Players[1].Graveyard, Does.Not.Contain(enemyLeader));
+        });
+    }
+
+    [Test]
+    public void NonMinionLeaderRejectsDestroyAndControlWithoutMutation()
+    {
+        var game = new EffectTestFixture();
+        var leaderDefinition = new CardDefinition(
+            "spell_leader_guard",
+            "Spell Leader Guard",
+            isLeader: true,
+            type: "SPELL");
+        var leader = new CardInstance(23, 1, leaderDefinition)
+        {
+            IsLeaderEntity = true,
+        };
+        game.State.GetPlayer(1).LeaderZone.Add(leader);
+
+        game.Apply(EffectNames.Destroy, "ENEMY_TARGET", selectedTargetId: leader.InstanceId);
+        game.Apply(EffectNames.Control, "ENEMY_TARGET", amount: 1, selectedTargetId: leader.InstanceId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.GetPlayer(1).LeaderZone, Has.Exactly(1).EqualTo(leader));
+            Assert.That(game.State.GetPlayer(1).Graveyard, Does.Not.Contain(leader));
+            Assert.That(game.State.GetPlayer(0).Field, Does.Not.Contain(leader));
+            Assert.That(leader.ControlledByPlayerIndex, Is.Null);
+            Assert.That(leader.ControlTurnsRemaining, Is.Zero);
+            Assert.That(game.State.WinnerPlayerIndex, Is.Null);
+            Assert.That(game.State.Events.Items[^1].EventType, Is.EqualTo("EFFECT_SKIPPED"));
+            Assert.That(game.State.Events.Items[^1].Data["reasonKey"], Is.EqualTo("target.none"));
+        });
+    }
+
+    [Test]
+    public void LethalDamageToNonMinionLeaderDoesNotDeclareLeaderDefeat()
+    {
+        var game = new EffectTestFixture();
+        var enemyDefinition = new CardDefinition(
+            "durabilityless_spell_leader",
+            "Durabilityless Spell Leader",
+            health: 4,
+            isLeader: true,
+            type: "SPELL",
+            vulnerabilities: new[] { EffectNames.Damage });
+        var enemyLeader = new CardInstance(24, 1, enemyDefinition)
+        {
+            IsLeaderEntity = true,
+        };
+        var friendlyLeader = new CardInstance(25, 0, game.LeaderDefinition)
+        {
+            IsLeaderEntity = true,
+        };
+        game.State.GetPlayer(1).LeaderZone.Add(enemyLeader);
+        game.State.GetPlayer(0).Field.Add(friendlyLeader);
+
+        game.Dispatcher.Apply(
+            new EffectSpec(EffectNames.Damage, "ENEMY_FACE", 99, kingSlayer: true),
+            game.Context(selectedCoreTarget: CoreTarget.Leader));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(enemyLeader.Health, Is.LessThanOrEqualTo(0));
+            Assert.That(game.State.GetPlayer(1).LeaderZone, Has.Exactly(1).EqualTo(enemyLeader));
+            Assert.That(game.State.GetPlayer(1).Graveyard, Does.Not.Contain(enemyLeader));
+            Assert.That(game.State.WinnerPlayerIndex, Is.Null);
+            Assert.That(game.State.WinReason, Is.Null);
         });
     }
 
@@ -242,7 +335,7 @@ public sealed class EffectSafetyTests
         {
             Assert.That(game.State.Players[0].Hand, Has.Count.EqualTo(1));
             Assert.That(game.State.Players[0].ReshuffleCount, Is.EqualTo(1));
-            Assert.That(game.State.Players[1].CycleWinCount, Is.EqualTo(1));
+            Assert.That(game.State.Players[0].CycleWinCount, Is.EqualTo(1));
         });
     }
 

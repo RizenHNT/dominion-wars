@@ -31,7 +31,8 @@
       "properties": {
         "entityId": { "type": "integer", "minimum": 1 },
         "cardId": { "type": "string", "minLength": 1 },
-        "ownerPlayer": { "type": "integer", "enum": [0, 1] }
+        "ownerPlayer": { "type": "integer", "enum": [0, 1] },
+        "sealed": { "type": "boolean" }
       }
     },
     "player": {
@@ -46,6 +47,11 @@
         "fieldCount": { "type": "integer", "minimum": 0 },
         "graveyardCount": { "type": "integer", "minimum": 0 },
         "ambushCount": { "type": "integer", "minimum": 0 },
+        "rootStacks": { "type": "integer", "minimum": 0 },
+        "rampantStacks": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "pullCount": { "type": "integer", "minimum": 0 },
+        "commitQueueCount": { "type": "integer", "minimum": 0 },
+        "cloudStackCount": { "type": "integer", "minimum": 0 },
         "hand": { "type": "array", "items": { "$ref": "#/$defs/card" } },
         "field": { "type": "array", "items": { "$ref": "#/$defs/card" } },
         "graveyard": { "type": "array", "items": { "$ref": "#/$defs/card" } }
@@ -68,7 +74,7 @@
         "contractVersion": { "const": 1 },
         "snapshotRevision": { "type": "integer", "minimum": 0 },
         "actionId": { "type": "string", "minLength": 1 },
-        "type": { "type": "string", "enum": ["PLAY_CARD", "SET_AMBUSH", "SKIP_AMBUSH", "ATTACK", "DISCARD", "END_TURN"] },
+        "type": { "type": "string", "enum": ["PLAY_CARD", "SET_AMBUSH", "SKIP_AMBUSH", "ATTACK", "PULL", "DISCARD", "END_TURN"] },
         "actor": { "type": "integer", "enum": [0, 1] },
         "sourceId": { "type": ["integer", "string", "null"], "minimum": 1, "pattern": "^(leader_[01])$" },
         "targetId": { "type": ["integer", "string", "null"], "minimum": 1, "pattern": "^(player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },

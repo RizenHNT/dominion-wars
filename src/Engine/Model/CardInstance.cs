@@ -41,16 +41,28 @@ public sealed class CardInstance
     public bool PunishActivated { get; set; }
     public int ChantRemaining { get; set; }
     public int Durability { get; set; }
+    /// <summary>Temporary controller for CONTROL. Ownership never changes.</summary>
+    public int? ControlledByPlayerIndex { get; set; }
+    public int ControlTurnsRemaining { get; set; }
+    /// <summary>木阵营封印状态：失去特殊能力且不能攻击。</summary>
+    public bool Sealed { get; set; }
     public ISet<string> Keywords { get; }
 
     public bool IsMinion => Definition.IsMinion;
     public bool IsLeader => Definition.IsLeader;
     public bool IsLeaderEntity { get; set; }
+    public int ControllerPlayerIndex => ControlledByPlayerIndex ?? OwnerPlayerIndex;
     public bool IsAlive => Health > 0;
 
     public bool HasKeyword(string keyword)
     {
-        return !string.IsNullOrWhiteSpace(keyword) && Keywords.Contains(keyword);
+        // A growth-sealed unit keeps its identity for snapshots and victory
+        // checks, but its special abilities are inactive until the seal is
+        // removed.  Centralising this guard prevents taunt/ward/charge and
+        // future keyword consumers from accidentally bypassing that rule.
+        return !Sealed
+            && !string.IsNullOrWhiteSpace(keyword)
+            && Keywords.Contains(keyword);
     }
 
     public void ResetRuntimeState()
@@ -64,6 +76,9 @@ public sealed class CardInstance
         PunishActivated = false;
         ChantRemaining = 0;
         Durability = Definition.LeaderDurability;
+        ControlledByPlayerIndex = null;
+        ControlTurnsRemaining = 0;
+        Sealed = false;
         IsLeaderEntity = false;
         Keywords.Clear();
         foreach (var keyword in Definition.Keywords)

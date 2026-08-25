@@ -34,7 +34,7 @@ public sealed class AttackActionHandler : ITurnActionHandler
 
         var attacker = state.FindEntity(request.SourceEntityId.Value);
         if (attacker is null
-            || attacker.OwnerPlayerIndex != request.ActorPlayerIndex
+            || attacker.ControllerPlayerIndex != request.ActorPlayerIndex
             || !state.GetPlayer(request.ActorPlayerIndex).Field.Contains(attacker))
         {
             return GameActionResult.Reject("action.invalid_attacker");

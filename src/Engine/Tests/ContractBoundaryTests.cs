@@ -7,6 +7,7 @@ using System.Text.Json;
 using DominionWars.Engine.Effects;
 using DominionWars.Engine.Model;
 using DominionWars.Engine.Randomness;
+using DominionWars.Engine.Turns;
 using NUnit.Framework;
 
 namespace DominionWars.Engine.Tests
@@ -28,29 +29,57 @@ public sealed class ContractBoundaryTests
     {
         var game = new EffectTestFixture();
         var expected = ReadSchemaActions();
-        Assert.That(game.Dispatcher.RegisteredActions, Is.EquivalentTo(expected));
-        Assert.That(EffectNames.All, Is.EquivalentTo(expected));
-        Assert.That(game.Dispatcher.RegisteredActions, Has.Count.EqualTo(24));
+        Assert.That(game.Dispatcher.RegisteredActions, Is.EquivalentTo(EffectNames.All));
+        Assert.That(expected, Is.SupersetOf(EffectNames.All));
+        Assert.That(expected, Is.EquivalentTo(EffectNames.DeclaredActions));
+        Assert.That(game.Dispatcher.RegisteredActions, Has.Count.EqualTo(EffectNames.DeclaredActions.Count));
     }
 
     [Test]
-    public void PersistentAuraIsNotAnOrdinaryDispatcherAction()
+    public void DeletedPersistentAuraIsAbsentFromDispatcherAndSchema()
     {
         var game = new EffectTestFixture();
         Assert.Multiple(() =>
         {
             Assert.That(game.Dispatcher.RegisteredActions, Does.Not.Contain("DISABLE_ENEMY_LEADER"));
-            Assert.That(ReadSchemaPersistentActions(), Is.EqualTo(new[] { "DISABLE_ENEMY_LEADER" }));
+            using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+                FindRepositoryRoot(), "data", "schema", "cards.schema.json")));
+            var defs = document.RootElement.GetProperty("$defs");
+            Assert.That(defs.TryGetProperty("PersistentEffectAction", out _), Is.False);
+            Assert.That(defs.TryGetProperty("PersistentEffectSpec", out _), Is.False);
+            var leaderProperties = defs.GetProperty("LeaderDef").GetProperty("properties");
+            Assert.That(leaderProperties.TryGetProperty("persistentEffects", out _), Is.False);
         });
     }
 
     [Test]
-    public void PersistentAuraHasDedicatedSchemaSlots()
+    public void PlayerActionConstantsMatchRuntimeContract131()
+    {
+        var expected = new[]
+        {
+            LegalActionGenerator.PlayCard,
+            TurnAction.SetAmbush,
+            TurnAction.SkipAmbush,
+            LegalActionGenerator.Attack,
+            LegalActionGenerator.Pull,
+            TurnAction.DiscardComplete,
+            LegalActionGenerator.EndTurn,
+        };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ReadRuntimeActionTypes(), Is.EquivalentTo(expected));
+            Assert.That(expected, Does.Not.Contain("CHOOSE_TARGET"));
+            Assert.That(expected, Does.Not.Contain("ACTIVATE_PUNISH"));
+            Assert.That(expected, Does.Not.Contain("USE_LEADER_ABILITY"));
+        });
+    }
+
+    [Test]
+    public void LeaderEffectSlotsUseEffectSpec()
     {
         Assert.Multiple(() =>
         {
-            Assert.That(ReadSchemaArrayItemReference("LeaderDef", "persistentEffects"),
-                Is.EqualTo("#/$defs/PersistentEffectSpec"));
             Assert.That(ReadSchemaArrayItemReference("LeaderDef", "enterEffects"),
                 Is.EqualTo("#/$defs/EffectSpec"));
             Assert.That(ReadSchemaArrayItemReference("LeaderDef", "punishEffects"),
@@ -100,20 +129,6 @@ public sealed class ContractBoundaryTests
             .ToArray();
     }
 
-    private static IReadOnlyList<string> ReadSchemaPersistentActions()
-    {
-        var root = FindRepositoryRoot();
-        var schemaPath = Path.Combine(root, "data", "schema", "cards.schema.json");
-        using var document = JsonDocument.Parse(File.ReadAllText(schemaPath));
-        return document.RootElement
-            .GetProperty("$defs")
-            .GetProperty("PersistentEffectAction")
-            .GetProperty("enum")
-            .EnumerateArray()
-            .Select(value => value.GetString()!)
-            .ToArray();
-    }
-
     private static string ReadSchemaArrayItemReference(string definitionName, string propertyName)
     {
         var root = FindRepositoryRoot();
@@ -127,6 +142,20 @@ public sealed class ContractBoundaryTests
             .GetProperty("items")
             .GetProperty("$ref")
             .GetString()!;
+    }
+
+    private static IReadOnlyList<string> ReadRuntimeActionTypes()
+    {
+        var root = FindRepositoryRoot();
+        var schemaPath = Path.Combine(root, "design", "runtime-kit-v1.31", "contracts", "schemas", "game_action.schema.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(schemaPath));
+        return document.RootElement
+            .GetProperty("properties")
+            .GetProperty("type")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(value => value.GetString()!)
+            .ToArray();
     }
 
     private static string FindRepositoryRoot()

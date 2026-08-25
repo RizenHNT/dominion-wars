@@ -47,9 +47,9 @@ public sealed class EffectContext
 
         SourcePlayerIndex = sourcePlayerIndex;
         RootEventId = rootEventId;
-        if (sourceCard is not null && sourceCard.OwnerPlayerIndex != sourcePlayerIndex)
+        if (sourceCard is not null && sourceCard.ControllerPlayerIndex != sourcePlayerIndex)
         {
-            throw new ArgumentException("The effect source card must belong to the source player.", nameof(sourceCard));
+            throw new ArgumentException("The effect source card must be controlled by the source player.", nameof(sourceCard));
         }
 
         SourceCard = sourceCard;

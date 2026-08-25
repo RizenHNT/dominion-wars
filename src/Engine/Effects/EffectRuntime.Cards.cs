@@ -7,6 +7,31 @@ namespace DominionWars.Engine.Effects
 
 public sealed partial class EffectRuntime
 {
+    internal void DrawOpeningHand(int playerIndex, int amount, long rootEventId)
+    {
+        if (playerIndex is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(playerIndex));
+        }
+
+        if (amount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        }
+
+        if (!State.Events.IsRootEvent(rootEventId))
+        {
+            throw new InvalidOperationException("Opening draw needs an existing root event.");
+        }
+
+        if (amount == 0)
+        {
+            return;
+        }
+
+        DrawCards(State.GetPlayer(playerIndex), amount, new EffectContext(playerIndex, rootEventId), false);
+    }
+
     internal void DrawForTurn(int playerIndex, int amount, long rootEventId)
     {
         if (playerIndex is < 0 or > 1)
@@ -145,6 +170,11 @@ public sealed partial class EffectRuntime
         }
 
         var owner = State.GetPlayer(context.SourcePlayerIndex);
+        if (owner.HasMultipleActiveLeaders)
+        {
+            return;
+        }
+
         CardInstance? oldLeader = null;
         CardInstance? newLeader = null;
         Commit(_ =>
@@ -152,7 +182,9 @@ public sealed partial class EffectRuntime
             oldLeader = owner.Leader;
             if (oldLeader is not null)
             {
-                owner.Field.Remove(oldLeader);
+                RemoveReferences(owner.Field, oldLeader);
+                RemoveReferences(owner.LeaderZone, oldLeader);
+                RemoveReferences(owner.AmbushZone, oldLeader);
                 owner.Graveyard.Add(oldLeader);
             }
 
@@ -160,7 +192,7 @@ public sealed partial class EffectRuntime
             {
                 IsLeaderEntity = true,
             };
-            owner.Field.Add(newLeader);
+            LeaderZoneFor(owner, newLeader).Add(newLeader);
             if (definition.GrantLife > 0)
             {
                 owner.Life = definition.GrantLife;
@@ -187,24 +219,21 @@ public sealed partial class EffectRuntime
                 break;
             }
 
+            var topCard = player.Deck[^1];
+            var activeLeader = player.Leader;
+            if (topCard.Definition.IsLeader
+                && (player.HasMultipleActiveLeaders
+                    || (activeLeader is not null && !ReferenceEquals(activeLeader, topCard))))
+            {
+                break;
+            }
+
             CardInstance? card = null;
             Commit(_ =>
             {
                 card = player.Deck[player.Deck.Count - 1];
                 player.Deck.RemoveAt(player.Deck.Count - 1);
-                if (card.Definition.IsLeader)
-                {
-                    card.IsLeaderEntity = true;
-                    card.ChantRemaining = card.Definition.Chant;
-                    card.SummonedThisTurn = card.Definition.IsMinion;
-                    card.AttacksUsed = 0;
-                    player.Field.Add(card);
-                    if (card.Definition.GrantLife > 0)
-                    {
-                        player.Life = card.Definition.GrantLife;
-                    }
-                }
-                else
+                if (!card.Definition.IsLeader)
                 {
                     card.PunishActivated = byPunish
                         && (card.Definition.PunishActivatable
@@ -222,25 +251,7 @@ public sealed partial class EffectRuntime
 
             if (card!.Definition.IsLeader)
             {
-                Emit("LEADER_MANIFESTED", context, Data(
-                    "player", player.PlayerIndex,
-                    "target", card.InstanceId));
-                var leaderContext = new EffectContext(
-                    player.PlayerIndex,
-                    context.RootEventId,
-                    sourceCard: card,
-                    playedCard: context.PlayedCard,
-                    drawnCards: context.DrawnCards);
-                var dispatcher = EffectDispatcher.CreateDefault(this);
-                if (card.Definition.LeaderEnterEffects.Count > 0)
-                {
-                    dispatcher.ApplyAll(card.Definition.LeaderEnterEffects, leaderContext);
-                }
-
-                if (byPunish && card.Definition.LeaderPunishEffects.Count > 0 && !IsGameOver)
-                {
-                    dispatcher.ApplyAll(card.Definition.LeaderPunishEffects, leaderContext);
-                }
+                ManifestLeader(player, card, context, byPunish);
             }
         }
 
@@ -249,6 +260,120 @@ public sealed partial class EffectRuntime
             "count", drawn.Count,
             "byPunish", byPunish));
         return drawnCards.AsReadOnly();
+    }
+
+    private bool ManifestLeader(
+        PlayerState player,
+        CardInstance leader,
+        EffectContext context,
+        bool byPunish)
+    {
+        if (player.HasMultipleActiveLeaders)
+        {
+            return false;
+        }
+
+        var existingLeader = player.Leader;
+        if (existingLeader is not null && !ReferenceEquals(existingLeader, leader))
+        {
+            return false;
+        }
+
+        var destination = LeaderZoneFor(player, leader);
+        var alreadyManifested = leader.IsLeaderEntity
+            && (ContainsReference(player.Field, leader)
+                || ContainsReference(player.LeaderZone, leader)
+                || ContainsReference(player.AmbushZone, leader));
+
+        Commit(_ =>
+        {
+            RemoveReferences(player.Hand, leader);
+            RemoveReferences(player.Deck, leader);
+            RemoveReferences(player.Graveyard, leader);
+            RemoveReferences(player.CommitQueue, leader);
+            RemoveReferences(player.CloudStack, leader);
+            RemoveReferences(player.Field, leader);
+            RemoveReferences(player.LeaderZone, leader);
+            RemoveReferences(player.AmbushZone, leader);
+
+            if (!alreadyManifested)
+            {
+                leader.ResetRuntimeState();
+                leader.IsLeaderEntity = true;
+                leader.ChantRemaining = leader.Definition.Chant;
+                leader.SummonedThisTurn = leader.Definition.IsMinion;
+                leader.AttacksUsed = 0;
+                if (leader.Definition.GrantLife > 0)
+                {
+                    player.Life = leader.Definition.GrantLife;
+                }
+            }
+
+            destination.Add(leader);
+        });
+
+        if (alreadyManifested)
+        {
+            return true;
+        }
+
+        Emit("LEADER_MANIFESTED", context, Data(
+            "player", player.PlayerIndex,
+            "target", leader.InstanceId));
+        var leaderContext = new EffectContext(
+            player.PlayerIndex,
+            context.RootEventId,
+            sourceCard: leader,
+            playedCard: context.PlayedCard,
+            drawnCards: context.DrawnCards);
+        var dispatcher = EffectDispatcher.CreateDefault(this);
+        if (leader.Definition.LeaderEnterEffects.Count > 0)
+        {
+            dispatcher.ApplyAll(leader.Definition.LeaderEnterEffects, leaderContext);
+        }
+
+        if (byPunish && leader.Definition.LeaderPunishEffects.Count > 0 && !IsGameOver)
+        {
+            dispatcher.ApplyAll(leader.Definition.LeaderPunishEffects, leaderContext);
+        }
+
+        return true;
+    }
+
+    private static IList<CardInstance> LeaderZoneFor(PlayerState player, CardInstance leader)
+    {
+        if (leader.Definition.IsMinion)
+        {
+            return player.Field;
+        }
+
+        return string.Equals(leader.Definition.Type, "AMBUSH", StringComparison.OrdinalIgnoreCase)
+            ? player.AmbushZone
+            : player.LeaderZone;
+    }
+
+    private static bool ContainsReference(IList<CardInstance> zone, CardInstance card)
+    {
+        foreach (var candidate in zone)
+        {
+            if (ReferenceEquals(candidate, card))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void RemoveReferences(IList<CardInstance> zone, CardInstance card)
+    {
+        for (var index = zone.Count - 1; index >= 0; index--)
+        {
+            if (ReferenceEquals(zone[index], card))
+            {
+                zone.RemoveAt(index);
+            }
+        }
     }
 
     private bool Reshuffle(PlayerState player, EffectContext context)
@@ -285,16 +410,15 @@ public sealed partial class EffectRuntime
             {
                 counted = true;
                 player.ReshuffleCount++;
-                State.GetOpponent(player.PlayerIndex).CycleWinCount++;
+                player.CycleWinCount++;
             }
         });
         Emit("DECK_CYCLED", context, Data(
             "player", player.PlayerIndex,
             "counted", counted));
-        var beneficiary = State.GetOpponent(player.PlayerIndex);
-        if (counted && beneficiary.CycleWinCount >= State.ReshuffleLossThreshold)
+        if (counted && player.CycleWinCount >= State.ReshuffleLossThreshold)
         {
-            DeclareWinner(beneficiary.PlayerIndex, "win.opponent_deck_cycles", context);
+            DeclareWinner(player.PlayerIndex, "win.deck_cycles", context);
         }
 
         return true;

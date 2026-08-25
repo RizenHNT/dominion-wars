@@ -7,6 +7,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$previousConsoleEncoding = [Console]::OutputEncoding
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 Push-Location $repoRoot
 try {
     $results = [System.Collections.Generic.List[object]]::new()
@@ -73,7 +75,8 @@ try {
     }
 
     Invoke-RegressionStage -Name 'java-regression' -Action {
-        & java '-Dfile.encoding=UTF-8' '-cp' 'build\classes;build\test-classes' `
+        & java '-Dfile.encoding=UTF-8' '-Dstdout.encoding=UTF-8' '-Dstderr.encoding=UTF-8' `
+            '-cp' 'build\classes;build\test-classes' `
             'com.dominionwars.test.TestMain'
     }
 
@@ -92,14 +95,15 @@ try {
         $results.Add([pscustomobject]@{ stage = 'python-alignment'; status = 'SKIPPED'; exitCode = 0; seconds = 0; detail = 'not requested' })
     }
 
-    # Unity requires an interactive Hub/Editor session on this machine. This is
-    # intentionally a visible skip, never a synthetic pass.
+    # Unity validation is intentionally outside this offline orchestrator.
+    # Keep it visible as BLOCKED until a separate Editor test/build run supplies
+    # current evidence; never turn the absence of that run into a synthetic pass.
     $results.Add([pscustomobject]@{
         stage = 'unity-editmode-and-windows'
         status = 'BLOCKED'
         exitCode = 0
         seconds = 0
-        detail = 'requires interactive Unity Hub package resolution and license; not run by this offline gate'
+        detail = 'not run by this offline gate; use scripts\run-unity-runtime-validation.ps1 for current Editor tests and Windows build evidence'
     })
 
     $results | Format-Table stage,status,exitCode,seconds,detail -AutoSize
@@ -114,4 +118,5 @@ try {
 }
 finally {
     Pop-Location
+    [Console]::OutputEncoding = $previousConsoleEncoding
 }

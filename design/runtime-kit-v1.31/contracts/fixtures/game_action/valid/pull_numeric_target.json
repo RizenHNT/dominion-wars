@@ -1,0 +1,12 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 5,
+  "actionId": "pull_10_21",
+  "type": "PULL",
+  "actor": 0,
+  "sourceId": 10,
+  "targetId": 21,
+  "cardId": "downloaded",
+  "payload": {}
+}

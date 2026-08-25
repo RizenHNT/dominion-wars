@@ -13,6 +13,9 @@ public static class EffectNames
     public const string DiscardOppRandom = "DISCARD_OPP_RANDOM";
     public const string DiscardDrawn = "DISCARD_DRAWN";
     public const string Destroy = "DESTROY";
+    public const string Enfeeble = "ENFEEBLE";
+    public const string Banish = "BANISH";
+    public const string Control = "CONTROL";
     public const string Buff = "BUFF";
     public const string GrantKeyword = "GRANT_KEYWORD";
     public const string Summon = "SUMMON";
@@ -30,14 +33,38 @@ public static class EffectNames
     public const string LoseLife = "LOSE_LIFE";
     public const string DamageCastle = "DAMAGE_CASTLE";
     public const string WinGame = "WIN_GAME";
+    public const string AddRoot = "ADD_ROOT";
+    public const string AddRampant = "ADD_RAMPANT";
+    public const string Commit = "COMMIT";
+    public const string Push = "PUSH";
+    public const string Pull = "PULL";
+    public const string Rollback = "ROLLBACK";
 
     public static readonly IReadOnlyList<string> All = Array.AsReadOnly(new[]
     {
         Damage, Heal, Draw, OppDraw, DiscardOppRandom, DiscardDrawn,
         Destroy, Buff, GrantKeyword, Summon, SummonLeader, EndTurn,
+        Enfeeble, Banish, Control,
         AddOppPunishTurn, AddSelfPunishTurn, ConvertPunishToDiscard,
         ProtectTurn, Negate, NegateEnemyEffectsTurn, SkipReshuffle,
         RestoreAttacks, GainLife, LoseLife, DamageCastle, WinGame,
+        AddRoot, AddRampant,
+        Commit, Push, Pull, Rollback,
+    });
+
+    /// <summary>
+    /// Complete action set declared by the card contract. <see cref="All"/>
+    /// is the currently registered runtime subset; keeping both lists explicit
+    /// lets contract tests detect drift without silently accepting unknown data.
+    /// </summary>
+    public static readonly IReadOnlyList<string> DeclaredActions = Array.AsReadOnly(new[]
+    {
+        Damage, Heal, Draw, OppDraw, DiscardOppRandom, DiscardDrawn,
+        Destroy, Enfeeble, Banish, Control, Buff, GrantKeyword, Summon,
+        SummonLeader, EndTurn, AddOppPunishTurn, AddSelfPunishTurn,
+        ConvertPunishToDiscard, ProtectTurn, Negate, NegateEnemyEffectsTurn,
+        SkipReshuffle, RestoreAttacks, GainLife, LoseLife, DamageCastle,
+        WinGame, AddRoot, AddRampant, Commit, Push, Pull, Rollback,
     });
 }
 }

@@ -1,0 +1,17 @@
+{
+  "contractVersion": 1,
+  "eventId": "evt_000000000011",
+  "parentEventId": "evt_000000000010",
+  "type": "CARD_PULLED",
+  "turn": 1,
+  "phase": "ACTION",
+  "snapshotRevision": 5,
+  "targetIds": [21],
+  "amount": 0,
+  "data": {
+    "sourceId": 10,
+    "targetIds": [21],
+    "amount": 0,
+    "count": 1
+  }
+}

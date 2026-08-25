@@ -67,8 +67,11 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
             return GameActionResult.Reject("action.card_not_in_hand");
         }
 
+        var legacyActionId = LegalActionGenerator.PlayActionId(card.InstanceId);
+        var targetActionId = LegalActionGenerator.PlayActionId(card.InstanceId, request.TargetId);
         if (request.ActionId is not null
-            && !string.Equals(request.ActionId, "play_" + card.InstanceId, StringComparison.Ordinal))
+            && !string.Equals(request.ActionId, legacyActionId, StringComparison.Ordinal)
+            && !string.Equals(request.ActionId, targetActionId, StringComparison.Ordinal))
         {
             return GameActionResult.Reject("action.id_mismatch");
         }
@@ -207,7 +210,7 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         {
             ExecuteMutation(state, _ =>
             {
-                ConsumeTags(player, card);
+                ConsumeTags(player, card, grantGrowth: false);
                 player.Hand.Remove(card);
                 player.Graveyard.Add(card);
                 if (topLevel)
@@ -330,11 +333,24 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         return null;
     }
 
-    private static void ConsumeTags(PlayerState player, CardInstance card)
+    private static void ConsumeTags(PlayerState player, CardInstance card, bool grantGrowth = true)
     {
         foreach (var tag in card.Definition.Tags)
         {
             player.UsedTags.Add(tag);
+            if (!grantGrowth)
+            {
+                continue;
+            }
+
+            if (string.Equals(tag, "扎根", StringComparison.Ordinal))
+            {
+                player.RootStacks = checked(player.RootStacks + 1);
+            }
+            else if (string.Equals(tag, "疯长", StringComparison.Ordinal))
+            {
+                player.RampantStacks = Math.Min(3, player.RampantStacks + 1);
+            }
         }
     }
 

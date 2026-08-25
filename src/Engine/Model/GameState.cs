@@ -186,7 +186,11 @@ public sealed class GameState
             var found = FindInZone(player.Deck, instanceId)
                 ?? FindInZone(player.Hand, instanceId)
                 ?? FindInZone(player.Field, instanceId)
-                ?? FindInZone(player.Graveyard, instanceId);
+                ?? FindInZone(player.LeaderZone, instanceId)
+                ?? FindInZone(player.AmbushZone, instanceId)
+                ?? FindInZone(player.Graveyard, instanceId)
+                ?? FindInZone(player.CommitQueue, instanceId)
+                ?? FindInZone(player.CloudStack, instanceId);
             if (found is not null)
             {
                 return found;
@@ -287,7 +291,11 @@ public sealed class GameState
             maximum = FindMaximumId(player.Deck, maximum);
             maximum = FindMaximumId(player.Hand, maximum);
             maximum = FindMaximumId(player.Field, maximum);
+            maximum = FindMaximumId(player.LeaderZone, maximum);
+            maximum = FindMaximumId(player.AmbushZone, maximum);
             maximum = FindMaximumId(player.Graveyard, maximum);
+            maximum = FindMaximumId(player.CommitQueue, maximum);
+            maximum = FindMaximumId(player.CloudStack, maximum);
         }
 
         if (_nextEntityId <= maximum)

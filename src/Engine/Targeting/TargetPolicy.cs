@@ -31,6 +31,11 @@ public sealed class TargetPolicy
         }
 
         var enemy = state.GetOpponent(sourcePlayerIndex);
+        if (enemy.HasMultipleActiveLeaders)
+        {
+            return Array.Empty<TargetReference>();
+        }
+
         var result = new List<TargetReference>();
         foreach (var card in enemy.Field)
         {

@@ -10,7 +10,14 @@ internal sealed class EffectTestFixture
 {
     public EffectTestFixture()
     {
-        SourceDefinition = new CardDefinition("source", "Source", 1, 4, isMinion: true);
+        SourceDefinition = new CardDefinition(
+            "source",
+            "Source",
+            1,
+            4,
+            isMinion: true,
+            faction: "机械遗迹",
+            tags: new[] { "机械" });
         SoldierDefinition = new CardDefinition("soldier", "Soldier", 2, 5, isMinion: true);
         WardDefinition = new CardDefinition(
             "ward", "Ward", 1, 5, isMinion: true, keywords: new[] { "扰魔" });

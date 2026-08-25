@@ -1,0 +1,16 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 3,
+  "actionId": "act_fixture_play_0001",
+  "type": "PLAY_CARD",
+  "actor": 0,
+  "sourceId": 7,
+  "targetId": 8,
+  "cardId": "flame_scout",
+  "payload": {
+    "targetId": 8,
+    "selectedEntityIds": [7],
+    "count": 1
+  }
+}

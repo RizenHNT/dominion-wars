@@ -16,6 +16,9 @@ public sealed class EffectDispatchTableTests
     [TestCase(EffectNames.DiscardOppRandom)]
     [TestCase(EffectNames.DiscardDrawn)]
     [TestCase(EffectNames.Destroy)]
+    [TestCase(EffectNames.Enfeeble)]
+    [TestCase(EffectNames.Banish)]
+    [TestCase(EffectNames.Control)]
     [TestCase(EffectNames.Buff)]
     [TestCase(EffectNames.GrantKeyword)]
     [TestCase(EffectNames.Summon)]
@@ -33,6 +36,10 @@ public sealed class EffectDispatchTableTests
     [TestCase(EffectNames.LoseLife)]
     [TestCase(EffectNames.DamageCastle)]
     [TestCase(EffectNames.WinGame)]
+    [TestCase(EffectNames.Commit)]
+    [TestCase(EffectNames.Push)]
+    [TestCase(EffectNames.Pull)]
+    [TestCase(EffectNames.Rollback)]
     public void EveryContractActionIsRegisteredAndDispatchable(string action)
     {
         var game = new EffectTestFixture();

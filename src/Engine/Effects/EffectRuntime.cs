@@ -25,12 +25,18 @@ public sealed partial class EffectRuntime
         var source = context.SourceCard ?? context.Attacker;
         return source is not null
             && !source.Definition.IsLeader
-            && State.GetPlayer(source.OwnerPlayerIndex).EffectsNegatedThisTurn;
+            && State.GetPlayer(source.ControllerPlayerIndex).EffectsNegatedThisTurn;
     }
 
     internal void CheckAll(EffectContext context)
     {
         CleanupNonLeaderDeaths(context);
+        if (IsGameOver)
+        {
+            return;
+        }
+
+        EvaluateLeaderWinConditions(context);
         if (IsGameOver)
         {
             return;
@@ -159,10 +165,11 @@ public sealed partial class EffectRuntime
 
             foreach (var card in dead)
             {
+                var owner = State.GetPlayer(card.OwnerPlayerIndex);
                 Commit(_ =>
                 {
                     player.Field.Remove(card);
-                    player.Graveyard.Add(card);
+                    owner.Graveyard.Add(card);
                 });
                 Emit("MINION_DESTROYED", context, Data(
                     "target", card.InstanceId,

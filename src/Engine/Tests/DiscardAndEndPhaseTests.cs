@@ -58,7 +58,8 @@ public sealed class DiscardAndEndPhaseTests
             Assert.That(state.GetPlayer(0).TotalDiscarded, Is.Zero,
                 "Hand-limit discards do not count toward discard victories.");
             Assert.That(state.CurrentPlayerIndex, Is.EqualTo(1));
-            Assert.That(state.Turn.PhaseId, Is.EqualTo(TurnPhase.Start));
+            Assert.That(state.Turn.PhaseId, Is.EqualTo(TurnPhase.Ambush));
+            Assert.That(state.Events.Items.Select(item => item.EventType), Does.Contain("TURN_STARTED"));
         });
     }
 
@@ -196,6 +197,43 @@ public sealed class DiscardAndEndPhaseTests
             Assert.That(state.WinnerPlayerIndex, Is.Zero);
             Assert.That(state.Turn.PhaseId, Is.EqualTo(TurnPhase.Over));
             Assert.That(state.CurrentPlayerIndex, Is.Zero);
+        });
+    }
+
+    [Test]
+    public void ForceLeaderOutSearchesHandBeforeGraveyardAndFallsBackToGraveyard()
+    {
+        var handState = new EffectTestFixture();
+        handState.State.CastleEnabled = true;
+        handState.State.CastleHealth = 1;
+        var handLeader = Leader(510, 1, "hand_leader");
+        var graveyardLeader = Leader(511, 1, "graveyard_leader");
+        handState.State.GetPlayer(1).Hand.Add(handLeader);
+        handState.State.GetPlayer(1).Graveyard.Add(graveyardLeader);
+
+        handState.Apply(EffectNames.DamageCastle, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(handState.State.GetPlayer(1).Leader, Is.SameAs(handLeader));
+            Assert.That(handState.State.GetPlayer(1).Hand, Is.Empty);
+            Assert.That(handState.State.GetPlayer(1).Graveyard,
+                Has.Exactly(1).EqualTo(graveyardLeader));
+        });
+
+        var graveyardState = new EffectTestFixture();
+        graveyardState.State.CastleEnabled = true;
+        graveyardState.State.CastleHealth = 1;
+        var fallbackLeader = Leader(512, 1, "fallback_leader");
+        graveyardState.State.GetPlayer(1).Graveyard.Add(fallbackLeader);
+
+        graveyardState.Apply(EffectNames.DamageCastle, amount: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(graveyardState.State.GetPlayer(1).Leader,
+                Is.SameAs(fallbackLeader));
+            Assert.That(graveyardState.State.GetPlayer(1).Graveyard, Is.Empty);
         });
     }
 

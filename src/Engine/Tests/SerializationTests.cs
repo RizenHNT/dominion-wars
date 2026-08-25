@@ -168,6 +168,29 @@ public sealed class SerializationTests
     }
 
     [Test]
+    public void RuntimeV131EntityIdsSerializeAsNumbers()
+    {
+        var source = new RuntimeSnapshotEnvelope
+        {
+            MatchId = "match_1",
+            Players = new[]
+            {
+                new RuntimePlayerSnapshot
+                {
+                    PlayerId = "player_0",
+                    Hand = new[] { new RuntimeCardSnapshot { EntityId = 7, CardId = "scout", OwnerPlayer = 0 } },
+                },
+                new RuntimePlayerSnapshot { PlayerId = "player_1" },
+            },
+        };
+
+        var json = JsonSerializer.Serialize(source);
+        var copy = JsonSerializer.Deserialize<RuntimeSnapshotEnvelope>(json)!;
+        Assert.That(json, Does.Contain("\"EntityId\":7"));
+        Assert.That(copy.Players[0].Hand[0].EntityId, Is.EqualTo(7L));
+    }
+
+    [Test]
     public void NullOptionalFieldsRoundTripAsNull()
     {
         var source = new CardDto { Flavor = null, ArtId = null };

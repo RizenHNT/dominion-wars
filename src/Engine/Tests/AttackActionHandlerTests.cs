@@ -194,6 +194,66 @@ public sealed class AttackActionHandlerTests
     }
 
     [Test]
+    public void AmbushLeaderInDedicatedZoneIsNotAnAttackTarget()
+    {
+        var state = CreateActionState(out var flow, out _);
+        var attacker = AddReadyMinion(state, 0, 62, "attacker", 2, 5);
+        var ambush = new CardInstance(63, 1, new CardDefinition(
+            "ambush",
+            "Ambush",
+            isLeader: true,
+            type: "AMBUSH"))
+        {
+            IsLeaderEntity = true,
+        };
+        state.GetPlayer(1).AmbushZone.Add(ambush);
+
+        var targets = flow.GetLegalActions(state, 0)
+            .Where(item => item.SourceId == attacker.InstanceId)
+            .Select(item => item.TargetReferenceId)
+            .ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.GetPlayer(1).Leader, Is.SameAs(ambush));
+            Assert.That(targets, Does.Not.Contain("entity_000000000063"));
+            Assert.That(state.GetPlayer(1).AmbushZone, Has.Exactly(1).EqualTo(ambush));
+        });
+    }
+
+    [Test]
+    public void MultipleActiveLeadersFailClosedWithoutAdvertisingEnemyLife()
+    {
+        var state = CreateActionState(out var flow, out _);
+        var attacker = AddReadyMinion(state, 0, 64, "attacker", 2, 5);
+        var first = new CardInstance(65, 1, new CardDefinition(
+            "first_leader", "First Leader", isLeader: true))
+        {
+            IsLeaderEntity = true,
+        };
+        var second = new CardInstance(66, 1, new CardDefinition(
+            "second_leader", "Second Leader", isLeader: true))
+        {
+            IsLeaderEntity = true,
+        };
+        state.GetPlayer(1).LeaderZone.Add(first);
+        state.GetPlayer(1).AmbushZone.Add(second);
+
+        var targets = flow.GetLegalActions(state, 0)
+            .Where(item => item.SourceId == attacker.InstanceId)
+            .Select(item => item.TargetReferenceId)
+            .ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.GetPlayer(1).HasMultipleActiveLeaders, Is.True);
+            Assert.That(state.GetPlayer(1).Leader, Is.Null);
+            Assert.That(targets, Is.Empty);
+            Assert.That(targets, Does.Not.Contain("core:player_1:life"));
+        });
+    }
+
+    [Test]
     public void ZeroAttackIsRejectedButSummonedChargeCanAttack()
     {
         var state = CreateActionState(out var flow, out var router);

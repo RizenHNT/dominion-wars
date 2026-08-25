@@ -13,16 +13,16 @@ namespace DominionWars.Data
     {
         private static readonly HashSet<string> Factions = new HashSet<string>(new[] { "烈焰帝国", "机械遗迹", "深海联盟", "古木圣地", "无阵营" }, StringComparer.Ordinal);
         private static readonly HashSet<string> CardTypes = new HashSet<string>(new[] { "MINION", "SPELL", "AMBUSH", "PUNISH" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> Keywords = new HashSet<string>(new[] { "嘲讽", "圣盾", "扰魔", "突袭" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> WinConditions = new HashSet<string>(new[] { "NONE", "ROYAL_CASTLE_BREAK", "AMBUSH_TRIGGER_WIN", "OPP_DISCARD_TOTAL_GE", "OPP_PUNISH_DRAW_TURN_GE", "NO_DAMAGE_TURNS_GE" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> Keywords = new HashSet<string>(new[] { "嘲讽", "圣盾", "扰魔", "突袭", "降临", "同归", "献祭", "复活", "秒杀", "震慑", "沉默", "占星", "寄生", "潜行", "吸血" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> WinConditions = new HashSet<string>(new[] { "NONE", "ROYAL_CASTLE_BREAK", "AMBUSH_TRIGGER_WIN", "OPP_DISCARD_TOTAL_GE", "OPP_PUNISH_DRAW_TURN_GE", "NO_DAMAGE_TURNS_GE", "GIANT_HEALTH_GE", "PULL_TOTAL_GE" }, StringComparer.Ordinal);
         private static readonly HashSet<string> EffectTargets = new HashSet<string>(new[] { "ENEMY_TARGET", "ENEMY_MINION", "FRIENDLY_MINION", "ALL_ENEMY_MINIONS", "ALL_FRIENDLY_MINIONS", "ALL_MINIONS", "ENEMY_FACE", "SELF", "ANY_MINION", "ENEMY_SINGLE", "SINGLE_ENEMY" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> EffectActions = new HashSet<string>(new[] { "DAMAGE", "HEAL", "DRAW", "OPP_DRAW", "DISCARD_OPP_RANDOM", "DISCARD_DRAWN", "DESTROY", "BUFF", "GRANT_KEYWORD", "SUMMON", "SUMMON_LEADER", "END_TURN", "ADD_OPP_PUNISH_TURN", "ADD_SELF_PUNISH_TURN", "CONVERT_PUNISH_TO_DISCARD", "PROTECT_TURN", "NEGATE", "NEGATE_ENEMY_EFFECTS_TURN", "SKIP_RESHUFFLE", "RESTORE_ATTACKS", "GAIN_LIFE", "LOSE_LIFE", "DAMAGE_CASTLE", "WIN_GAME" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> PersistentActions = new HashSet<string>(new[] { "DISABLE_ENEMY_LEADER" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> EffectActions = new HashSet<string>(new[] { "DAMAGE", "HEAL", "DRAW", "OPP_DRAW", "DISCARD_OPP_RANDOM", "DISCARD_DRAWN", "DESTROY", "ENFEEBLE", "BANISH", "CONTROL", "BUFF", "GRANT_KEYWORD", "SUMMON", "SUMMON_LEADER", "END_TURN", "ADD_OPP_PUNISH_TURN", "ADD_SELF_PUNISH_TURN", "CONVERT_PUNISH_TO_DISCARD", "PROTECT_TURN", "NEGATE", "NEGATE_ENEMY_EFFECTS_TURN", "SKIP_RESHUFFLE", "RESTORE_ATTACKS", "GAIN_LIFE", "LOSE_LIFE", "DAMAGE_CASTLE", "WIN_GAME", "ADD_ROOT", "ADD_RAMPANT", "COMMIT", "PUSH", "PULL", "ROLLBACK" }, StringComparer.Ordinal);
         private static readonly HashSet<string> PunishConditions = new HashSet<string>(new[] { "ALWAYS", "ENEMY_MINIONS_GE_1", "ENEMY_MINIONS_GE_2", "HAND_GE_3" }, StringComparer.Ordinal);
         private static readonly HashSet<string> AmbushKinds = new HashSet<string>(new[] { "NORMAL", "FOCUS", "LOCKDOWN" }, StringComparer.Ordinal);
         private static readonly HashSet<string> AmbushTriggers = new HashSet<string>(new[] { "OPPONENT_ATTACKS", "OPPONENT_PLAYS_SPELL", "OPPONENT_SUMMONS", "OPPONENT_PLAYS_CARD", "OPPONENT_DRAWS" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> KnownCardFields = new HashSet<string>(new[] { "id", "name", "faction", "type", "tags", "punish", "attack", "health", "keywords", "leader", "leaderDef", "punishActivatable", "punishCost", "punishCondition", "punishEffects", "ambushKind", "ambushTrigger", "ambushEffects", "chant", "chantEffects", "attacksPerTurn", "onOpponentDiscardEffects", "onPlayEffects", "text", "flavor", "guard", "kingSlayer", "summonedThisTurn", "cost", "rarity" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> KnownLeaderFields = new HashSet<string>(new[] { "winCondition", "vulnerabilities", "winText", "winAmount", "winParam", "durability", "grantLife", "persistentEffects", "enterEffects", "punishEffects" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> KnownCardFields = new HashSet<string>(new[] { "id", "name", "faction", "type", "tags", "punish", "attack", "health", "keywords", "leader", "leaderDef", "punishActivatable", "punishCost", "punishCondition", "punishEffects", "ambushKind", "ambushTrigger", "ambushEffects", "chant", "chantEffects", "attacksPerTurn", "onOpponentDiscardEffects", "onPlayEffects", "commitCost", "uploadCost", "downloadCost", "commitEffects", "pushEffects", "pullEffects", "text", "flavor", "guard", "kingSlayer", "summonedThisTurn", "cost", "rarity" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> KnownLeaderFields = new HashSet<string>(new[] { "winCondition", "vulnerabilities", "winText", "winAmount", "winParam", "durability", "grantLife", "enterEffects", "punishEffects", "isLandmark", "landmarkTiers" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> KnownLandmarkTierFields = new HashSet<string>(new[] { "tier", "effect", "effectSpecs", "chant", "summon" }, StringComparer.Ordinal);
 
         public CardCatalog(IReadOnlyDictionary<string, CardDefinition> cards)
         {
@@ -85,9 +85,15 @@ namespace DominionWars.Data
             var health = OptionalInt(element, "health", isMinion ? 1 : 1, 1, 99, source);
             var cost = OptionalInt(element, "cost", 0, 0, 99, source);
             var punish = OptionalInt(element, "punish", 0, 0, 20, source);
+            var hasExplicitPunishActivatable = TryGetProperty(element, "punishActivatable", out _);
+            var hasExplicitPunishCost = TryGetProperty(element, "punishCost", out _);
             var punishActivatable = OptionalBool(element, "punishActivatable", false, source);
             var punishCost = OptionalInt(element, "punishCost", 0, 0, 20, source);
-            if (punish > 0) { punishActivatable = true; punishCost = punish; }
+            if (punish > 0 && !hasExplicitPunishActivatable && !hasExplicitPunishCost)
+            {
+                punishActivatable = true;
+                punishCost = punish;
+            }
             var punishCondition = OptionalString(element, "punishCondition", source, 64);
             ValidateArrayStrings(element, "tags", source, 4, 1, 8, null);
             var keywords = ValidateArrayStrings(element, "keywords", source, 4, 1, 16, Keywords);
@@ -99,6 +105,12 @@ namespace DominionWars.Data
             var chantEffects = MapEffects(element, "chantEffects", source);
             var onOpponentDiscardEffects = MapEffects(element, "onOpponentDiscardEffects", source);
             var onPlayEffects = MapEffects(element, "onPlayEffects", source);
+            var commitEffects = MapEffects(element, "commitEffects", source);
+            var pushEffects = MapEffects(element, "pushEffects", source);
+            var pullEffects = MapEffects(element, "pullEffects", source);
+            var commitCost = OptionalInt(element, "commitCost", 0, 0, 99, source);
+            var uploadCost = OptionalInt(element, "uploadCost", 0, 0, 99, source);
+            var downloadCost = OptionalInt(element, "downloadCost", 0, 0, 99, source);
             var leaderEnterEffects = new List<EffectSpec>();
             var leaderPunishEffects = new List<EffectSpec>();
             var vulnerabilities = new List<string>();
@@ -107,6 +119,8 @@ namespace DominionWars.Data
             string? leaderWinText = null;
             var leaderDurability = 0;
             var leaderWinParam = 0;
+            var isLandmark = false;
+            var landmarkTiers = new List<LandmarkTierDefinition>();
             if (TryGetProperty(element, "leaderDef", out var leaderDef))
             {
                 if (leaderDef.Type != JTokenType.Object) throw Invalid(source, "leaderDef must be an object");
@@ -136,6 +150,8 @@ namespace DominionWars.Data
                     0,
                     999,
                     source);
+                isLandmark = OptionalBool(leaderDef, "isLandmark", false, source);
+                landmarkTiers = MapLandmarkTiers(leaderDef, source, warning);
                 leaderEnterEffects = MapEffects(leaderDef, "enterEffects", source);
                 leaderPunishEffects = MapEffects(leaderDef, "punishEffects", source);
             }
@@ -170,7 +186,15 @@ namespace DominionWars.Data
                 leaderWinCondition: leaderWinCondition,
                 leaderWinText: leaderWinText,
                 leaderDurability: leaderDurability,
-                leaderWinParam: leaderWinParam);
+                leaderWinParam: leaderWinParam,
+                commitCost: commitCost,
+                uploadCost: uploadCost,
+                downloadCost: downloadCost,
+                commitEffects: commitEffects,
+                pushEffects: pushEffects,
+                pullEffects: pullEffects,
+                isLandmark: isLandmark,
+                landmarkTiers: landmarkTiers);
         }
 
         private static void ValidateLeaderDef(JToken value, string source)
@@ -179,7 +203,6 @@ namespace DominionWars.Data
             {
                 if (property.Name == "vulnerabilities" || property.Name == "winCondition" || property.Name == "winText") continue;
                 if (property.Name == "winAmount" || property.Name == "winParam" || property.Name == "durability" || property.Name == "grantLife") OptionalInt(value, property.Name, 0, 0, 999, source);
-                else if (property.Name == "persistentEffects") ValidateEffects(value, property.Name, source, PersistentActions);
                 else if (property.Name == "enterEffects" || property.Name == "punishEffects") ValidateEffects(value, property.Name, source);
             }
             if (TryGetProperty(value, "winText", out var winText) && (winText.Type != JTokenType.String || winText.Value<string>()!.Length > 64)) throw Invalid(source, "leaderDef.winText is invalid");
@@ -215,6 +238,56 @@ namespace DominionWars.Data
                     TryGetProperty(effect, "kingSlayer", out _) ? OptionalBool(effect, "kingSlayer", false, source) : (bool?)null,
                     OptionalString(effect, "condition", source, 64)));
             }
+            return result;
+        }
+
+        private static List<LandmarkTierDefinition> MapLandmarkTiers(
+            JToken leaderDef,
+            string source,
+            Action<string>? warning)
+        {
+            var result = new List<LandmarkTierDefinition>();
+            if (!TryGetProperty(leaderDef, "landmarkTiers", out var value))
+            {
+                return result;
+            }
+
+            if (value.Type != JTokenType.Array)
+            {
+                throw Invalid(source, "leaderDef.landmarkTiers must be an array");
+            }
+
+            var seen = new HashSet<int>();
+            var index = 0;
+            foreach (var item in value.Children())
+            {
+                var tierSource = source + ": leaderDef.landmarkTiers[" + index + "]";
+                if (item.Type != JTokenType.Object)
+                {
+                    throw Invalid(tierSource, "tier must be an object");
+                }
+
+                WarnUnknown(item, KnownLandmarkTierFields, tierSource, warning);
+                if (!TryGetProperty(item, "tier", out _))
+                {
+                    throw Invalid(tierSource, "tier is required");
+                }
+
+                var tier = OptionalInt(item, "tier", 0, 1, 99, tierSource);
+                if (!seen.Add(tier))
+                {
+                    throw Invalid(tierSource, "duplicate tier: " + tier);
+                }
+
+                result.Add(new LandmarkTierDefinition(
+                    tier,
+                    OptionalString(item, "effect", tierSource, 256),
+                    OptionalInt(item, "chant", 0, 0, 99, tierSource),
+                    OptionalString(item, "summon", tierSource, 64),
+                    MapEffects(item, "effectSpecs", tierSource)));
+                index++;
+            }
+
             return result;
         }
 

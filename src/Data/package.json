@@ -4,6 +4,9 @@
   "displayName": "Dominion Wars Data",
   "description": "Card and deck data loading boundary.",
   "unity": "6000.3",
-  "dependencies": { "com.dominionwars.engine": "0.1.0" },
+  "dependencies": {
+    "com.dominionwars.engine": "0.1.0",
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
   "author": { "name": "Dominion Wars" }
 }
