@@ -3,6 +3,15 @@
 不修改任何生产文件，只输出检测报告。"""
 import json, os, sys, glob
 
+# Keep diagnostics UTF-8 on Windows consoles (including cp932) and pipes.
+for _stream in (sys.stdout, sys.stderr):
+    _reconfigure = getattr(_stream, 'reconfigure', None)
+    if _reconfigure is not None:
+        try:
+            _reconfigure(encoding='utf-8', errors='replace')
+        except (OSError, TypeError, ValueError):
+            pass
+
 issues = []
 warnings = []
 info = []

@@ -2,6 +2,9 @@
 /build/
 *.class
 
+# Unity Assistant local user state (not team/project configuration)
+/unity/DominionWars.Unity/ProjectSettings/Packages/com.unity.ai.assistant/Settings.json
+
 # .NET / Unity package build output
 bin/
 obj/
