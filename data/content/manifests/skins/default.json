@@ -1,0 +1,14 @@
+{
+  "skinId": "default",
+  "version": "1.0.0",
+  "theme": "theme_default",
+  "assets": {
+    "board": "board_default",
+    "cardBack": "card_back_default",
+    "castle": "castle_default",
+    "leaderFrame": "leader_frame_default",
+    "factionFrame": "faction_frame_default",
+    "uiIcon": "ui_icon_default"
+  },
+  "cardArtwork": {}
+}

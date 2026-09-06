@@ -1,0 +1,16 @@
+{
+  "skinId": "test",
+  "version": "1.0.0",
+  "theme": "theme_test",
+  "assets": {
+    "board": "board_test",
+    "cardBack": "card_back_test",
+    "castle": "castle_test",
+    "leaderFrame": "leader_frame_test",
+    "factionFrame": "faction_frame_test",
+    "uiIcon": "ui_icon_test"
+  },
+  "cardArtwork": {
+    "flame_leader": "card_art_machine_alpha"
+  }
+}

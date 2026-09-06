@@ -1,0 +1,54 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <ui:Style src="CardEditorWindow.uss" />
+    <ui:VisualElement name="root" class="card-editor-root">
+        <uie:Toolbar name="toolbar" class="toolbar">
+            <ui:Label name="windowTitle" text="Dominion Wars Card Editor" class="window-title" />
+            <ui:VisualElement class="toolbar-spacer" />
+            <ui:Button name="refreshButton" text="Refresh" class="toolbar-button" />
+            <ui:Button name="newButton" text="New" class="toolbar-button" />
+            <ui:Button name="cloneButton" text="Clone" class="toolbar-button" />
+            <ui:Button name="undoButton" text="Undo" class="toolbar-button" />
+            <ui:Button name="redoButton" text="Redo" class="toolbar-button" />
+            <ui:Button name="validateButton" text="Validate" class="toolbar-button" />
+            <ui:Button name="saveButton" text="Save" class="toolbar-button save-button" />
+        </uie:Toolbar>
+        <ui:VisualElement name="contentRow" class="content-row">
+            <ui:VisualElement name="libraryPane" class="library-pane">
+                <ui:Label text="Card library" class="pane-title" />
+                <ui:TextField name="searchField" label="Search" class="search-field" />
+                <ui:DropdownField name="statusFilter" label="Status" class="status-filter" />
+                <ui:Label name="librarySummary" text="0 cards" class="library-summary" />
+                <ui:ListView name="cardList" class="card-list" />
+            </ui:VisualElement>
+            <ui:VisualElement name="editorPane" class="editor-pane">
+                <ui:VisualElement name="cardHeader" class="card-header">
+                    <ui:VisualElement class="header-copy">
+                        <ui:Label name="selectedTitle" text="No card selected" class="selected-title" />
+                        <ui:Label name="selectedMeta" class="selected-meta" />
+                        <ui:Label name="selectedPath" class="selected-path" />
+                    </ui:VisualElement>
+                    <ui:Label name="lifecycleBadge" text="—" class="lifecycle-badge" />
+                </ui:VisualElement>
+                <ui:VisualElement name="authoringNotice" class="authoring-notice">
+                    <ui:Label text="Status is editor metadata; runtime card JSON stays schema-compatible." class="notice-text" />
+                </ui:VisualElement>
+                <ui:VisualElement name="editorBody" class="editor-body">
+                    <ui:ScrollView name="fieldsScroll" class="fields-scroll" mode="Vertical" />
+                    <ui:VisualElement name="previewPane" class="preview-pane">
+                        <ui:Label text="Artwork preview" class="section-title" />
+                        <ui:Image name="artPreview" class="art-preview" />
+                        <ui:Label name="artIdLabel" class="preview-label" />
+                        <ui:Label name="fallbackLabel" class="preview-hint" />
+                        <ui:Label text="Save location" class="section-title" />
+                        <ui:TextField name="savePathField" class="save-path-field" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement name="validationPanel" class="validation-panel">
+                    <ui:Label name="validationTitle" text="Validation" class="section-title" />
+                    <ui:Label name="validationOutput" class="validation-output" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:Label name="statusBar" class="status-bar" />
+    </ui:VisualElement>
+</ui:UXML>

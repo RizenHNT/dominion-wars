@@ -1,0 +1,335 @@
+.card-editor-root {
+    flex-grow: 1;
+    min-width: 760px;
+    min-height: 480px;
+    background-color: rgb(25, 28, 34);
+    color: rgb(232, 235, 241);
+}
+
+.toolbar {
+    min-height: 30px;
+    padding-left: 8px;
+    padding-right: 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(55, 61, 72);
+    background-color: rgb(34, 38, 47);
+}
+
+.window-title {
+    -unity-font-style: bold;
+    margin-right: 12px;
+}
+
+.toolbar-spacer {
+    flex-grow: 1;
+}
+
+.toolbar-button {
+    margin-left: 3px;
+    margin-right: 3px;
+}
+
+.save-button {
+    background-color: rgb(46, 102, 167);
+}
+
+.content-row {
+    flex-grow: 1;
+    flex-direction: row;
+}
+
+.library-pane {
+    width: 280px;
+    min-width: 240px;
+    padding-left: 10px;
+    padding-right: 8px;
+    padding-top: 10px;
+    border-right-width: 1px;
+    border-right-color: rgb(55, 61, 72);
+    background-color: rgb(30, 34, 42);
+}
+
+.pane-title {
+    -unity-font-style: bold;
+    margin-bottom: 6px;
+}
+
+.search-field,
+.status-filter {
+    margin-bottom: 5px;
+}
+
+.library-summary {
+    margin-top: 4px;
+    margin-bottom: 5px;
+    color: rgb(166, 174, 188);
+}
+
+.card-list {
+    flex-grow: 1;
+    border-top-width: 1px;
+    border-top-color: rgb(55, 61, 72);
+}
+
+.card-list-item {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    padding-left: 7px;
+    padding-right: 5px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(48, 54, 64);
+    white-space: normal;
+}
+
+.card-list-item:hover {
+    background-color: rgb(46, 53, 65);
+}
+
+.editor-pane {
+    flex-grow: 1;
+    min-width: 460px;
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: 10px;
+    padding-bottom: 8px;
+}
+
+.card-header {
+    min-height: 56px;
+    flex-direction: row;
+    align-items: center;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(55, 61, 72);
+}
+
+.header-copy {
+    flex-grow: 1;
+}
+
+.selected-title {
+    font-size: 16px;
+    -unity-font-style: bold;
+}
+
+.selected-meta,
+.selected-path,
+.preview-hint,
+.notice-text {
+    color: rgb(166, 174, 188);
+    white-space: normal;
+}
+
+.selected-path {
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.lifecycle-badge {
+    min-width: 82px;
+    margin-left: 8px;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    -unity-text-align: middle-center;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(103, 112, 128);
+    border-right-color: rgb(103, 112, 128);
+    border-bottom-color: rgb(103, 112, 128);
+    border-left-color: rgb(103, 112, 128);
+}
+
+.status-draft {
+    color: rgb(244, 198, 106);
+}
+
+.status-ready {
+    color: rgb(117, 190, 248);
+}
+
+.status-approved {
+    color: rgb(126, 221, 153);
+}
+
+.status-deprecated {
+    color: rgb(190, 194, 202);
+}
+
+.authoring-notice {
+    margin-top: 7px;
+    margin-bottom: 7px;
+    padding-left: 7px;
+    padding-right: 7px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    background-color: rgb(39, 47, 59);
+}
+
+.editor-body {
+    flex-grow: 1;
+    flex-direction: row;
+    min-height: 180px;
+}
+
+.fields-scroll {
+    flex-grow: 1;
+    min-width: 360px;
+    padding-right: 10px;
+}
+
+.field-row {
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(46, 52, 62);
+}
+
+.field-label {
+    margin-bottom: 3px;
+    color: rgb(202, 208, 219);
+    -unity-font-style: bold;
+}
+
+.field-help {
+    margin-top: 3px;
+    color: rgb(142, 151, 166);
+    white-space: normal;
+}
+
+.field-json {
+    min-height: 64px;
+}
+
+.effect-editor {
+    margin-top: 3px;
+    padding-left: 6px;
+    padding-right: 6px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    background-color: rgb(29, 34, 43);
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(64, 73, 88);
+    border-right-color: rgb(64, 73, 88);
+    border-bottom-color: rgb(64, 73, 88);
+    border-left-color: rgb(64, 73, 88);
+}
+
+.effect-editor-header,
+.effect-row-header {
+    flex-direction: row;
+    align-items: center;
+}
+
+.effect-editor-title,
+.effect-row-title {
+    flex-grow: 1;
+    -unity-font-style: bold;
+}
+
+.effect-row {
+    margin-top: 6px;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    background-color: rgb(35, 41, 51);
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(55, 63, 76);
+    border-right-color: rgb(55, 63, 76);
+    border-bottom-color: rgb(55, 63, 76);
+    border-left-color: rgb(55, 63, 76);
+}
+
+.effect-field {
+    margin-top: 3px;
+}
+
+.effect-editor-help {
+    margin-top: 2px;
+    color: rgb(142, 151, 166);
+    white-space: normal;
+}
+
+.effect-editor-warning {
+    margin-top: 4px;
+    color: rgb(244, 198, 106);
+    white-space: normal;
+}
+
+.effect-unsupported {
+    margin-top: 4px;
+}
+
+.preview-pane {
+    width: 180px;
+    min-width: 150px;
+    padding-left: 10px;
+    border-left-width: 1px;
+    border-left-color: rgb(55, 61, 72);
+}
+
+.section-title {
+    -unity-font-style: bold;
+    margin-bottom: 5px;
+}
+
+.art-preview {
+    width: 150px;
+    height: 190px;
+    margin-bottom: 5px;
+    background-color: rgb(12, 15, 20);
+}
+
+.preview-label,
+.save-path-field {
+    margin-bottom: 6px;
+}
+
+.save-path-field {
+    font-size: 10px;
+}
+
+.validation-panel {
+    min-height: 74px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top-width: 1px;
+    border-top-color: rgb(55, 61, 72);
+}
+
+.validation-output {
+    white-space: normal;
+    color: rgb(210, 215, 224);
+}
+
+.validation-error {
+    color: rgb(255, 133, 125);
+}
+
+.validation-warning {
+    color: rgb(244, 198, 106);
+}
+
+.validation-success {
+    color: rgb(126, 221, 153);
+}
+
+.status-bar {
+    min-height: 24px;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 4px;
+    border-top-width: 1px;
+    border-top-color: rgb(55, 61, 72);
+    color: rgb(174, 182, 196);
+    white-space: normal;
+}

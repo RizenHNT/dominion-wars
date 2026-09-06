@@ -1,6 +1,8 @@
 #if UNITY_EDITOR
 using System;
 using System.IO;
+using System.Linq;
+using System.Text;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -10,19 +12,43 @@ namespace DominionWars.Unity.EditorTools
 {
 
 /// <summary>
-/// Stages the repository's data/cards and data/decks into Unity's
-/// StreamingAssets only when a player build is requested. The generated JSON
-/// is ignored by the generated-folder .gitignore and is never a source of
-/// truth; the repository data remains authoritative.
+/// Stages the repository's legacy card/deck data and validated content manifest
+/// into Unity's StreamingAssets only when a player build is requested. Generated
+/// files are never a source of truth; repository data remains authoritative.
 /// </summary>
 public sealed class RuntimeDataStreamingBuildPreprocessor :
     IPreprocessBuildWithReport,
     IPostprocessBuildWithReport
 {
     internal const string GeneratedRelativePath = "Assets/StreamingAssets/data";
-    private const string StreamingAssetsRelativePath = "Assets/StreamingAssets";
     private const string CardsDirectoryName = "cards";
     private const string DecksDirectoryName = "decks";
+    private static BuildOutputBaseline? _outputBaseline;
+    private static PendingBuildCleanup? _pendingBuildCleanup;
+
+    private sealed class BuildOutputBaseline
+    {
+        public BuildOutputBaseline(string outputPath, string fingerprint)
+        {
+            OutputPath = outputPath ?? string.Empty;
+            Fingerprint = fingerprint ?? "unavailable";
+        }
+
+        public string OutputPath { get; }
+        public string Fingerprint { get; }
+    }
+
+    private sealed class PendingBuildCleanup
+    {
+        public PendingBuildCleanup(BuildReport report, BuildOutputBaseline baseline)
+        {
+            Report = report;
+            Baseline = baseline;
+        }
+
+        public BuildReport Report { get; }
+        public BuildOutputBaseline Baseline { get; }
+    }
 
     public int callbackOrder => 1000;
 
@@ -30,30 +56,211 @@ public sealed class RuntimeDataStreamingBuildPreprocessor :
     {
         if (report is null) throw new ArgumentNullException(nameof(report));
 
+        // Unity 6 may call postprocess while the summary is still Unknown.
+        // Capture the output before this build so that a transient Unknown
+        // cannot clean an unchanged output from an earlier build.
+        _outputBaseline = new BuildOutputBaseline(
+            report.summary.outputPath,
+            RuntimeDataStreamingBuildSafety.CaptureBuildOutputFingerprint(report.summary.outputPath));
+
         var repositoryDataRoot = ResolveRepositoryDataRoot();
-        var sourceCards = RequireJsonDirectory(repositoryDataRoot, CardsDirectoryName);
-        var sourceDecks = RequireJsonDirectory(repositoryDataRoot, DecksDirectoryName);
-        var generatedRoot = ResolveGeneratedRoot();
-        PrepareGeneratedRoot(generatedRoot);
+        var contentRoot = Path.Combine(repositoryDataRoot, "content");
+        var contentReport = ContentPipelineValidator.Validate(contentRoot, production: true);
+        WriteContentBuildReport(contentReport);
+        if (!contentReport.CanBuild)
+        {
+            throw new BuildFailedException(
+                "Dominion Wars content validation blocked the build: " +
+                contentReport.BlockingCount + " BLOCKING diagnostic(s). No generated content was deleted.");
+        }
 
-        CopyDirectoryIntoGeneratedRoot(sourceCards, Path.Combine(generatedRoot, CardsDirectoryName));
-        CopyDirectoryIntoGeneratedRoot(sourceDecks, Path.Combine(generatedRoot, DecksDirectoryName));
-        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        var generatedContentRoot = ResolveGeneratedContentRoot();
+        if (Directory.Exists(generatedContentRoot) && !ContentPipelineStaging.IsOwnedGeneratedRoot(generatedContentRoot))
+        {
+            throw new BuildFailedException(
+                "Dominion Wars content path is not owned by the content build gate: " +
+                ContentPipelineStaging.GeneratedRelativePath +
+                ". Build refused to overwrite user StreamingAssets content.");
+        }
 
-        Debug.Log("Dominion Wars build data staged from " + repositoryDataRoot +
-            " to " + GeneratedRelativePath + ". Generated JSON is ignored and may be regenerated safely.");
+        // Prepare the content outside Assets first. Validation and source copies
+        // complete before either generated destination can be removed.
+        var contentStagingRoot = ContentPipelineStaging.CreateStagingDirectory(contentRoot, contentReport);
+        try
+        {
+            var sourceCards = RequireJsonDirectory(repositoryDataRoot, CardsDirectoryName);
+            var sourceDecks = RequireJsonDirectory(repositoryDataRoot, DecksDirectoryName);
+            var generatedRoot = ResolveGeneratedRoot();
+            PrepareGeneratedRoot(generatedRoot);
+
+            CopyDirectoryIntoGeneratedRoot(sourceCards, Path.Combine(generatedRoot, CardsDirectoryName));
+            CopyDirectoryIntoGeneratedRoot(sourceDecks, Path.Combine(generatedRoot, DecksDirectoryName));
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            ContentPipelineStaging.ReplaceGeneratedRoot(
+                contentStagingRoot,
+                generatedContentRoot,
+                ContentPipelineStaging.GeneratedRelativePath);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            Debug.Log("Dominion Wars build data staged from " + repositoryDataRoot +
+                " to " + GeneratedRelativePath + " and " +
+                ContentPipelineStaging.GeneratedRelativePath +
+                ". Generated content is owned and may be regenerated safely.");
+        }
+        finally
+        {
+            ContentPipelineStaging.TryDeleteDirectory(contentStagingRoot);
+        }
     }
 
     public void OnPostprocessBuild(BuildReport report)
     {
         if (report is null) throw new ArgumentNullException(nameof(report));
+        var outputBaseline = GetOutputBaseline(report.summary.outputPath);
+        Debug.Log(
+            "Dominion Wars postprocess entered: result=" + report.summary.result +
+            ", errors=" + report.summary.totalErrors +
+            ", output=" + report.summary.outputPath + ".");
 
-        if (report.summary.result != BuildResult.Succeeded)
+        // Unity 6 can invoke this callback before the final BuildReport result
+        // is committed. A no-error non-success result is therefore deferred;
+        // the editor update loop re-checks the same report after BuildPlayer
+        // returns. A final non-success remains fail-closed.
+        if (RuntimeDataStreamingBuildSafety.IsBuildDefinitelyFailed(
+                report.summary.result,
+                report.summary.totalErrors))
         {
             Debug.Log("Dominion Wars build data cleanup skipped because the build did not succeed. " +
                 GeneratedRelativePath + " remains available for diagnosis.");
+            ClearOutputBaseline(outputBaseline);
             return;
         }
+
+        if (report.summary.result == BuildResult.Succeeded)
+        {
+            CleanupOwnedRootsAfterSuccessfulBuild();
+            ClearOutputBaseline(outputBaseline);
+            return;
+        }
+
+        if (RuntimeDataStreamingBuildSafety.ShouldDeferBuildCleanup(
+                report.summary.result,
+                report.summary.totalErrors))
+        {
+            SchedulePostprocessCleanup(report, outputBaseline);
+            return;
+        }
+
+        Debug.Log("Dominion Wars build data cleanup skipped because the postprocess result was not conclusive. " +
+            GeneratedRelativePath + " remains available for diagnosis.");
+        ClearOutputBaseline(outputBaseline);
+    }
+
+    private static void SchedulePostprocessCleanup(BuildReport report, BuildOutputBaseline outputBaseline)
+    {
+        // Pipeline-driven builds can discard delayCall callbacks registered from
+        // inside BuildPlayer. An update handler survives that boundary and runs
+        // after BuildPlayer returns. Replacing the pending item is safe because
+        // its baseline is unique to the current preprocess invocation.
+        _pendingBuildCleanup = new PendingBuildCleanup(report, outputBaseline);
+        EditorApplication.update -= ProcessPendingBuildCleanup;
+        EditorApplication.update += ProcessPendingBuildCleanup;
+    }
+
+    private static void ProcessPendingBuildCleanup()
+    {
+        var pending = _pendingBuildCleanup;
+        if (pending is null ||
+            !RuntimeDataStreamingBuildSafety.TryConsumeMatching(
+                ref _pendingBuildCleanup,
+                pending))
+        {
+            EditorApplication.update -= ProcessPendingBuildCleanup;
+            return;
+        }
+
+        EditorApplication.update -= ProcessPendingBuildCleanup;
+        if (!ReferenceEquals(_outputBaseline, pending.Baseline))
+        {
+            Debug.Log("Dominion Wars build data cleanup skipped because the build output baseline belongs to another build.");
+            return;
+        }
+
+        var report = pending.Report;
+        Debug.Log(
+            "Dominion Wars postprocess deferred check: result=" + report.summary.result +
+            ", errors=" + report.summary.totalErrors +
+            ", output=" + report.summary.outputPath + ".");
+        if (RuntimeDataStreamingBuildSafety.IsBuildDefinitelyFailed(
+                report.summary.result,
+                report.summary.totalErrors))
+        {
+            Debug.Log("Dominion Wars build data cleanup skipped because the build did not succeed. " +
+                GeneratedRelativePath + " remains available for diagnosis.");
+            ClearOutputBaseline(pending.Baseline);
+            return;
+        }
+
+        var outputChanged = RuntimeDataStreamingBuildSafety.HasBuildOutputChanged(
+            report.summary.outputPath,
+            pending.Baseline.Fingerprint);
+        Debug.Log("Dominion Wars deferred build output changed from baseline: " + outputChanged + ".");
+        if (!RuntimeDataStreamingBuildSafety.ShouldCleanupAfterBuild(
+                report.summary.result,
+                report.summary.totalErrors,
+                outputChanged))
+        {
+            Debug.Log("Dominion Wars build data cleanup deferred report did not prove a successful output. " +
+                GeneratedRelativePath + " remains available for diagnosis.");
+            ClearOutputBaseline(pending.Baseline);
+            return;
+        }
+
+        CleanupOwnedRootsAfterSuccessfulBuild();
+        ClearOutputBaseline(pending.Baseline);
+    }
+
+    private static BuildOutputBaseline GetOutputBaseline(string outputPath)
+    {
+        var baseline = _outputBaseline;
+        if (baseline is not null && PathsEqual(baseline.OutputPath, outputPath)) return baseline;
+        return new BuildOutputBaseline(outputPath, "unavailable");
+    }
+
+    private static void ClearOutputBaseline(BuildOutputBaseline baseline)
+    {
+        if (ReferenceEquals(_outputBaseline, baseline)) _outputBaseline = null;
+        if (_pendingBuildCleanup is not null && ReferenceEquals(_pendingBuildCleanup.Baseline, baseline))
+        {
+            _pendingBuildCleanup = null;
+            EditorApplication.update -= ProcessPendingBuildCleanup;
+        }
+    }
+
+    private static bool PathsEqual(string first, string second)
+    {
+        if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second))
+            return string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            return string.Equals(Path.GetFullPath(first), Path.GetFullPath(second), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException)
+        {
+            return string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private static void CleanupOwnedRootsAfterSuccessfulBuild()
+    {
+
+        // Content is independent from the legacy card/deck staging path. Clean
+        // only the exact owned root; a user-created StreamingAssets/content is
+        // left untouched and reported as a safety error.
+        ContentPipelineStaging.CleanupGeneratedRoot(
+            ResolveGeneratedContentRoot(),
+            ContentPipelineStaging.GeneratedRelativePath);
 
         var generatedRoot = ResolveGeneratedRoot();
         if (!Directory.Exists(generatedRoot))
@@ -65,29 +272,26 @@ public sealed class RuntimeDataStreamingBuildPreprocessor :
 
         if (!RuntimeDataStreamingBuildSafety.IsOwnedGeneratedDataRoot(generatedRoot))
         {
+            if (RuntimeDataStreamingBuildSafety.IsOwnedCleanedDataRoot(generatedRoot))
+            {
+                Debug.Log("Dominion Wars build data cleanup found an already-clean generated root at " +
+                    GeneratedRelativePath + "; controlled files were preserved.");
+                return;
+            }
+
             Debug.LogError("Dominion Wars refused to clean " + GeneratedRelativePath +
                 ": ownership marker or generated-only shape is missing. " +
                 "No StreamingAssets content was deleted.");
             return;
         }
 
-        if (!DeleteAssetIfPresent(GeneratedRelativePath, generatedRoot, "post-build data cleanup"))
+        if (!CleanupGeneratedDataChildren(generatedRoot, "post-build data cleanup"))
             return;
 
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-        var streamingAssetsRoot = ResolveStreamingAssetsRoot();
-        if (Directory.Exists(streamingAssetsRoot) &&
-            RuntimeDataStreamingBuildSafety.IsEmptyDirectory(streamingAssetsRoot))
-        {
-            if (!DeleteAssetIfPresent(
-                    StreamingAssetsRelativePath,
-                    streamingAssetsRoot,
-                    "empty StreamingAssets cleanup"))
-                return;
-        }
 
-        Debug.Log("Dominion Wars build data cleaned after successful build: " +
-            GeneratedRelativePath + ". Other StreamingAssets content was preserved.");
+        Debug.Log("Dominion Wars build data generated children cleaned after successful build: " +
+            GeneratedRelativePath + ". Controlled .gitignore and StreamingAssets folders were preserved.");
     }
 
     private static string ResolveRepositoryDataRoot()
@@ -143,29 +347,80 @@ public sealed class RuntimeDataStreamingBuildPreprocessor :
         return streamingAssetsRoot;
     }
 
+    private static string ResolveGeneratedContentRoot()
+    {
+        var streamingAssetsRoot = ResolveStreamingAssetsRoot();
+        var generatedRoot = Path.GetFullPath(Path.Combine(streamingAssetsRoot, "content"));
+        if (!ContentPipelineStaging.IsSafeDestination(generatedRoot, streamingAssetsRoot))
+        {
+            throw new BuildFailedException("The generated content path escaped StreamingAssets/content.");
+        }
+
+        return generatedRoot;
+    }
+
+    private static void WriteContentBuildReport(ContentValidationReport report)
+    {
+        try
+        {
+            var projectDirectory = Directory.GetParent(Application.dataPath);
+            if (projectDirectory is null) return;
+            ContentBuildReportWriter.Write(
+                report,
+                Path.Combine(projectDirectory.FullName, "Library", "ContentBuildReport.json"));
+        }
+        catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
+        {
+            Debug.LogWarning("Dominion Wars could not write the content build report: " + exception.Message);
+        }
+    }
+
     private static void PrepareGeneratedRoot(string generatedRoot)
     {
         if (Directory.Exists(generatedRoot))
         {
-            if (!RuntimeDataStreamingBuildSafety.IsOwnedGeneratedDataRoot(generatedRoot))
+            var ownedGeneratedRoot = RuntimeDataStreamingBuildSafety.IsOwnedGeneratedDataRoot(generatedRoot);
+            var ownedCleanedRoot = RuntimeDataStreamingBuildSafety.IsOwnedCleanedDataRoot(generatedRoot);
+            if (!ownedGeneratedRoot && !ownedCleanedRoot)
             {
                 throw new BuildFailedException(
                     "Dominion Wars build data path is not owned by the build preprocessor: " +
                     GeneratedRelativePath + ". Build refused to overwrite user StreamingAssets content.");
             }
 
-            if (!DeleteAssetIfPresent(GeneratedRelativePath, generatedRoot, "pre-build regeneration"))
+            if (ownedGeneratedRoot &&
+                !CleanupGeneratedDataChildren(generatedRoot, "pre-build regeneration"))
             {
                 throw new BuildFailedException(
-                    "Dominion Wars could not remove the previous generated data asset: " +
+                    "Dominion Wars could not remove the previous generated data children under " +
                     GeneratedRelativePath + ". Build refused to continue.");
             }
 
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            if (ownedGeneratedRoot)
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
         Directory.CreateDirectory(generatedRoot);
         WriteOwnershipFiles(generatedRoot);
+    }
+
+    private static bool CleanupGeneratedDataChildren(string generatedRoot, string operation)
+    {
+        var children = new[]
+        {
+            CardsDirectoryName,
+            DecksDirectoryName,
+            RuntimeDataStreamingBuildSafety.GeneratedMarkerName
+        };
+
+        foreach (var child in children)
+        {
+            var absolutePath = Path.Combine(generatedRoot, child);
+            var assetPath = ToAssetPath(absolutePath);
+            if (!DeleteAssetIfPresent(assetPath, absolutePath, operation)) return false;
+        }
+
+        return true;
     }
 
     private static void CopyDirectoryIntoGeneratedRoot(string source, string destination)
@@ -204,7 +459,8 @@ public sealed class RuntimeDataStreamingBuildPreprocessor :
 
     private static bool DeleteAssetIfPresent(string assetPath, string absolutePath, string operation)
     {
-        if (!Directory.Exists(absolutePath) && !File.Exists(absolutePath)) return true;
+        var metaPath = absolutePath + ".meta";
+        if (!Directory.Exists(absolutePath) && !File.Exists(absolutePath) && !File.Exists(metaPath)) return true;
 
         if (!RuntimeDataStreamingBuildSafety.IsExpectedAssetPath(assetPath))
         {
@@ -213,8 +469,10 @@ public sealed class RuntimeDataStreamingBuildPreprocessor :
             return false;
         }
 
-        if (AssetDatabase.DeleteAsset(assetPath)) return true;
-        if (!Directory.Exists(absolutePath) && !File.Exists(absolutePath)) return true;
+        if (AssetDatabase.DeleteAsset(assetPath) &&
+            !Directory.Exists(absolutePath) && !File.Exists(absolutePath) && !File.Exists(metaPath))
+            return true;
+        if (!Directory.Exists(absolutePath) && !File.Exists(absolutePath) && !File.Exists(metaPath)) return true;
 
         Debug.LogError("Dominion Wars could not delete " + operation + " asset " +
             assetPath + ". No fallback filesystem deletion was attempted.");
@@ -269,7 +527,97 @@ public static class RuntimeDataStreamingBuildSafety
     public static bool IsExpectedAssetPath(string assetPath)
     {
         return string.Equals(assetPath, "Assets/StreamingAssets/data", StringComparison.Ordinal) ||
-            string.Equals(assetPath, "Assets/StreamingAssets", StringComparison.Ordinal);
+            string.Equals(assetPath, "Assets/StreamingAssets", StringComparison.Ordinal) ||
+            string.Equals(assetPath, "Assets/StreamingAssets/data/cards", StringComparison.Ordinal) ||
+            string.Equals(assetPath, "Assets/StreamingAssets/data/cards.meta", StringComparison.Ordinal) ||
+            string.Equals(assetPath, "Assets/StreamingAssets/data/decks", StringComparison.Ordinal) ||
+            string.Equals(assetPath, "Assets/StreamingAssets/data/decks.meta", StringComparison.Ordinal) ||
+            string.Equals(assetPath, "Assets/StreamingAssets/data/" + GeneratedMarkerName, StringComparison.Ordinal) ||
+            string.Equals(assetPath, "Assets/StreamingAssets/data/" + GeneratedMarkerName + ".meta", StringComparison.Ordinal);
+    }
+
+    public static bool IsBuildDefinitelyFailed(BuildResult result, int totalErrors)
+    {
+        return totalErrors > 0;
+    }
+
+    public static bool ShouldCleanupAfterBuild(
+        BuildResult result,
+        int totalErrors,
+        bool outputChanged)
+    {
+        // Unity 6 can leave the callback report at Unknown even after BuildPlayer
+        // produced a successful output. The baseline belongs to this exact build,
+        // so a changed output is sufficient only for Unknown with zero errors.
+        // Failed and Cancelled always remain fail-closed.
+        return totalErrors == 0 &&
+            (result == BuildResult.Succeeded ||
+             (result == BuildResult.Unknown && outputChanged));
+    }
+
+    public static bool ShouldDeferBuildCleanup(BuildResult result, int totalErrors)
+    {
+        return result != BuildResult.Succeeded && totalErrors == 0;
+    }
+
+    public static bool TryConsumeMatching<T>(ref T? pending, T expected)
+        where T : class
+    {
+        if (!ReferenceEquals(pending, expected)) return false;
+        pending = null;
+        return true;
+    }
+
+    public static string CaptureBuildOutputFingerprint(string outputPath)
+    {
+        if (string.IsNullOrWhiteSpace(outputPath)) return "unavailable";
+        try
+        {
+            var fullPath = Path.GetFullPath(outputPath);
+            if (File.Exists(fullPath))
+            {
+                var file = new FileInfo(fullPath);
+                return "file|" + file.Length + "|" + file.LastWriteTimeUtc.Ticks;
+            }
+
+            if (Directory.Exists(fullPath))
+            {
+                var builder = new StringBuilder("directory|");
+                foreach (var filePath in Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories)
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+                {
+                    var file = new FileInfo(filePath);
+                    var relative = filePath.Substring(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Length + 1)
+                        .Replace(Path.DirectorySeparatorChar, '/')
+                        .Replace(Path.AltDirectorySeparatorChar, '/');
+                    builder.Append(relative).Append('|').Append(file.Length).Append('|').Append(file.LastWriteTimeUtc.Ticks).Append(';');
+                }
+                return builder.ToString();
+            }
+
+            return "missing";
+        }
+        catch (ArgumentException)
+        {
+            return "unavailable";
+        }
+        catch (IOException)
+        {
+            return "unavailable";
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return "unavailable";
+        }
+    }
+
+    public static bool HasBuildOutputChanged(string outputPath, string baselineFingerprint)
+    {
+        var currentFingerprint = CaptureBuildOutputFingerprint(outputPath);
+        if (string.Equals(currentFingerprint, "unavailable", StringComparison.Ordinal) ||
+            string.Equals(baselineFingerprint, "unavailable", StringComparison.Ordinal))
+            return false;
+        return !string.Equals(currentFingerprint, baselineFingerprint, StringComparison.Ordinal);
     }
 
     public static bool IsEmptyDirectory(string path)
@@ -317,6 +665,36 @@ public static class RuntimeDataStreamingBuildSafety
                     name == ".gitignore" || name == ".gitignore.meta" ||
                     name == GeneratedMarkerName || name == GeneratedMarkerName + ".meta")
                     continue;
+                return false;
+            }
+
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    public static bool IsOwnedCleanedDataRoot(string path)
+    {
+        if (!Directory.Exists(path)) return false;
+
+        try
+        {
+            var ignorePath = Path.Combine(path, ".gitignore");
+            if (!File.Exists(ignorePath) ||
+                !TextMatches(File.ReadAllText(ignorePath), GeneratedIgnoreContents))
+                return false;
+
+            foreach (var entry in Directory.GetFileSystemEntries(path))
+            {
+                var name = Path.GetFileName(entry);
+                if (name == ".gitignore" || name == ".gitignore.meta") continue;
                 return false;
             }
 

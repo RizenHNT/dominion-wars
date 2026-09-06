@@ -2,7 +2,8 @@
   "name": "DominionWars.Editor",
   "rootNamespace": "DominionWars.Unity.EditorTools",
   "references": [
-    "DominionWars.Runtime"
+    "DominionWars.Runtime",
+    "DominionWars.Data"
   ],
   "includePlatforms": [
     "Editor"

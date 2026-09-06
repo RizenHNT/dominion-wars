@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -25,13 +26,106 @@ namespace DominionWars.Data
         private static readonly HashSet<string> KnownCardFields = new HashSet<string>(new[] { "id", "name", "faction", "type", "tags", "punish", "attack", "health", "keywords", "leader", "leaderDef", "punishActivatable", "punishCost", "punishCondition", "punishEffects", "ambushKind", "ambushTrigger", "ambushEffects", "chant", "chantEffects", "attacksPerTurn", "onOpponentDiscardEffects", "onPlayEffects", "commitCost", "uploadCost", "downloadCost", "commitEffects", "pushEffects", "pullEffects", "text", "flavor", "guard", "kingSlayer", "summonedThisTurn", "cost", "rarity", "artId" }, StringComparer.Ordinal);
         private static readonly HashSet<string> KnownLeaderFields = new HashSet<string>(new[] { "winCondition", "vulnerabilities", "winText", "winAmount", "winParam", "durability", "grantLife", "enterEffects", "punishEffects", "isLandmark", "landmarkTiers" }, StringComparer.Ordinal);
         private static readonly HashSet<string> KnownLandmarkTierFields = new HashSet<string>(new[] { "tier", "effect", "effectSpecs", "chant", "summon" }, StringComparer.Ordinal);
+        private readonly IReadOnlyDictionary<string, CardCostPresence> _costPresenceByCardId;
 
         public CardCatalog(IReadOnlyDictionary<string, CardDefinition> cards)
+            : this(cards, null)
+        {
+        }
+
+        private CardCatalog(
+            IReadOnlyDictionary<string, CardDefinition> cards,
+            IReadOnlyDictionary<string, CardCostPresence>? costPresenceByCardId)
         {
             Cards = cards ?? throw new ArgumentNullException(nameof(cards));
+
+            var presence = new Dictionary<string, CardCostPresence>(StringComparer.Ordinal);
+            if (costPresenceByCardId is not null)
+            {
+                foreach (var entry in costPresenceByCardId)
+                {
+                    if (Cards.ContainsKey(entry.Key))
+                    {
+                        presence[entry.Key] = entry.Value;
+                    }
+                }
+            }
+
+            _costPresenceByCardId = new ReadOnlyDictionary<string, CardCostPresence>(presence);
         }
 
         public IReadOnlyDictionary<string, CardDefinition> Cards { get; }
+
+        /// <summary>
+        /// Returns the optional presentation asset ID without exposing the
+        /// gameplay card definition to presentation assemblies.
+        /// </summary>
+        public bool TryGetArtId(string cardId, out string artId)
+        {
+            artId = string.Empty;
+            if (string.IsNullOrWhiteSpace(cardId) ||
+                !Cards.TryGetValue(cardId, out var card) ||
+                string.IsNullOrWhiteSpace(card.ArtId))
+            {
+                return false;
+            }
+
+            artId = card.ArtId;
+            return true;
+        }
+
+        /// <summary>
+        /// Returns a renderer-facing copy of the card's printed and declared
+        /// values without exposing CardDefinition outside the data boundary.
+        /// Runtime current values are not included here.
+        /// </summary>
+        public bool TryGetPresentationMetadata(
+            string cardId,
+            out CardPresentationMetadata? metadata)
+        {
+            metadata = null;
+            if (string.IsNullOrWhiteSpace(cardId) ||
+                !Cards.TryGetValue(cardId, out var card))
+            {
+                return false;
+            }
+
+            var hasCommitCost = card.CommitCost != 0;
+            var hasUploadCost = card.UploadCost != 0;
+            var hasDownloadCost = card.DownloadCost != 0;
+            if (_costPresenceByCardId.TryGetValue(cardId, out var presence))
+            {
+                hasCommitCost = presence.HasCommitCost;
+                hasUploadCost = presence.HasUploadCost;
+                hasDownloadCost = presence.HasDownloadCost;
+            }
+
+            metadata = new CardPresentationMetadata(
+                card.Id,
+                card.Name,
+                card.Type,
+                card.Faction,
+                card.IsMinion,
+                card.IsLeader,
+                card.IsMinion ? card.Attack : (int?)null,
+                card.IsMinion ? card.Health : (int?)null,
+                card.Punish,
+                card.Cost,
+                card.PunishCost,
+                card.PunishActivatable,
+                card.CommitCost,
+                card.UploadCost,
+                card.DownloadCost,
+                card.Text,
+                card.Flavor,
+                card.Keywords,
+                card.Tags,
+                card.ArtId,
+                hasCommitCost,
+                hasUploadCost,
+                hasDownloadCost);
+            return true;
+        }
 
         public static CardCatalog LoadDirectory(string directory, Action<string>? warning = null)
         {
@@ -40,23 +134,25 @@ namespace DominionWars.Data
             var files = Directory.GetFiles(directory, "*.json", SearchOption.TopDirectoryOnly).OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray();
             if (files.Length == 0) throw new InvalidDataException("No card JSON files were found.");
             var cards = new Dictionary<string, CardDefinition>(StringComparer.Ordinal);
+            var costPresenceByCardId = new Dictionary<string, CardCostPresence>(StringComparer.Ordinal);
             foreach (var file in files)
             {
                 var document = ParseFile(file);
                 if (document.Type != JTokenType.Array) throw Invalid(file, "root must be an array");
                 foreach (var element in document.Children())
                 {
-                    var card = MapCard(element, file, warning);
+                    var card = MapCard(element, file, warning, out var costPresence);
                     if (!cards.TryAdd(card.Id, card)) throw Invalid(file, "duplicate card id: " + card.Id);
+                    costPresenceByCardId.Add(card.Id, costPresence);
                 }
             }
-            return new CardCatalog(cards);
+            return new CardCatalog(cards, costPresenceByCardId);
         }
 
         public static CardDefinition LoadFile(string file, Action<string>? warning = null)
         {
             if (file is null) throw new ArgumentNullException(nameof(file));
-            return MapCard(ParseFile(file), file, warning);
+            return MapCard(ParseFile(file), file, warning, out _);
         }
 
         private static JToken ParseFile(string file)
@@ -66,7 +162,11 @@ namespace DominionWars.Data
             catch (JsonException exception) { throw Invalid(file, "invalid JSON", exception); }
         }
 
-        private static CardDefinition MapCard(JToken element, string source, Action<string>? warning)
+        private static CardDefinition MapCard(
+            JToken element,
+            string source,
+            Action<string>? warning,
+            out CardCostPresence costPresence)
         {
             if (element.Type != JTokenType.Object) throw Invalid(source, "card must be an object");
             WarnUnknown(element, KnownCardFields, source, warning);
@@ -111,6 +211,13 @@ namespace DominionWars.Data
             var commitEffects = MapEffects(element, "commitEffects", source);
             var pushEffects = MapEffects(element, "pushEffects", source);
             var pullEffects = MapEffects(element, "pullEffects", source);
+            var hasExplicitCommitCost = TryGetProperty(element, "commitCost", out _);
+            var hasExplicitUploadCost = TryGetProperty(element, "uploadCost", out _);
+            var hasExplicitDownloadCost = TryGetProperty(element, "downloadCost", out _);
+            costPresence = new CardCostPresence(
+                hasExplicitCommitCost,
+                hasExplicitUploadCost,
+                hasExplicitDownloadCost);
             var commitCost = OptionalInt(element, "commitCost", 0, 0, 99, source);
             var uploadCost = OptionalInt(element, "uploadCost", 0, 0, 99, source);
             var downloadCost = OptionalInt(element, "downloadCost", 0, 0, 99, source);
@@ -199,6 +306,23 @@ namespace DominionWars.Data
                 pullEffects: pullEffects,
                 isLandmark: isLandmark,
                 landmarkTiers: landmarkTiers);
+        }
+
+        private readonly struct CardCostPresence
+        {
+            public CardCostPresence(
+                bool hasCommitCost,
+                bool hasUploadCost,
+                bool hasDownloadCost)
+            {
+                HasCommitCost = hasCommitCost;
+                HasUploadCost = hasUploadCost;
+                HasDownloadCost = hasDownloadCost;
+            }
+
+            public bool HasCommitCost { get; }
+            public bool HasUploadCost { get; }
+            public bool HasDownloadCost { get; }
         }
 
         private static void ValidateLeaderDef(JToken value, string source)

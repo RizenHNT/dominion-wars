@@ -83,6 +83,114 @@
       "sha256": null,
       "fallbackId": null,
       "status": "approved"
+    },
+    {
+      "id": "board_default",
+      "kind": "board",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "board_test",
+      "kind": "board",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "card_back_default",
+      "kind": "card_back",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "card_back_test",
+      "kind": "card_back",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "castle_default",
+      "kind": "castle",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "castle_test",
+      "kind": "castle",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "leader_frame_default",
+      "kind": "leader",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "leader_frame_test",
+      "kind": "leader",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "faction_frame_default",
+      "kind": "faction_frame",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "faction_frame_test",
+      "kind": "faction_frame",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "ui_icon_default",
+      "kind": "ui_icon",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
+    },
+    {
+      "id": "ui_icon_test",
+      "kind": "ui_icon",
+      "sourceType": "programmatic",
+      "relativePath": null,
+      "sha256": null,
+      "fallbackId": null,
+      "status": "approved"
     }
   ],
   "aliases": [

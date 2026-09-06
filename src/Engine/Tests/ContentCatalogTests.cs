@@ -4,7 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using DominionWars.Data;
+using DominionWars.Engine.Model;
 using NUnit.Framework;
 
 namespace DominionWars.Engine.Tests
@@ -35,7 +37,7 @@ namespace DominionWars.Engine.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(catalog.Manifest.ManifestVersion, Is.EqualTo(1));
-                Assert.That(catalog.Assets, Has.Count.EqualTo(9));
+                Assert.That(catalog.Assets, Has.Count.EqualTo(21));
                 Assert.That(catalog.Aliases, Has.Count.EqualTo(4));
                 Assert.That(catalog.ResolveAlias("flame_leader"), Is.EqualTo("card_art_flame_leader"));
                 Assert.That(catalog.ResolveAlias("machine_leader"), Is.EqualTo("card_art_machine_alpha"));
@@ -149,12 +151,85 @@ namespace DominionWars.Engine.Tests
             var file = Path.GetTempFileName();
             try
             {
-                File.WriteAllText(file, "{\"id\":\"compat_card\",\"name\":\"Compat\",\"faction\":\"烈焰帝国\",\"type\":\"SPELL\",\"text\":\"\"}");
-                Assert.That(CardCatalog.LoadFile(file).ArtId, Is.Null);
+            File.WriteAllText(file, "{\"id\":\"compat_card\",\"name\":\"Compat\",\"faction\":\"烈焰帝国\",\"type\":\"SPELL\",\"text\":\"\"}");
+                var compatibilityCard = CardCatalog.LoadFile(file);
+                Assert.That(compatibilityCard.ArtId, Is.Null);
                 File.WriteAllText(file, "{\"id\":\"art_card\",\"name\":\"Art\",\"faction\":\"烈焰帝国\",\"type\":\"SPELL\",\"artId\":\"card_art_flame_leader\",\"text\":\"\"}");
-                Assert.That(CardCatalog.LoadFile(file).ArtId, Is.EqualTo("card_art_flame_leader"));
+                var artCard = CardCatalog.LoadFile(file);
+                Assert.That(artCard.ArtId, Is.EqualTo("card_art_flame_leader"));
+                var cardCatalog = new CardCatalog(new Dictionary<string, CardDefinition>
+                {
+                    [compatibilityCard.Id] = compatibilityCard,
+                    [artCard.Id] = artCard,
+                });
+                Assert.That(cardCatalog.TryGetArtId("art_card", out var resolvedArtId), Is.True);
+                Assert.That(resolvedArtId, Is.EqualTo("card_art_flame_leader"));
+                Assert.That(cardCatalog.TryGetArtId("compat_card", out _), Is.False);
+                Assert.That(cardCatalog.TryGetArtId("missing_card", out _), Is.False);
                 File.WriteAllText(file, "{\"id\":\"bad_art_card\",\"name\":\"Bad\",\"faction\":\"烈焰帝国\",\"type\":\"SPELL\",\"artId\":true,\"text\":\"\"}");
                 Assert.Throws<InvalidDataException>(() => CardCatalog.LoadFile(file));
+            }
+            finally
+            {
+                File.Delete(file);
+            }
+        }
+
+        [Test]
+        public void CardCatalogDistinguishesMissingAndExplicitZeroMechanicalFees()
+        {
+            var file = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(file, "{\"id\":\"missing_fees\",\"name\":\"Missing Fees\",\"faction\":\"机械遗迹\",\"type\":\"SPELL\",\"text\":\"\"}");
+                var missing = CardCatalog.LoadFile(file);
+                File.WriteAllText(file, "{\"id\":\"explicit_zero_fees\",\"name\":\"Explicit Zero Fees\",\"faction\":\"机械遗迹\",\"type\":\"SPELL\",\"commitCost\":0,\"uploadCost\":0,\"downloadCost\":0,\"text\":\"\"}");
+                var explicitZero = CardCatalog.LoadFile(file);
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(missing.CommitCost, Is.Zero);
+                    Assert.That(missing.UploadCost, Is.Zero);
+                    Assert.That(missing.DownloadCost, Is.Zero);
+                    Assert.That(explicitZero.CommitCost, Is.Zero);
+                    Assert.That(explicitZero.UploadCost, Is.Zero);
+                    Assert.That(explicitZero.DownloadCost, Is.Zero);
+                });
+
+                var catalogRoot = Path.Combine(
+                    Path.GetTempPath(),
+                    "dw-card-presence-" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(catalogRoot);
+                try
+                {
+                    File.WriteAllText(
+                        Path.Combine(catalogRoot, "cards.json"),
+                        "[{\"id\":\"missing_fees\",\"name\":\"Missing Fees\",\"faction\":\"机械遗迹\",\"type\":\"SPELL\",\"text\":\"\"},{\"id\":\"explicit_zero_fees\",\"name\":\"Explicit Zero Fees\",\"faction\":\"机械遗迹\",\"type\":\"SPELL\",\"commitCost\":0,\"uploadCost\":0,\"downloadCost\":0,\"text\":\"\"}]");
+                    var catalog = CardCatalog.LoadDirectory(catalogRoot);
+
+                    Assert.That(catalog.TryGetPresentationMetadata(
+                        "missing_fees",
+                        out var missingMetadata), Is.True);
+                    Assert.That(catalog.TryGetPresentationMetadata(
+                        "explicit_zero_fees",
+                        out var explicitZeroMetadata), Is.True);
+                    Assert.Multiple(() =>
+                    {
+                        Assert.That(missingMetadata!.HasCommitCost, Is.False);
+                        Assert.That(missingMetadata.HasUploadCost, Is.False);
+                        Assert.That(missingMetadata.HasDownloadCost, Is.False);
+                        Assert.That(explicitZeroMetadata!.HasCommitCost, Is.True);
+                        Assert.That(explicitZeroMetadata.HasUploadCost, Is.True);
+                        Assert.That(explicitZeroMetadata.HasDownloadCost, Is.True);
+                        Assert.That(explicitZeroMetadata.CommitCost, Is.EqualTo(0));
+                        Assert.That(JsonSerializer.Serialize(catalog.Cards["explicit_zero_fees"]),
+                            Does.Not.Contain("HasExplicit"));
+                    });
+                }
+                finally
+                {
+                    Directory.Delete(catalogRoot, true);
+                }
             }
             finally
             {
