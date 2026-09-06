@@ -87,7 +87,7 @@ public sealed class RuntimeBattlePanelEditModeTests
     }
 
     [Test]
-    public void OwnCardSummaryUsesOnlyVisibleWireCardFields()
+    public void OwnCardSummaryHidesWireCardFieldsButDebugKeepsThem()
     {
         var own = new RuntimePlayerSnapshot
         {
@@ -105,18 +105,27 @@ public sealed class RuntimeBattlePanelEditModeTests
         };
 
         var text = RuntimeBattlePanelPresentationModel.BuildPlayerSection(own, true);
+        var debugText = RuntimeBattlePanelPresentationModel.BuildDebugPlayerSection(own, true);
 
-        Assert.That(text, Does.Contain("visible_card#12 [sealed]"));
-        Assert.That(text, Does.Contain("field_card#13"));
+        Assert.That(text, Does.Contain("手牌：卡牌"));
+        Assert.That(text, Does.Contain("场面：卡牌"));
+        Assert.That(text, Does.Not.Contain("visible_card"));
+        Assert.That(text, Does.Not.Contain("field_card"));
+        Assert.That(text, Does.Not.Contain("#12"));
+        Assert.That(text, Does.Not.Contain("#13"));
+        Assert.That(debugText, Does.Contain("visible_card#12 [sealed]"));
+        Assert.That(debugText, Does.Contain("field_card#13"));
     }
 
     [Test]
-    public void DisabledCastleRendersSafePlaceholder()
+    public void DisabledCastleRendersWithoutBarrierPlaceholder()
     {
         var text = RuntimeBattlePanelPresentationModel.BuildCastleSummary(
-            new RuntimeCastleSnapshot { Enabled = false, Health = 999 });
+            new RuntimeCastleSnapshot { Enabled = false, Health = 999 },
+            new RuntimePlayerSnapshot { PlayerId = "player_0", CycleWinCount = 2 },
+            new RuntimePlayerSnapshot { PlayerId = "player_1", CycleWinCount = 5 });
 
-        Assert.That(text, Is.EqualTo("共享王城：未启用"));
+        Assert.That(text, Is.EqualTo("共享王城：未启用 | 洗牌胜利计数 己方 2 / 对手 5"));
     }
 
     [Test]

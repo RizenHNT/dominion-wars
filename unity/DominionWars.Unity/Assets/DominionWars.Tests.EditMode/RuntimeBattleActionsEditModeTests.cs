@@ -1,8 +1,12 @@
 #nullable enable annotations
 
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using DominionWars.Adapters;
+using DominionWars.Data;
+using DominionWars.Engine.Localization;
+using DominionWars.Engine.Model;
 using DominionWars.Unity.Runtime;
 using DominionWars.Unity.UI;
 using NUnit.Framework;
@@ -103,16 +107,216 @@ public sealed class RuntimeBattleActionsEditModeTests
     }
 
     [Test]
-    public void ActionLabelIncludesWireSourceAndTargetWithoutDerivingRules()
+    public void SelectedCardFiltersUnrelatedActionsButKeepsAdvertisedGlobalActions()
+    {
+        var first = Action("set_ambush_101", "SET_AMBUSH", 101L, null, "ambush_alpha");
+        var second = Action("set_ambush_102", "SET_AMBUSH", 102L, null, "ambush_beta");
+        var skip = Action("skip_ambush_0", "SKIP_AMBUSH", null, null);
+        var snapshot = Snapshot(first, second, skip);
+
+        var groups = RuntimeBattlePanelActionModel.BuildActionGroups(snapshot, 101L);
+        var ids = groups
+            .SelectMany(group => group.Actions)
+            .Select(entry => entry.LegalAction.ActionId)
+            .ToArray();
+
+        Assert.That(ids, Is.EqualTo(new[] { first.ActionId, skip.ActionId }));
+        Assert.That(ids, Does.Not.Contain(second.ActionId));
+
+        var noCardAction = RuntimeBattlePanelActionModel.BuildActionGroups(snapshot, 999L);
+        var noCardIds = noCardAction
+            .SelectMany(group => group.Actions)
+            .Select(entry => entry.LegalAction.ActionId)
+            .ToArray();
+        Assert.That(noCardIds, Is.EqualTo(new[] { skip.ActionId }));
+    }
+
+    [Test]
+    public void CardSelectionSwitchesActionRailAndSuccessfulClickClearsSelection()
+    {
+        GameObject panelObject = null!;
+        RuntimeAdapter? adapter = null;
+        try
+        {
+            var first = Action("set_ambush_101", "SET_AMBUSH", 101L, null, "ambush_alpha");
+            var second = Action("set_ambush_102", "SET_AMBUSH", 102L, null, "ambush_beta");
+            var skip = Action("skip_ambush_0", "SKIP_AMBUSH", null, null);
+            var initial = SelectionSnapshot(first, second, skip);
+            var resulting = SelectionSnapshot(first, second, skip);
+            resulting.SnapshotRevision = 1;
+            var session = new ButtonSession(
+                initial,
+                Submission(initial, second, true, resulting, "action.accepted"));
+            adapter = new RuntimeAdapter(session);
+            adapter.AcceptSnapshot(initial);
+
+            panelObject = CreatePanelObject();
+            var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+            panel.SetFollowCurrentPlayer(false);
+            panel.Bind(adapter);
+
+            var firstCard = FindCardInteraction(panelObject, first.SourceId);
+            var secondCard = FindCardInteraction(panelObject, second.SourceId);
+
+            firstCard.OnPointerClick(null!);
+            Assert.That(panel.SelectedCardEntityId, Is.EqualTo(101L));
+            Assert.That(ActionIds(panel), Is.EqualTo(new[] { first.ActionId, skip.ActionId }));
+            Assert.That(FindButton(panelObject, "Action_" + first.ActionId), Is.Not.Null);
+            Assert.That(FindButtonOrNull(panelObject, "Action_" + second.ActionId), Is.Null);
+
+            secondCard.OnPointerClick(null!);
+            Assert.That(panel.SelectedCardEntityId, Is.EqualTo(102L));
+            Assert.That(ActionIds(panel), Is.EqualTo(new[] { second.ActionId, skip.ActionId }));
+            Assert.That(FindButton(panelObject, "Action_" + second.ActionId), Is.Not.Null);
+            Assert.That(FindButtonOrNull(panelObject, "Action_" + first.ActionId), Is.Null);
+
+            // The direct button's object/action identity and the submitted
+            // wire action must remain the same after card filtering.
+            FindButton(panelObject, "Action_" + second.ActionId).onClick.Invoke();
+            Assert.That(session.LastAction, Is.Not.Null);
+            Assert.That(session.LastAction!.ActionId, Is.EqualTo(second.ActionId));
+            Assert.That(panel.SelectedCardEntityId, Is.Null);
+
+            // A fresh click can select the first card again; clicking the same
+            // pinned card a second time is the explicit cancellation path.
+            var refreshedFirstCard = FindCardInteraction(panelObject, first.SourceId);
+            refreshedFirstCard.OnPointerClick(null!);
+            Assert.That(panel.SelectedCardEntityId, Is.EqualTo(101L));
+            refreshedFirstCard.OnPointerClick(null!);
+            Assert.That(panel.SelectedCardEntityId, Is.Null);
+            Assert.That(ActionIds(panel), Is.EqualTo(new[]
+            {
+                first.ActionId, second.ActionId, skip.ActionId,
+            }));
+        }
+        finally
+        {
+            adapter?.Dispose();
+            if (panelObject != null) Object.DestroyImmediate(panelObject);
+        }
+    }
+
+    [Test]
+    public void PlayerActionLabelUsesReadableSemanticsWithoutWireFields()
     {
         var legal = Action("attack_7_castle", "ATTACK", 7L, "castle");
         var state = RuntimeBattlePanelActionModel.Evaluate(legal);
 
         var label = RuntimeBattlePanelActionModel.Describe(legal, state);
 
-        Assert.That(label, Does.Contain("source=7"));
-        Assert.That(label, Does.Contain("target=castle"));
-        Assert.That(label, Does.Contain("attack_7_castle"));
+        Assert.That(label, Is.EqualTo("Attack → Castle"));
+        Assert.That(label, Does.Not.Contain("source="));
+        Assert.That(label, Does.Not.Contain("target="));
+        Assert.That(label, Does.Not.Contain(legal.ActionId));
+
+        var technical = RuntimeBattlePanelActionModel.DescribeTechnical(legal, state);
+        Assert.That(technical, Does.Contain("source=7"));
+        Assert.That(technical, Does.Contain("target=castle"));
+        Assert.That(technical, Does.Contain(legal.ActionId));
+    }
+
+    [TestCase("PLAY_CARD", "action.playCard", "Localized play")]
+    [TestCase("ATTACK", "action.attack", "Localized attack")]
+    [TestCase("END_TURN", "action.endTurn", "Localized end turn")]
+    [TestCase("SKIP_AMBUSH", "action.skipAmbush", "Localized skip ambush")]
+    public void ResolverAwareDescribeUsesInjectedSemanticTextForApprovedActions(
+        string actionType,
+        string localizationKey,
+        string expectedText)
+    {
+        var table = new RuntimeLocalizationTable(
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(System.StringComparer.Ordinal)
+            {
+                [localizationKey] = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase)
+                {
+                    ["en"] = expectedText,
+                },
+            });
+        var resolver = new RuntimeLocalizationResolver(new Localization(), table);
+        var legal = Action("localized_action", actionType, null, null);
+
+        var label = RuntimeBattlePanelActionModel.Describe(
+            legal,
+            RuntimeBattlePanelActionModel.Evaluate(legal),
+            resolver);
+
+        Assert.That(label, Is.EqualTo(expectedText));
+    }
+
+    [Test]
+    public void UnknownActionAndMissingCardMetadataUseSafeFallbackWithoutOpaqueIds()
+    {
+        const string unknownAction = "UNREGISTERED_ACTION_42";
+        const string opaqueCardId = "opaque_card_42";
+        var legal = Action(
+            "opaque_action_42",
+            unknownAction,
+            42L,
+            "opaque_target_42",
+            opaqueCardId);
+
+        var label = RuntimeBattlePanelActionModel.Describe(
+            legal,
+            RuntimeBattlePanelActionModel.Evaluate(legal),
+            new RuntimeLocalizationResolver());
+
+        Assert.That(label, Is.EqualTo("Unusable → Target"));
+        Assert.That(label, Does.Not.Contain(unknownAction));
+        Assert.That(label, Does.Not.Contain(opaqueCardId));
+        Assert.That(label, Does.Not.Contain(legal.ActionId));
+    }
+
+    [TestCase("PLAY_CARD")]
+    [TestCase("ATTACK")]
+    public void KnownCardAndAttackRetainAuthoredCardPresentationName(string actionType)
+    {
+        var definition = new CardDefinition(
+            "known_action_card",
+            "Authored Action Card",
+            faction: "烈焰帝国",
+            type: "SPELL");
+        var catalog = new CardCatalog(
+            new Dictionary<string, CardDefinition>(System.StringComparer.Ordinal)
+            {
+                [definition.Id] = definition,
+            });
+        var legal = Action(
+            "known_action_card_action",
+            actionType,
+            actionType == "ATTACK" ? 7L : null,
+            null,
+            definition.Id);
+
+        var label = RuntimeBattlePanelActionModel.Describe(
+            legal,
+            RuntimeBattlePanelActionModel.Evaluate(legal),
+            catalog,
+            null,
+            null,
+            new RuntimeLocalizationResolver());
+
+        Assert.That(label, Does.Contain("Authored Action Card"));
+        Assert.That(label, Does.Not.Contain(definition.Id));
+    }
+
+    [Test]
+    public void TechnicalDescriptorRetainsRawActionCardAndWireIds()
+    {
+        var legal = Action(
+            "technical_action_42",
+            "PLAY_CARD",
+            42L,
+            "opaque_target_42",
+            "opaque_card_42");
+
+        var technical = RuntimeBattlePanelActionModel.DescribeTechnical(
+            legal,
+            RuntimeBattlePanelActionModel.Evaluate(legal));
+
+        Assert.That(technical, Does.Contain("technical_action_42"));
+        Assert.That(technical, Does.Contain("opaque_card_42"));
+        Assert.That(technical, Does.Contain("source=42"));
+        Assert.That(technical, Does.Contain("target=opaque_target_42"));
     }
 
     [Test]
@@ -170,7 +374,7 @@ public sealed class RuntimeBattleActionsEditModeTests
             Assert.That(session.LastAction, Is.Not.Null);
             Assert.That(session.LastAction!.ActionId, Is.EqualTo(endTurn.ActionId));
             Assert.That(session.LastAction.Type, Is.EqualTo("END_TURN"));
-            Assert.That(panel.LastActionStatus, Does.Contain("Action accepted: END_TURN"));
+            Assert.That(panel.LastActionStatus, Is.EqualTo("Action accepted"));
             Assert.That(panel.Adapter!.Presentation.Snapshot!.SnapshotRevision, Is.EqualTo(1));
             Assert.That(panel.ActionGroups, Is.Empty);
         }
@@ -214,7 +418,71 @@ public sealed class RuntimeBattleActionsEditModeTests
             Assert.That(session.LastAction.ActionId, Is.EqualTo(actionId));
             Assert.That(session.LastAction.SourceId, Is.EqualTo(sourceId));
             Assert.That(session.LastAction.TargetId, Is.EqualTo(targetId));
-            Assert.That(panel.LastActionStatus, Does.Contain("Action accepted: " + type));
+            Assert.That(panel.LastActionStatus, Is.EqualTo("Action accepted"));
+        }
+        finally
+        {
+            adapter?.Dispose();
+            if (panelObject != null) Object.DestroyImmediate(panelObject);
+        }
+    }
+
+    [Test]
+    public void TargetedPlayVariantsRenderAsVisibleDirectButtonsAndPreserveWireTarget()
+    {
+        GameObject panelObject = null!;
+        RuntimeAdapter? adapter = null;
+        try
+        {
+            var castle = Action(
+                "play_22_core:shared_castle",
+                "PLAY_CARD",
+                22L,
+                "castle",
+                "flame_bolt",
+                new Dictionary<string, object?> { ["punish"] = 1 });
+            var opponentLife = Action(
+                "play_22_core:player_1:life",
+                "PLAY_CARD",
+                22L,
+                "core:player_1:life",
+                "flame_bolt",
+                new Dictionary<string, object?> { ["punish"] = 1 });
+            var initial = Snapshot(castle, opponentLife);
+            var resulting = SnapshotAt(1, 0, "ACTION");
+            var session = new ButtonSession(
+                initial,
+                Submission(initial, castle, true, resulting, "action.accepted"));
+            adapter = new RuntimeAdapter(session);
+            adapter.AcceptSnapshot(initial);
+
+            panelObject = CreatePanelObject();
+            var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+            panel.SetFollowCurrentPlayer(false);
+            panel.Bind(adapter);
+
+            var button = FindButton(panelObject, "Action_play_22_core_shared_castle");
+            Assert.That(button.interactable, Is.True);
+            var buttonLabel = button.GetComponentInChildren<UnityEngine.UI.Text>(true)!.text;
+            Assert.That(panel.CardCatalog, Is.Not.Null);
+            Assert.That(panel.CardCatalog!.TryGetPresentationMetadata(
+                castle.CardId!,
+                out var cardMetadata), Is.True);
+            Assert.That(buttonLabel, Does.Contain("Play"));
+            Assert.That(buttonLabel, Does.Contain(cardMetadata!.Name));
+            Assert.That(buttonLabel, Does.Contain("Castle"));
+            Assert.That(buttonLabel, Does.Not.Contain("source="));
+            Assert.That(buttonLabel, Does.Not.Contain("target="));
+            Assert.That(buttonLabel, Does.Not.Contain(castle.ActionId));
+
+            button.onClick.Invoke();
+
+            Assert.That(session.LastAction, Is.Not.Null);
+            Assert.That(session.LastAction!.ActionId, Is.EqualTo(castle.ActionId));
+            Assert.That(session.LastAction.SourceId, Is.EqualTo(22L));
+            Assert.That(session.LastAction.TargetId, Is.EqualTo("castle"));
+            Assert.That(session.LastAction.Payload, Is.SameAs(castle.Payload));
+            Assert.That(panel.LastActionStatus, Is.EqualTo("Action accepted"));
         }
         finally
         {
@@ -258,7 +526,7 @@ public sealed class RuntimeBattleActionsEditModeTests
             Assert.That(session.LastAction!.ActionId, Is.EqualTo(second.ActionId));
             Assert.That(session.LastAction.SourceId, Is.EqualTo(11L));
             Assert.That(session.LastAction.TargetId, Is.EqualTo(21L));
-            Assert.That(panel.LastActionStatus, Does.Contain("Action accepted: PULL"));
+            Assert.That(panel.LastActionStatus, Is.EqualTo("Action accepted"));
         }
         finally
         {
@@ -294,7 +562,7 @@ public sealed class RuntimeBattleActionsEditModeTests
 
             Assert.That(session.LastAction, Is.Not.Null);
             Assert.That(session.LastAction!.ActionId, Is.EqualTo(rejected.ActionId));
-            Assert.That(panel.LastActionStatus, Does.Contain("Action rejected: action.not_allowed"));
+            Assert.That(panel.LastActionStatus, Is.EqualTo("Action rejected"));
             Assert.That(panel.Adapter!.Presentation.Snapshot, Is.SameAs(refreshed));
             Assert.That(panel.ActionGroups.Count, Is.EqualTo(1));
             Assert.That(panel.ActionGroups[0].SelectedAction.LegalAction.ActionId,
@@ -333,7 +601,8 @@ public sealed class RuntimeBattleActionsEditModeTests
             var texts = panelObject.GetComponentsInChildren<UnityEngine.UI.Text>(true);
             var ownText = FindText(texts, "RuntimeBattlePanelOwn");
             var opponentText = FindText(texts, "RuntimeBattlePanelOpponent");
-            Assert.That(ownText.text, Does.Contain("only_viewer_1"));
+            Assert.That(ownText.text, Does.Contain("手牌：卡牌"));
+            Assert.That(ownText.text, Does.Not.Contain("only_viewer_1"));
             Assert.That(opponentText.text, Does.Contain("隐藏（仅数量可见）"));
             Assert.That(opponentText.text, Does.Not.Contain("only_viewer_0"));
         }
@@ -389,6 +658,35 @@ public sealed class RuntimeBattleActionsEditModeTests
     private static RuntimeSnapshotEnvelope Snapshot(params RuntimeLegalAction[] actions)
     {
         return SnapshotAt(0, 0, "ACTION", actions);
+    }
+
+    private static RuntimeSnapshotEnvelope SelectionSnapshot(
+        params RuntimeLegalAction[] actions)
+    {
+        var snapshot = Snapshot(actions);
+        snapshot.Phase = "AMBUSH";
+        snapshot.Players = new[]
+        {
+            new RuntimePlayerSnapshot
+            {
+                PlayerId = "player_0",
+                Hand = new[]
+                {
+                    new RuntimeCardSnapshot { EntityId = 101, CardId = "ambush_alpha", OwnerPlayer = 0 },
+                    new RuntimeCardSnapshot { EntityId = 102, CardId = "ambush_beta", OwnerPlayer = 0 },
+                },
+            },
+            new RuntimePlayerSnapshot { PlayerId = "player_1" },
+        };
+        return snapshot;
+    }
+
+    private static string[] ActionIds(RuntimeBattlePanel panel)
+    {
+        return panel.ActionGroups
+            .SelectMany(group => group.Actions)
+            .Select(entry => entry.LegalAction.ActionId)
+            .ToArray();
     }
 
     private static RuntimeSnapshotEnvelope SnapshotAt(
@@ -471,6 +769,28 @@ public sealed class RuntimeBattleActionsEditModeTests
             if (button.gameObject.name == name) return button;
         }
         Assert.Fail("Button not found: " + name);
+        return null!;
+    }
+
+    private static UnityEngine.UI.Button? FindButtonOrNull(GameObject root, string name)
+    {
+        foreach (var button in root.GetComponentsInChildren<UnityEngine.UI.Button>(true))
+        {
+            if (button.gameObject.name == name) return button;
+        }
+        return null;
+    }
+
+    private static RuntimeCardInspectInteraction FindCardInteraction(
+        GameObject root,
+        object sourceId)
+    {
+        var source = sourceId is long value ? value : 0L;
+        foreach (var interaction in root.GetComponentsInChildren<RuntimeCardInspectInteraction>(true))
+        {
+            if (interaction.Model?.Card.EntityId == source) return interaction;
+        }
+        Assert.Fail("Card interaction not found for entity: " + source);
         return null!;
     }
 

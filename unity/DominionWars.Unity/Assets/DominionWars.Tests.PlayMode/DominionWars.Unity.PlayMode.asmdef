@@ -2,6 +2,7 @@
   "name": "DominionWars.Unity.PlayMode",
   "rootNamespace": "DominionWars.Unity.PlayMode",
   "references": [
+    "DominionWars.Engine",
     "DominionWars.Adapters",
     "DominionWars.Runtime",
     "DominionWars.UI",

@@ -73,10 +73,16 @@ public sealed class RuntimePullLifecycleFixtureEditModeTests
                 snapshot,
                 "PLAY_CARD",
                 action => action.CardId == CommitCardId);
-            var commitSubmission = Submit(adapter, commitPlay);
+            Submit(adapter, commitPlay);
+            snapshot = adapter.Presentation.Snapshot!;
+            var commitAction = FindAction(
+                snapshot,
+                "COMMIT",
+                action => action.CardId == CommitCardId);
+            var commitSubmission = Submit(adapter, commitAction);
             Assert.That(
                 commitSubmission.Events.Select(item => item.EventType),
-                Does.Contain("CARD_COMMITTED"));
+                Is.EqualTo(new[] { "COMMIT_DECLARED", "CARD_COMMITTED" }));
             snapshot = adapter.Presentation.Snapshot!;
 
             var player0AfterCommit = Player(snapshot, 0);

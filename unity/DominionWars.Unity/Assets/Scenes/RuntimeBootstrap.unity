@@ -158,6 +158,7 @@ MonoBehaviour:
   castleEnabled: 1
   castleHealth: 75
   seed: 1
+  useSharedContentContext: 1
 --- !u!4 &1131673234
 Transform:
   m_ObjectHideFlags: 0

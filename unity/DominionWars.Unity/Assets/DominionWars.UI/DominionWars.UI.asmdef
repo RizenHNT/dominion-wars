@@ -3,7 +3,8 @@
   "rootNamespace": "DominionWars.Unity.UI",
   "references": [
     "DominionWars.Runtime",
-    "DominionWars.Adapters"
+    "DominionWars.Adapters",
+    "DominionWars.Data"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

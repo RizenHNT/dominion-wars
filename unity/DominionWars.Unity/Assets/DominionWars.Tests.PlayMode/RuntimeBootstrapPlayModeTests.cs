@@ -23,7 +23,18 @@ public sealed class RuntimeBootstrapPlayModeTests
 
         var bootstrap = Object.FindFirstObjectByType<RuntimeBootstrap>();
         Assert.That(bootstrap, Is.Not.Null);
-        Assert.That(bootstrap!.Adapter, Is.Not.Null);
+        Assert.That(bootstrap!.UseSharedContentContext, Is.True,
+            "The checked-in bootstrap scene must use the shared content context by default.");
+        Assert.That(bootstrap.SharedContentContext, Is.Not.Null);
+        var flow = Object.FindFirstObjectByType<RuntimeScreenFlow>();
+        Assert.That(flow, Is.Not.Null);
+        Assert.That(flow!.CurrentScreen, Is.EqualTo(RuntimeScreenId.Title));
+        Assert.That(bootstrap!.Adapter, Is.Null,
+            "The scene bootstrap must defer session creation to MatchSetup.");
+
+        StartMatchThroughScreenFlow(flow);
+        yield return null;
+        flow.Refresh();
 
         var snapshot = bootstrap.Adapter!.Presentation.Snapshot;
         Assert.That(snapshot, Is.Not.Null);
@@ -31,7 +42,8 @@ public sealed class RuntimeBootstrapPlayModeTests
         Assert.That(snapshot.SnapshotRevision, Is.EqualTo(1));
         Assert.That(snapshot.LegalActions, Is.Not.Null.And.Not.Empty);
         Assert.That(snapshot.LegalActions.Any(action => action.Type == "SKIP_AMBUSH"), Is.True);
-        Assert.That(bootstrap.Adapter.Presentation.EventDelta, Is.Not.Empty);
+        Assert.That(bootstrap.Adapter.Presentation.Events, Is.Not.Empty,
+            "The production panel may refresh the viewer snapshot and clear EventDelta; cumulative Events remain authoritative evidence.");
     }
 
     [UnityTest]
@@ -41,24 +53,40 @@ public sealed class RuntimeBootstrapPlayModeTests
 
         var bootstrap = Object.FindFirstObjectByType<RuntimeBootstrap>();
         Assert.That(bootstrap, Is.Not.Null);
-        Assert.That(bootstrap!.Adapter, Is.Not.Null);
+        var flow = Object.FindFirstObjectByType<RuntimeScreenFlow>();
+        Assert.That(flow, Is.Not.Null);
+        Assert.That(flow!.CurrentScreen, Is.EqualTo(RuntimeScreenId.Title));
+        Assert.That(bootstrap!.Adapter, Is.Null,
+            "The panel test must also use the deferred MatchSetup boundary.");
 
-        // Keep the smoke independent of whether the disposable panel's
-        // AfterSceneLoad auto-creator ran before the test scene was loaded.
-        // This exercises the same public binding path used by the runtime UI.
-        var panelObject = new GameObject(
-            "PlayModeRuntimeBattlePanel",
-            typeof(RectTransform));
-        var panel = panelObject.AddComponent<RuntimeBattlePanel>();
-        panel.Bind(bootstrap);
+        var panels = Object.FindObjectsByType<RuntimeBattlePanel>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        Assert.That(panels, Has.Length.EqualTo(1),
+            "The production bootstrap flow must create exactly one battle panel.");
+        var panel = panels[0];
+        Assert.That(panel.name, Is.EqualTo("DominionWarsRuntimeBattlePanel"));
+        Assert.That(flow.BattlePanel, Is.SameAs(panel));
+        Assert.That(panel.gameObject.activeSelf, Is.False,
+            "The production panel stays hidden until the Battle screen is entered.");
+
+        flow.Navigate(RuntimeScreenId.MainMenu);
+        flow.View.MainMenuMatchSetupButton.onClick.Invoke();
+        Assert.That(flow.CurrentScreen, Is.EqualTo(RuntimeScreenId.MatchSetup));
+
+        flow.View.MatchSetupStartButton.onClick.Invoke();
         yield return null;
+        flow.Refresh();
 
         Assert.That(panel, Is.Not.Null);
         Assert.That(panel!.Bootstrap, Is.SameAs(bootstrap));
+        Assert.That(flow.CurrentScreen, Is.EqualTo(RuntimeScreenId.Battle));
+        Assert.That(bootstrap.Adapter, Is.Not.Null);
         Assert.That(panel.Adapter, Is.SameAs(bootstrap.Adapter));
-
-        Object.Destroy(panelObject);
-        yield return null;
+        Assert.That(panel.gameObject.activeSelf, Is.True);
+        Assert.That(panel.Adapter!.Presentation.Snapshot, Is.Not.Null);
+        Assert.That(flow.View.BattleRoot.gameObject.activeSelf, Is.False,
+            "The shell must hand Battle presentation to the production panel.");
     }
 
     [UnityTest]
@@ -81,18 +109,10 @@ public sealed class RuntimeBootstrapPlayModeTests
 
         for (var index = 0; index < 6; index++)
         {
-            RuntimeBattlePanelView.CreateCardFace(
+            RuntimeCardFaceView.Build(
                 view.OwnHandRoot,
                 "FirstFrameCard_" + index,
-                "card_" + index,
-                "#" + index,
-                "—",
-                "—",
-                "—",
-                Color.cyan,
-                false,
-                false,
-                true);
+                RuntimeCardFaceMode.Compact);
         }
 
         RuntimeBattlePanelView.FitCardStrip(view.OwnHandRoot);
@@ -126,9 +146,22 @@ public sealed class RuntimeBootstrapPlayModeTests
         var load = SceneManager.LoadSceneAsync(RuntimeBootstrapScene, LoadSceneMode.Single);
         Assert.That(load, Is.Not.Null);
         yield return load;
-        // RuntimeBootstrap runs from scene Awake; the extra frame gives the
-        // scene and any runtime presentation hooks a stable observation point.
+        // ScreenFlow owns the explicit StartMatch boundary; the extra frame
+        // gives its title shell and scene hooks a stable observation point.
         yield return null;
+    }
+
+    private static void StartMatchThroughScreenFlow(RuntimeScreenFlow flow)
+    {
+        flow.Navigate(RuntimeScreenId.MainMenu);
+        flow.View.MainMenuMatchSetupButton.onClick.Invoke();
+        Assert.That(flow.CurrentScreen, Is.EqualTo(RuntimeScreenId.MatchSetup));
+        Assert.That(flow.View.MatchSetupPlayer0DeckButtons, Has.Count.EqualTo(4));
+        Assert.That(flow.View.MatchSetupPlayer1DeckButtons, Has.Count.EqualTo(4));
+
+        // The bootstrap's serialized defaults are the first and second
+        // canonical options; no test-only deck or engine call is injected.
+        flow.View.MatchSetupStartButton.onClick.Invoke();
     }
 }
 }

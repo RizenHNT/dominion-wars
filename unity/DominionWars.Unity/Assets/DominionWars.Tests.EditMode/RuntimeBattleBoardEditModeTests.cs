@@ -86,7 +86,11 @@ public sealed class RuntimeBattleBoardEditModeTests
         };
 
         var phase = RuntimeBattlePanelPresentationModel.BuildPhaseSummary(snapshot);
+        var debugPhase = RuntimeBattlePanelPresentationModel.BuildDebugPhaseSummary(snapshot);
         var own = RuntimeBattlePanelPresentationModel.BuildPlayerSection(
+            RuntimeBattlePanelPresentationModel.FindPlayer(snapshot, true)!,
+            true);
+        var debugOwn = RuntimeBattlePanelPresentationModel.BuildDebugPlayerSection(
             RuntimeBattlePanelPresentationModel.FindPlayer(snapshot, true)!,
             true);
         var opponent = RuntimeBattlePanelPresentationModel.BuildPlayerSection(
@@ -95,10 +99,17 @@ public sealed class RuntimeBattleBoardEditModeTests
 
         Assert.That(phase, Does.Contain("阶段 ACTION"));
         Assert.That(phase, Does.Contain("回合 3"));
-        Assert.That(phase, Does.Contain("当前玩家 1"));
-        Assert.That(own, Does.Contain("统领：当前快照未单列"));
-        Assert.That(own, Does.Contain("手牌：wood_card#4"));
-        Assert.That(opponent, Does.Contain("统领：当前快照未单列"));
+        Assert.That(phase, Does.Not.Contain("当前玩家"));
+        Assert.That(debugPhase, Does.Contain("当前玩家 1"));
+        Assert.That(own, Does.Not.Contain("Unavailable"));
+        Assert.That(own, Does.Not.Contain("统领："));
+        Assert.That(own, Does.Not.Contain("除外："));
+        Assert.That(own, Does.Contain("手牌：卡牌"));
+        Assert.That(own, Does.Not.Contain("wood_card"));
+        Assert.That(debugOwn, Does.Contain("手牌：wood_card#4"));
+        Assert.That(opponent, Does.Not.Contain("Unavailable"));
+        Assert.That(opponent, Does.Not.Contain("统领："));
+        Assert.That(opponent, Does.Not.Contain("除外："));
         Assert.That(opponent, Does.Contain("隐藏（仅数量可见）"));
         Assert.That(opponent, Does.Not.Contain("wood_card"));
     }
@@ -116,6 +127,8 @@ public sealed class RuntimeBattleBoardEditModeTests
             var view = RuntimeBattlePanelView.Build(rootObject.transform);
 
             Assert.That(view.OpponentHandRoot, Is.Not.Null);
+            Assert.That(view.OpponentAmbushRoot, Is.Not.Null);
+            Assert.That(view.OpponentAmbushCardsRoot, Is.Not.Null);
             Assert.That(view.OpponentHandRoot.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>(), Is.Not.Null);
             Assert.That(view.OpponentLeaderRoot, Is.Not.Null);
             Assert.That(view.OpponentDeckRoot, Is.Not.Null);
@@ -127,6 +140,8 @@ public sealed class RuntimeBattleBoardEditModeTests
             Assert.That(view.MechanicalRoot, Is.Not.Null);
             Assert.That(view.OwnFieldRoot, Is.Not.Null);
             Assert.That(view.OwnHandRoot, Is.Not.Null);
+            Assert.That(view.OwnAmbushRoot, Is.Not.Null);
+            Assert.That(view.OwnAmbushCardsRoot, Is.Not.Null);
             Assert.That(view.OwnLeaderRoot, Is.Not.Null);
             Assert.That(view.OwnDeckRoot, Is.Not.Null);
             Assert.That(view.OwnGraveyardRoot, Is.Not.Null);
@@ -137,7 +152,9 @@ public sealed class RuntimeBattleBoardEditModeTests
 
             var castleTitle = view.CastleRoot.GetComponentsInChildren<UnityEngine.UI.Text>(true);
             Assert.That(castleTitle, Has.Some.Property("text").EqualTo("KINGDOM CORE"));
-            Assert.That(castleTitle, Has.Some.Property("text").EqualTo("BARRIER  —"));
+            Assert.That(view.CastleBarrierRoot.gameObject.activeSelf, Is.False);
+            Assert.That(castleTitle, Has.None.Property("text").Contain("BARRIER"));
+            Assert.That(castleTitle, Has.None.Property("text").Contain("Unavailable"));
         }
         finally
         {
@@ -186,18 +203,10 @@ public sealed class RuntimeBattleBoardEditModeTests
 
             for (var index = 0; index < 16; index++)
             {
-                RuntimeBattlePanelView.CreateCardFace(
+                RuntimeCardFaceView.Build(
                     view.OwnHandRoot,
                     "ResponsiveOwnCard_" + index,
-                    "card_" + index,
-                    "#" + index,
-                    "—",
-                    "—",
-                    "—",
-                    Color.cyan,
-                    false,
-                    false,
-                    false);
+                    RuntimeCardFaceMode.Compact);
             }
             for (var index = 0; index < 8; index++)
                 RuntimeBattlePanelView.CreateCardBack(view.OpponentHandRoot, "ResponsiveBack_" + index, false);
@@ -312,6 +321,136 @@ public sealed class RuntimeBattleBoardEditModeTests
         }
     }
 
+    [TestCase(5, 1280f, 720f)]
+    [TestCase(5, 1440f, 900f)]
+    [TestCase(10, 1280f, 720f)]
+    [TestCase(10, 1440f, 900f)]
+    public void OwnHandUsesReadableWidthAndKeepsEachLeadingEdgeVisible(
+        int cardCount,
+        float width,
+        float height)
+    {
+        GameObject rootObject = null!;
+        try
+        {
+            rootObject = new GameObject(
+                "RuntimeBattleOwnHandReadabilityTest",
+                typeof(RectTransform),
+                typeof(Canvas));
+            var root = rootObject.GetComponent<RectTransform>();
+            root.anchorMin = new Vector2(0.5f, 0.5f);
+            root.anchorMax = new Vector2(0.5f, 0.5f);
+            root.pivot = new Vector2(0.5f, 0.5f);
+            root.sizeDelta = new Vector2(width, height);
+            var view = RuntimeBattlePanelView.Build(root);
+
+            Assert.That(view.OwnHandRoot.anchorMin.y, Is.EqualTo(0.02f).Within(0.0001f));
+            Assert.That(view.OwnHandRoot.anchorMax.y, Is.EqualTo(0.58f).Within(0.0001f));
+
+            CreateOwnHandCards(view.OwnHandRoot, cardCount, "ReadabilityCard_");
+            ResolveTabletopLayout(root, view);
+
+            Assert.That(view.OwnHandRoot.childCount, Is.EqualTo(cardCount));
+            var cards = new RectTransform[cardCount];
+            for (var index = 0; index < cardCount; index++)
+            {
+                cards[index] = (RectTransform)view.OwnHandRoot.GetChild(index);
+                Assert.That(cards[index].name, Is.EqualTo("ReadabilityCard_" + index));
+                Assert.That(cards[index].rect.height, Is.GreaterThan(0f));
+                if (index > 0)
+                    Assert.That(
+                        cards[index].position.y,
+                        Is.EqualTo(cards[0].position.y).Within(0.1f),
+                        "The hand must remain one horizontal row.");
+            }
+
+            var cardWidth = cards[0].rect.width;
+            if (cardCount == 5)
+            {
+                Assert.That(cardWidth, Is.GreaterThanOrEqualTo(103f));
+                Assert.That(cardWidth, Is.LessThanOrEqualTo(112.1f));
+            }
+            else
+            {
+                Assert.That(cardWidth, Is.EqualTo(80f).Within(0.1f));
+            }
+
+            for (var index = 1; index < cards.Length; index++)
+            {
+                var previousLeft = WorldLeft(cards[index - 1]);
+                var currentLeft = WorldLeft(cards[index]);
+                var visibleLeadingEdge = currentLeft - previousLeft;
+                Assert.That(
+                    visibleLeadingEdge,
+                    Is.GreaterThanOrEqualTo(44f),
+                    "Each card must retain at least 44 px of visible leading edge.");
+                if (cardCount == 5)
+                    Assert.That(visibleLeadingEdge, Is.GreaterThanOrEqualTo(cardWidth - 0.1f));
+                else
+                    Assert.That(visibleLeadingEdge, Is.LessThan(cardWidth - 0.1f));
+            }
+        }
+        finally
+        {
+            if (rootObject != null) Object.DestroyImmediate(rootObject);
+        }
+    }
+
+    [TestCase(1280f, 720f)]
+    [TestCase(1440f, 900f)]
+    public void ActionRailKeepsFirstAndLastButtonsInsideViewportAcrossScrollRange(
+        float width,
+        float height)
+    {
+        GameObject rootObject = null!;
+        try
+        {
+            rootObject = new GameObject(
+                "RuntimeBattleActionRailBoundsTest",
+                typeof(RectTransform),
+                typeof(Canvas));
+            var root = rootObject.GetComponent<RectTransform>();
+            root.anchorMin = new Vector2(0.5f, 0.5f);
+            root.anchorMax = new Vector2(0.5f, 0.5f);
+            root.pivot = new Vector2(0.5f, 0.5f);
+            root.sizeDelta = new Vector2(width, height);
+            var view = RuntimeBattlePanelView.Build(root);
+            var scroll = view.ActionsScrollRoot.GetComponent<UnityEngine.UI.ScrollRect>();
+            var layout = view.ActionsRoot.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
+
+            CreateActionRailTestButton(view.ActionsRoot, "Action_first", "PLAY CARD");
+            CreateActionRailTestButton(view.ActionsRoot, "Action_end_turn", "END TURN");
+            CreateActionRailTestButton(view.ActionsRoot, "Action_pull", "PULL");
+            CreateActionRailTestButton(view.ActionsRoot, "Action_attack", "ATTACK");
+            CreateActionRailTestButton(view.ActionsRoot, "Action_last", "END TURN");
+
+            UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(view.ActionsScrollRoot);
+            UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(view.ActionsRoot);
+            Canvas.ForceUpdateCanvases();
+
+            Assert.That(layout, Is.Not.Null);
+            Assert.That(layout!.padding.bottom, Is.GreaterThanOrEqualTo(6));
+            Assert.That(view.ActionsRoot.rect.height, Is.GreaterThan(view.ActionsViewport.rect.height));
+            var maxScroll = view.ActionsRoot.rect.height - view.ActionsViewport.rect.height;
+            Assert.That(maxScroll, Is.GreaterThan(0f));
+
+            scroll!.verticalNormalizedPosition = 1f;
+            Canvas.ForceUpdateCanvases();
+            AssertVerticalBoundsInside(view.ActionsViewport, (RectTransform)view.ActionsRoot.GetChild(0));
+            var topPosition = view.ActionsRoot.anchoredPosition.y;
+
+            scroll.verticalNormalizedPosition = 0f;
+            Canvas.ForceUpdateCanvases();
+            AssertVerticalBoundsInside(view.ActionsViewport, (RectTransform)view.ActionsRoot.GetChild(view.ActionsRoot.childCount - 1));
+            var bottomPosition = view.ActionsRoot.anchoredPosition.y;
+            Assert.That(Mathf.Abs(bottomPosition - topPosition), Is.EqualTo(maxScroll).Within(0.5f));
+        }
+        finally
+        {
+            if (rootObject != null) Object.DestroyImmediate(rootObject);
+        }
+    }
+
     [Test]
     public void CardFaceUsesPlaceholdersWhenStatsAreNotInSnapshotContract()
     {
@@ -320,24 +459,23 @@ public sealed class RuntimeBattleBoardEditModeTests
         {
             rootObject = new GameObject("RuntimeBattleCardFaceTest", typeof(RectTransform));
             var root = rootObject.GetComponent<RectTransform>();
-            var card = RuntimeBattlePanelView.CreateCardFace(
+            var face = RuntimeCardFaceView.Build(
                 root,
                 "Card",
-                "visible_card",
-                "#12",
-                "—",
-                "—",
-                "—",
-                Color.cyan,
-                true,
-                false,
-                true);
+                RuntimeCardFaceMode.Compact);
+            face.Clear();
+            face.SetInteractionState(true, false, true);
+            var card = face.CardRoot;
 
             var texts = card.GetComponentsInChildren<UnityEngine.UI.Text>(true);
-            Assert.That(texts, Has.Some.Property("text").EqualTo("visible_card"));
-            Assert.That(texts, Has.Some.Property("text").EqualTo("ATK —   HP —"));
-            Assert.That(texts, Has.Some.Property("text").EqualTo("—"));
-            Assert.That(card.GetComponent<UnityEngine.UI.Outline>()!.effectDistance, Is.EqualTo(new Vector2(3f, 3f)));
+            Assert.That(texts, Has.Some.Property("text").EqualTo(RuntimeCardDisplayModel.UnknownCard));
+            Assert.That(face.AttackLabel.text, Is.EqualTo("ATK"));
+            Assert.That(face.StatsRoot.gameObject.activeSelf, Is.False);
+            Assert.That(face.AttackValue.text, Is.Empty);
+            Assert.That(face.HealthLabel.text, Is.EqualTo("HP"));
+            Assert.That(face.HealthValue.text, Is.Empty);
+            Assert.That(texts, Has.Some.Property("text").EqualTo(RuntimeCardDisplayModel.Unavailable));
+            Assert.That(card.GetComponent<UnityEngine.UI.Outline>()!.effectDistance, Is.EqualTo(new Vector2(4f, 4f)));
         }
         finally
         {
@@ -358,19 +496,31 @@ public sealed class RuntimeBattleBoardEditModeTests
     {
         for (var index = 0; index < count; index++)
         {
-            RuntimeBattlePanelView.CreateCardFace(
+            RuntimeCardFaceView.Build(
                 parent,
                 namePrefix + index,
-                "card_" + index,
-                "#" + index,
-                "—",
-                "—",
-                "—",
-                Color.cyan,
-                false,
-                false,
-                true);
+                RuntimeCardFaceMode.Compact);
         }
+    }
+
+    private static UnityEngine.UI.Button CreateActionRailTestButton(
+        RectTransform parent,
+        string name,
+        string labelText)
+    {
+        var rect = RuntimeBattlePanelView.CreateRect(name, parent);
+        var image = rect.gameObject.AddComponent<UnityEngine.UI.Image>();
+        image.raycastTarget = true;
+        var button = rect.gameObject.AddComponent<UnityEngine.UI.Button>();
+        button.targetGraphic = image;
+        var label = RuntimeBattlePanelView.CreateText(rect, "Label", 16, Color.white);
+        label.alignment = TextAnchor.MiddleCenter;
+        label.fontStyle = FontStyle.Bold;
+        label.text = labelText;
+        var element = rect.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+        element.minHeight = 44f;
+        element.preferredHeight = 44f;
+        return button;
     }
 
     private static void ResolveTabletopLayout(RectTransform root, RuntimeBattlePanelView view)
@@ -406,6 +556,24 @@ public sealed class RuntimeBattleBoardEditModeTests
             Assert.That(childCorners[index].y, Is.GreaterThanOrEqualTo(parentCorners[0].y - tolerance), child.name + " bottom bound");
             Assert.That(childCorners[index].y, Is.LessThanOrEqualTo(parentCorners[2].y + tolerance), child.name + " top bound");
         }
+    }
+
+    private static float WorldLeft(RectTransform rect)
+    {
+        var corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        return corners[0].x;
+    }
+
+    private static void AssertVerticalBoundsInside(RectTransform viewport, RectTransform child)
+    {
+        var viewportCorners = new Vector3[4];
+        var childCorners = new Vector3[4];
+        viewport.GetWorldCorners(viewportCorners);
+        child.GetWorldCorners(childCorners);
+        const float tolerance = 0.5f;
+        Assert.That(childCorners[0].y, Is.GreaterThanOrEqualTo(viewportCorners[0].y - tolerance), child.name + " bottom bound");
+        Assert.That(childCorners[2].y, Is.LessThanOrEqualTo(viewportCorners[2].y + tolerance), child.name + " top bound");
     }
 }
 }

@@ -49,12 +49,6 @@
     "commitCost": 0,
     "uploadCost": 0,
     "downloadCost": 0,
-    "onPlayEffects": [
-      {
-        "action": "COMMIT",
-        "target": "SELF"
-      }
-    ],
-    "text": "NON_AUTHORITATIVE fixture: commit this card on play."
+    "text": "NON_AUTHORITATIVE fixture: commit this card from the field."
   }
 ]

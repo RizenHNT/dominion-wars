@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using DominionWars.Adapters;
+using DominionWars.Data;
+using DominionWars.Unity.Runtime;
 
 namespace DominionWars.Unity.UI
 {
@@ -220,6 +222,9 @@ public sealed class RuntimeBattlePanelActionGroup
 
 public static class RuntimeBattlePanelActionModel
 {
+    private static readonly RuntimeLocalizationResolver DefaultLocalizationResolver =
+        new RuntimeLocalizationResolver();
+
     /// <summary>
     /// Builds presentation groups without adding or removing any advertised
     /// action. Grouping is only a convenience for choosing among exact action
@@ -227,6 +232,22 @@ public static class RuntimeBattlePanelActionModel
     /// </summary>
     public static IReadOnlyList<RuntimeBattlePanelActionGroup> BuildActionGroups(
         RuntimeSnapshotEnvelope snapshot)
+    {
+        return BuildActionGroups(snapshot, null);
+    }
+
+    /// <summary>
+    /// Builds presentation groups for the current card selection. A selected
+    /// card may expose only the complete legal actions whose advertised
+    /// <see cref="RuntimeLegalAction.SourceId"/> is that card's entity id.
+    /// Actions without a source or card identity are phase-level actions and
+    /// remain visible (for example SKIP_AMBUSH and END_TURN). This is a
+    /// presentation filter only: it never creates, rewrites, or re-evaluates
+    /// engine legality.
+    /// </summary>
+    public static IReadOnlyList<RuntimeBattlePanelActionGroup> BuildActionGroups(
+        RuntimeSnapshotEnvelope snapshot,
+        long? selectedCardEntityId)
     {
         if (snapshot is null || snapshot.LegalActions is null)
             return Array.Empty<RuntimeBattlePanelActionGroup>();
@@ -237,6 +258,9 @@ public static class RuntimeBattlePanelActionModel
         foreach (var legal in snapshot.LegalActions)
         {
             if (legal is null) continue;
+            if (selectedCardEntityId.HasValue &&
+                !IsVisibleForSelectedCard(legal, selectedCardEntityId.Value))
+                continue;
             var entry = new RuntimeBattlePanelActionEntry(
                 legal,
                 Evaluate(legal, snapshot.PendingPrompt));
@@ -258,6 +282,23 @@ public static class RuntimeBattlePanelActionModel
             groups.Add(new RuntimeBattlePanelActionGroup(keys[index], groupedEntries[index]));
         }
         return groups.AsReadOnly();
+    }
+
+    /// <summary>
+    /// Returns true when an advertised action belongs to the selected card or
+    /// is explicitly a phase/global action. A non-null CardId without a
+    /// SourceId is not treated as global: it cannot be safely tied to one
+    /// entity, so it is hidden while a card is selected rather than guessed.
+    /// </summary>
+    public static bool IsVisibleForSelectedCard(
+        RuntimeLegalAction legal,
+        long selectedCardEntityId)
+    {
+        if (legal is null) return false;
+        if (legal.SourceId is null)
+            return string.IsNullOrWhiteSpace(legal.CardId);
+
+        return WireValuesEqual(legal.SourceId, selectedCardEntityId);
     }
 
     public static RuntimeBattlePanelActionState Evaluate(
@@ -295,8 +336,135 @@ public static class RuntimeBattlePanelActionModel
         return new RuntimeBattlePanelActionState(true, string.Empty);
     }
 
-    /// <summary>Creates a display label from wire fields only.</summary>
+    /// <summary>
+    /// Creates the player-facing label for one already-advertised action.
+    ///
+    /// This method deliberately does not expose action ids, entity ids, or wire
+    /// field names. Those values remain in <see cref="DescribeTechnical"/>,
+    /// which is intended for an opt-in diagnostic surface only. The optional
+    /// catalog/snapshot arguments enrich the same label with an authored card
+    /// name and a visible target name; they never create or alter an action.
+    /// </summary>
     public static string Describe(
+        RuntimeLegalAction legal,
+        RuntimeBattlePanelActionState state)
+    {
+        return Describe(
+            legal,
+            state,
+            null,
+            null,
+            null,
+            DefaultLocalizationResolver,
+            "en");
+    }
+
+    public static string Describe(
+        RuntimeLegalAction legal,
+        RuntimeBattlePanelActionState state,
+        CardCatalog? cardCatalog,
+        RuntimeSnapshotEnvelope? snapshot,
+        int? viewerPlayerIndex)
+    {
+        return Describe(
+            legal,
+            state,
+            cardCatalog,
+            snapshot,
+            viewerPlayerIndex,
+            DefaultLocalizationResolver,
+            "en");
+    }
+
+    /// <summary>
+    /// Creates a player-facing action label with an explicit localization
+    /// source. The resolver is presentation-only; it receives only the
+    /// advertised action token and cannot create or alter the action.
+    /// </summary>
+    public static string Describe(
+        RuntimeLegalAction legal,
+        RuntimeBattlePanelActionState state,
+        RuntimeLocalizationResolver localizationResolver,
+        string language = "en")
+    {
+        if (localizationResolver is null)
+            throw new ArgumentNullException(nameof(localizationResolver));
+
+        return Describe(
+            legal,
+            state,
+            null,
+            null,
+            null,
+            localizationResolver,
+            language);
+    }
+
+    /// <summary>
+    /// Creates a player-facing action label with card/visibility context and
+    /// an explicit localization source. The existing five-argument overload
+    /// remains available for callers that use the default resolver and
+    /// English language.
+    /// </summary>
+    public static string Describe(
+        RuntimeLegalAction legal,
+        RuntimeBattlePanelActionState state,
+        CardCatalog? cardCatalog,
+        RuntimeSnapshotEnvelope? snapshot,
+        int? viewerPlayerIndex,
+        RuntimeLocalizationResolver? localizationResolver)
+    {
+        return Describe(
+            legal,
+            state,
+            cardCatalog,
+            snapshot,
+            viewerPlayerIndex,
+            localizationResolver ?? DefaultLocalizationResolver,
+            "en");
+    }
+
+    public static string Describe(
+        RuntimeLegalAction legal,
+        RuntimeBattlePanelActionState state,
+        CardCatalog? cardCatalog,
+        RuntimeSnapshotEnvelope? snapshot,
+        int? viewerPlayerIndex,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
+    {
+        if (legal is null) return "Unavailable action";
+        if (state is null) throw new ArgumentNullException(nameof(state));
+        if (localizationResolver is null)
+            throw new ArgumentNullException(nameof(localizationResolver));
+
+        var actionType = FriendlyActionType(legal.Type, localizationResolver, language);
+        var cardName = ResolveCardName(legal.CardId, cardCatalog);
+        if (string.IsNullOrWhiteSpace(cardName) && IsCardAction(legal.Type))
+            cardName = ResolveVisibleEntityName(legal.SourceId, snapshot, cardCatalog);
+
+        var builder = new StringBuilder(actionType);
+        if (!string.IsNullOrWhiteSpace(cardName)) builder.Append(' ').Append(cardName);
+
+        var targetName = DescribeTarget(
+            legal.TargetId,
+            snapshot,
+            cardCatalog,
+            viewerPlayerIndex);
+        if (!string.IsNullOrWhiteSpace(targetName))
+            builder.Append(" → ").Append(targetName);
+
+        if (!state.Interactable) builder.Append(" — Unavailable");
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// Returns the diagnostic form of an action label. This is kept separate
+    /// from <see cref="Describe"/> so a normal button cannot accidentally leak
+    /// protocol identifiers while an opt-in debug overlay can still inspect
+    /// the exact advertised payload.
+    /// </summary>
+    public static string DescribeTechnical(
         RuntimeLegalAction legal,
         RuntimeBattlePanelActionState state)
     {
@@ -314,10 +482,236 @@ public static class RuntimeBattlePanelActionModel
     }
 
     /// <summary>
+    /// Converts an advertised target into a short player-facing semantic. A
+    /// missing/unknown target is intentionally rendered as a generic word; its
+    /// stable wire value remains available through <see cref="DescribeTechnical"/>.
+    /// </summary>
+    public static string? DescribeTarget(
+        object? targetId,
+        RuntimeSnapshotEnvelope? snapshot = null,
+        CardCatalog? cardCatalog = null,
+        int? viewerPlayerIndex = null)
+    {
+        if (targetId is null) return null;
+
+        var visibleCardName = ResolveVisibleEntityName(targetId, snapshot, cardCatalog);
+        if (!string.IsNullOrWhiteSpace(visibleCardName)) return visibleCardName;
+
+        var wire = FormatWireValue(targetId);
+        if (string.IsNullOrWhiteSpace(wire) || wire == "—") return null;
+        if (IsCastleTarget(wire)) return "Castle";
+
+        if (TryExtractPlayerTarget(wire, out var playerId, out var scope))
+        {
+            var viewerId = snapshot?.ViewerPlayerId;
+            if (string.IsNullOrWhiteSpace(viewerId) && viewerPlayerIndex.HasValue)
+                viewerId = "player_" + viewerPlayerIndex.Value.ToString(CultureInfo.InvariantCulture);
+            var own = !string.IsNullOrWhiteSpace(viewerId) &&
+                string.Equals(viewerId, playerId, StringComparison.Ordinal);
+            var side = own ? "Your" : "Opponent";
+            if (scope == PlayerTargetScope.Life) return side + " Life";
+            if (scope == PlayerTargetScope.Leader) return side + " Leader";
+            return side + " Side";
+        }
+
+        var lower = wire.ToLowerInvariant();
+        if (lower.Contains("cloud")) return "Cloud";
+        if (lower.Contains("commit") || lower.Contains("queue")) return "Commit Queue";
+        if (lower.Contains("grave")) return "Graveyard";
+        if (lower.Contains("exile")) return "Exile";
+        if (lower.Contains("hand")) return "Hand";
+        if (lower.Contains("field")) return "Field";
+        if (lower.Contains("enemy") || lower.Contains("opponent")) return "Opponent";
+        if (lower.Contains("friendly") || lower.Contains("ally")) return "Your Side";
+        if (lower.Contains("face")) return "Opponent";
+        return "Target";
+    }
+
+    private enum PlayerTargetScope
+    {
+        Side,
+        Life,
+        Leader,
+    }
+
+    private static string FriendlyActionType(
+        string? type,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
+    {
+        var normalized = type?.Trim().ToUpperInvariant() ?? string.Empty;
+        switch (normalized)
+        {
+            // These are the only action tokens in this slice with approved
+            // semantic keys in RuntimeLocalizationResolver.
+            case "PLAY_CARD":
+            case "ATTACK":
+            case "END_TURN":
+            case "SKIP_AMBUSH":
+                return localizationResolver.ResolveSemantic(
+                    RuntimeSemanticKind.Action,
+                    normalized,
+                    language).Text;
+
+            // Keep the existing authored wording for action types whose
+            // semantic keys are not part of this localization slice.
+            case "SET_AMBUSH": return "Set Ambush";
+            case "COMMIT": return "Commit";
+            case "PUSH": return "Push";
+            case "PULL": return "Pull";
+            case "ROLLBACK": return "Rollback";
+            case "DISCARD": return "Discard";
+            case "CHOOSE_TARGET": return "Choose Target";
+            default:
+                // Unknown protocol values use the resolver's generic safe
+                // fallback. Never turn an opaque token into display text.
+                return localizationResolver.ResolveSemantic(
+                    RuntimeSemanticKind.Action,
+                    type ?? string.Empty,
+                    language).Text;
+        }
+    }
+
+    private static bool IsCardAction(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type)) return false;
+        switch (type.Trim().ToUpperInvariant())
+        {
+            case "PLAY_CARD":
+            case "ATTACK":
+            case "SET_AMBUSH":
+            case "COMMIT":
+            case "PUSH":
+            case "PULL":
+            case "ROLLBACK":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static string? ResolveCardName(string? cardId, CardCatalog? cardCatalog)
+    {
+        if (string.IsNullOrWhiteSpace(cardId)) return null;
+        if (cardCatalog == null ||
+            !cardCatalog.TryGetPresentationMetadata(cardId, out var metadata) ||
+            metadata == null ||
+            string.IsNullOrWhiteSpace(metadata.Name))
+        {
+            // A card id without presentation metadata is not player-facing
+            // content. Keep the label generic instead of exposing or
+            // humanizing the opaque id.
+            return null;
+        }
+
+        return metadata.Name;
+    }
+
+    private static string? ResolveVisibleEntityName(
+        object? entityId,
+        RuntimeSnapshotEnvelope? snapshot,
+        CardCatalog? cardCatalog)
+    {
+        if (snapshot?.Players == null || !TryGetLongId(entityId, out var numericId)) return null;
+        for (var playerIndex = 0; playerIndex < snapshot.Players.Count; playerIndex++)
+        {
+            var player = snapshot.Players[playerIndex];
+            if (player == null) continue;
+            var name = FindCardName(player.Hand, numericId, cardCatalog) ??
+                FindCardName(player.Ambush, numericId, cardCatalog) ??
+                FindCardName(player.Field, numericId, cardCatalog) ??
+                FindCardName(player.LeaderZone, numericId, cardCatalog) ??
+                FindCardName(player.CommitQueue, numericId, cardCatalog) ??
+                FindCardName(player.CloudStack, numericId, cardCatalog) ??
+                FindCardName(player.Graveyard, numericId, cardCatalog);
+            if (!string.IsNullOrWhiteSpace(name)) return name;
+        }
+        return null;
+    }
+
+    private static string? FindCardName(
+        IReadOnlyList<RuntimeCardSnapshot>? cards,
+        long entityId,
+        CardCatalog? cardCatalog)
+    {
+        if (cards == null) return null;
+        for (var index = 0; index < cards.Count; index++)
+        {
+            var card = cards[index];
+            if (card == null || card.EntityId != entityId) continue;
+            return ResolveCardName(card.CardId, cardCatalog) ?? "Card";
+        }
+        return null;
+    }
+
+    private static bool TryGetLongId(object? value, out long numericId)
+    {
+        numericId = 0;
+        if (value is null || value is bool) return false;
+        if (value is string text)
+            return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out numericId);
+        if (value is IConvertible convertible)
+        {
+            try
+            {
+                numericId = convertible.ToInt64(CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch (Exception exception) when (
+                exception is FormatException ||
+                exception is InvalidCastException ||
+                exception is OverflowException)
+            {
+                // Non-numeric wire values are semantic strings, not entity ids.
+            }
+        }
+        return false;
+    }
+
+    private static bool IsCastleTarget(string wire)
+    {
+        return string.Equals(wire, "castle", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(wire, "shared_castle", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(wire, "core:shared_castle", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryExtractPlayerTarget(
+        string wire,
+        out string playerId,
+        out PlayerTargetScope scope)
+    {
+        playerId = string.Empty;
+        scope = PlayerTargetScope.Side;
+        if (wire.StartsWith("player_", StringComparison.OrdinalIgnoreCase))
+        {
+            playerId = wire;
+            return true;
+        }
+
+        const string corePrefix = "core:player_";
+        if (!wire.StartsWith(corePrefix, StringComparison.OrdinalIgnoreCase)) return false;
+        var remainder = wire.Substring("core:".Length);
+        if (remainder.EndsWith(":life", StringComparison.OrdinalIgnoreCase))
+        {
+            playerId = remainder.Substring(0, remainder.Length - ":life".Length);
+            scope = PlayerTargetScope.Life;
+            return playerId.Length > 0;
+        }
+        if (remainder.EndsWith(":leader", StringComparison.OrdinalIgnoreCase))
+        {
+            playerId = remainder.Substring(0, remainder.Length - ":leader".Length);
+            scope = PlayerTargetScope.Leader;
+            return playerId.Length > 0;
+        }
+        playerId = remainder;
+        return playerId.Length > 0;
+    }
+
+    /// <summary>
     /// Compares wire values without assuming whether a numeric id arrived as
     /// an integer, string, or JSON parser value.
     /// </summary>
-    internal static bool WireValuesEqual(object? left, object? right)
+    public static bool WireValuesEqual(object? left, object? right)
     {
         if (ReferenceEquals(left, right)) return true;
         if (left is null || right is null) return false;

@@ -30,7 +30,8 @@ public static class RuntimeBootstrapSceneMenu
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         CreatePresentationCamera(scene);
         var bootstrap = new GameObject("DominionWarsRuntimeBootstrap");
-        bootstrap.AddComponent<RuntimeBootstrap>();
+        var bootstrapComponent = bootstrap.AddComponent<RuntimeBootstrap>();
+        ApplyRuntimeBootstrapDefaults(bootstrapComponent);
         SceneManager.MoveGameObjectToScene(bootstrap, scene);
         SceneManager.SetActiveScene(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -58,6 +59,24 @@ public static class RuntimeBootstrapSceneMenu
         Selection.activeGameObject = bootstrap;
         Debug.Log("Dominion Wars runtime bootstrap scene created and added to Build Settings: " + ScenePath +
             ". RuntimeBattlePanel will auto-create at runtime; card data is staged only during Build preprocessing.");
+    }
+
+    private static void ApplyRuntimeBootstrapDefaults(RuntimeBootstrap bootstrap)
+    {
+        // Do not rely on the C# field initializer alone: Unity serializes the
+        // scene value, and a newly created scene must explicitly opt into the
+        // shared data/content context while keeping the inspector escape hatch
+        // available for hosts that set it back to false.
+        var serializedBootstrap = new SerializedObject(bootstrap);
+        var sharedContext = serializedBootstrap.FindProperty("useSharedContentContext");
+        if (sharedContext == null)
+        {
+            Debug.LogError("RuntimeBootstrap is missing useSharedContentContext; the new scene was not configured.");
+            return;
+        }
+
+        sharedContext.boolValue = RuntimeBootstrap.DefaultUseSharedContentContext;
+        serializedBootstrap.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void CreatePresentationCamera(Scene scene)
