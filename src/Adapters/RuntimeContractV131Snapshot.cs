@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using DominionWars.Engine;
+using DominionWars.Engine.Effects;
 using DominionWars.Engine.Model;
 using DominionWars.Engine.Turns;
 
@@ -23,6 +25,7 @@ public static class RuntimeSnapshotProjection
         if (state is null) throw new ArgumentNullException(nameof(state));
         if (flow is null) throw new ArgumentNullException(nameof(flow));
         ValidateIdentity(matchId, snapshotRevision, viewerPlayerIndex);
+        var isTerminal = string.Equals(state.Turn.PhaseId, TurnPhase.Over, StringComparison.Ordinal);
 
         var players = new List<RuntimePlayerSnapshot>(2);
         foreach (var player in state.Players)
@@ -37,14 +40,19 @@ public static class RuntimeSnapshotProjection
                 FieldCount = player.Field.Count,
                 GraveyardCount = player.Graveyard.Count,
                 AmbushCount = player.AmbushZone.Count,
+                CycleWinCount = player.CycleWinCount,
                 RootStacks = player.RootStacks,
                 RampantStacks = player.RampantStacks,
                 PullCount = player.PullCount,
                 CommitQueueCount = player.CommitQueue.Count,
                 CloudStackCount = player.CloudStack.Count,
                 Hand = isViewer ? Cards(player.Hand) : Array.Empty<RuntimeCardSnapshot>(),
+                Ambush = isViewer ? Cards(player.AmbushZone) : Array.Empty<RuntimeCardSnapshot>(),
                 Field = Cards(player.Field),
+                LeaderZone = Cards(player.LeaderZone),
                 Graveyard = Cards(player.Graveyard),
+                CommitQueue = Cards(player.CommitQueue),
+                CloudStack = Cards(player.CloudStack),
             });
         }
 
@@ -70,6 +78,8 @@ public static class RuntimeSnapshotProjection
             Castle = new RuntimeCastleSnapshot { Enabled = state.CastleEnabled, Health = state.CastleHealth },
             LegalActions = legal.AsReadOnly(),
             PendingPrompt = null,
+            WinnerPlayerIndex = isTerminal ? state.WinnerPlayerIndex : null,
+            ReasonKey = isTerminal ? state.WinReason : null,
         };
     }
 
@@ -85,6 +95,29 @@ public static class RuntimeSnapshotProjection
             throw new ArgumentException("The current player is invalid.", nameof(snapshot));
         if (string.IsNullOrWhiteSpace(snapshot.Phase))
             throw new ArgumentException("The snapshot phase is required.", nameof(snapshot));
+        if (string.Equals(snapshot.Phase, TurnPhase.Over, StringComparison.Ordinal))
+        {
+            if (!snapshot.WinnerPlayerIndex.HasValue
+                || snapshot.WinnerPlayerIndex.Value is < 0 or > 1)
+            {
+                throw new ArgumentException(
+                    "A terminal snapshot must identify the winner.",
+                    nameof(snapshot));
+            }
+
+            if (!WinReasonKey.IsContractReasonKey(snapshot.ReasonKey))
+            {
+                throw new ArgumentException(
+                    "A terminal snapshot must contain a valid reason key.",
+                    nameof(snapshot));
+            }
+        }
+        else if (snapshot.WinnerPlayerIndex.HasValue || snapshot.ReasonKey is not null)
+        {
+            throw new ArgumentException(
+                "Non-terminal snapshots cannot contain an outcome.",
+                nameof(snapshot));
+        }
     }
 
     private static RuntimeLegalAction ToLegalAction(DominionWars.Engine.LegalAction action, long revision)
@@ -123,6 +156,8 @@ public static class RuntimeSnapshotProjection
                 CardId = card.Definition.Id,
                 OwnerPlayer = card.OwnerPlayerIndex,
                 Sealed = card.Sealed,
+                CurrentAttack = card.Attack,
+                CurrentHealth = card.Health,
             });
         }
         return result.AsReadOnly();
@@ -140,8 +175,14 @@ public static class RuntimeSnapshotProjection
     {
         if (!string.IsNullOrWhiteSpace(reference))
         {
-            if (reference.StartsWith("entity:", StringComparison.Ordinal))
-                return EntityId(long.Parse(reference.Substring("entity:".Length)));
+            // Engine TargetReference ids are legacy/internal strings. The
+            // v1.31 wire target for an entity is the same positive numeric id
+            // used by RuntimeCardSnapshot.EntityId. Prefer the explicit
+            // numeric field and only parse the fixed legacy forms when it is
+            // absent; malformed references remain unchanged rather than being
+            // guessed into a different target.
+            if (TryParseEntityReference(reference, out var referencedEntityId))
+                return EntityId(numericId ?? referencedEntityId);
             if (string.Equals(reference, "core:shared_castle", StringComparison.Ordinal)) return "castle";
             if (reference.StartsWith("core:player_", StringComparison.Ordinal))
             {
@@ -155,6 +196,37 @@ public static class RuntimeSnapshotProjection
             return reference;
         }
         return EntityId(numericId);
+    }
+
+    private static bool TryParseEntityReference(string reference, out long entityId)
+    {
+        const string legacyPrefix = "entity_";
+        const string colonPrefix = "entity:";
+        string digits;
+        if (reference.StartsWith(legacyPrefix, StringComparison.Ordinal))
+        {
+            digits = reference.Substring(legacyPrefix.Length);
+            if (digits.Length == 0)
+            {
+                entityId = 0;
+                return false;
+            }
+        }
+        else if (reference.StartsWith(colonPrefix, StringComparison.Ordinal))
+        {
+            digits = reference.Substring(colonPrefix.Length);
+        }
+        else
+        {
+            entityId = 0;
+            return false;
+        }
+
+        return long.TryParse(
+            digits,
+            NumberStyles.None,
+            CultureInfo.InvariantCulture,
+            out entityId) && entityId > 0;
     }
 
     private static string PlayerId(int index) => "player_" + index;

@@ -1,0 +1,38 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_runtime_state_invalid",
+  "snapshotRevision": 12,
+  "turn": 2,
+  "phase": "ACTION",
+  "currentPlayer": 0,
+  "viewerPlayerId": "player_0",
+  "players": [
+    {
+      "playerId": "player_0",
+      "life": 20,
+      "deckCount": 0,
+      "handCount": 0,
+      "fieldCount": 1,
+      "graveyardCount": 0,
+      "ambushCount": 0,
+      "hand": [],
+      "field": [{ "entityId": 2, "cardId": "mechanical_card", "ownerPlayer": 0, "currentAttack": 8, "currentHealth": "three" }],
+      "graveyard": []
+    },
+    {
+      "playerId": "player_1",
+      "life": 20,
+      "deckCount": 0,
+      "handCount": 0,
+      "fieldCount": 0,
+      "graveyardCount": 0,
+      "ambushCount": 0,
+      "hand": [],
+      "field": [],
+      "graveyard": []
+    }
+  ],
+  "castle": { "enabled": true, "health": 75 },
+  "legalActions": [],
+  "pendingPrompt": null
+}

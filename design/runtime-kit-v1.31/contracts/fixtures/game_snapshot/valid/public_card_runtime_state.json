@@ -1,0 +1,48 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_runtime_state",
+  "snapshotRevision": 12,
+  "turn": 2,
+  "phase": "ACTION",
+  "currentPlayer": 0,
+  "viewerPlayerId": "player_0",
+  "players": [
+    {
+      "playerId": "player_0",
+      "life": 20,
+      "deckCount": 3,
+      "handCount": 1,
+      "fieldCount": 1,
+      "graveyardCount": 0,
+      "ambushCount": 0,
+      "hand": [{ "entityId": 1, "cardId": "mechanical_card", "ownerPlayer": 0 }],
+      "field": [{ "entityId": 2, "cardId": "mechanical_card", "ownerPlayer": 0, "sealed": false, "currentAttack": 8, "currentHealth": 3 }],
+      "graveyard": [],
+      "commitQueue": [
+        { "entityId": 3, "cardId": "queued_first", "ownerPlayer": 0, "currentAttack": 2, "currentHealth": 5 },
+        { "entityId": 4, "cardId": "queued_second", "ownerPlayer": 0, "currentAttack": 4, "currentHealth": 2 }
+      ],
+      "cloudStack": [
+        { "entityId": 5, "cardId": "cloud_bottom", "ownerPlayer": 0, "currentAttack": 1, "currentHealth": 4 },
+        { "entityId": 6, "cardId": "cloud_top", "ownerPlayer": 0, "currentAttack": 9, "currentHealth": 1 }
+      ]
+    },
+    {
+      "playerId": "player_1",
+      "life": 20,
+      "deckCount": 3,
+      "handCount": 1,
+      "fieldCount": 0,
+      "graveyardCount": 0,
+      "ambushCount": 0,
+      "hand": [],
+      "field": [],
+      "graveyard": [],
+      "commitQueue": [],
+      "cloudStack": []
+    }
+  ],
+  "castle": { "enabled": true, "health": 75 },
+  "legalActions": [],
+  "pendingPrompt": null
+}

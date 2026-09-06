@@ -11,7 +11,7 @@
     "parentEventId": { "type": ["string", "null"], "pattern": "^evt_[0-9]{12}$" },
     "type": {
       "type": "string",
-      "enum": ["PHASE_CHANGED", "TURN_CHANGED", "CARD_PLAYED", "AMBUSH_SET", "AMBUSH_TRIGGERED", "ATTACK_DECLARED", "TARGET_REJECTED", "DAMAGE_APPLIED", "HEAL_APPLIED", "PUNISH_ISSUED", "PUNISH_DRAW", "PUNISH_TRIGGERED", "CHAIN_LINK", "CHAIN_RESOLVED", "CASTLE_DAMAGED", "CASTLE_BROKEN", "LEADER_MANIFESTED", "LEADER_DISABLED", "VICTORY_PROGRESS", "DECK_CYCLED", "CARD_DISCARDED", "PULL_DECLARED", "CARD_PULLED", "GAME_OVER"]
+      "enum": ["PHASE_CHANGED", "TURN_CHANGED", "CARD_PLAYED", "AMBUSH_SET", "AMBUSH_TRIGGERED", "ATTACK_DECLARED", "TARGET_REJECTED", "DAMAGE_APPLIED", "HEAL_APPLIED", "PUNISH_ISSUED", "PUNISH_DRAW", "PUNISH_TRIGGERED", "CHAIN_LINK", "CHAIN_RESOLVED", "CASTLE_DAMAGED", "CASTLE_BROKEN", "LEADER_MANIFESTED", "LEADER_DISABLED", "VICTORY_PROGRESS", "DECK_CYCLED", "CARD_DISCARDED", "COMMIT_DECLARED", "CARD_COMMITTED", "CARD_PUSHED", "PULL_DECLARED", "CARD_PULLED", "GAME_OVER"]
     },
     "turn": { "type": "integer", "minimum": 0 },
     "phase": { "type": "string", "enum": ["START", "AMBUSH", "ACTION", "DISCARD", "END", "OVER"] },
@@ -37,5 +37,26 @@
         "winnerPlayerIndex": { "type": "integer", "enum": [0, 1] }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "GAME_OVER" } } },
+      "then": {
+        "required": ["reasonKey"],
+        "properties": {
+          "phase": { "const": "OVER" },
+          "reasonKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$" },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["winnerPlayerIndex", "reasonKey"],
+            "properties": {
+              "winnerPlayerIndex": { "type": "integer", "enum": [0, 1] },
+              "reasonKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$" }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

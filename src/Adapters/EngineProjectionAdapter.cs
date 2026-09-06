@@ -19,6 +19,7 @@ public static class EngineProjectionAdapter
             ["TURN_CHANGED"] = "TURN_CHANGED",
             ["TURN_STARTED"] = "TURN_CHANGED",
             ["ATTACK_DECLARED"] = "ATTACK_DECLARED",
+            ["AMBUSH_SET"] = "AMBUSH_SET",
             ["AMBUSH_TRIGGERED"] = "AMBUSH_TRIGGERED",
             ["PUNISH_TRIGGERED"] = "PUNISH_TRIGGERED",
             ["PUNISH_DRAW"] = "PUNISH_DRAW",
@@ -30,6 +31,9 @@ public static class EngineProjectionAdapter
             ["LEADER_MANIFESTED"] = "LEADER_MANIFESTED",
             ["LEADER_REPLACED"] = "LEADER_MANIFESTED",
             ["DECK_CYCLED"] = "DECK_CYCLED",
+            ["COMMIT_DECLARED"] = "COMMIT_DECLARED",
+            ["CARD_COMMITTED"] = "CARD_COMMITTED",
+            ["CARD_PUSHED"] = "CARD_PUSHED",
             ["PULL_DECLARED"] = "PULL_DECLARED",
             ["CARD_PULLED"] = "CARD_PULLED",
             ["GAME_WON"] = "GAME_OVER",
@@ -492,12 +496,44 @@ public static class EngineProjectionAdapter
 
     private static IReadOnlyDictionary<string, object?> ProjectEventData(GameEvent gameEvent)
     {
+        if (gameEvent.EventType == "GAME_WON")
+        {
+            // The engine's historical event payload used "player". Keep
+            // reading that input for compatibility, but emit only the
+            // canonical v1.31 GAME_OVER keys on the wire.
+            return new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["winnerPlayerIndex"] = ValueOrNull(gameEvent.Data, "winnerPlayerIndex")
+                    ?? ValueOrNull(gameEvent.Data, "player"),
+                ["reasonKey"] = ValueOrNull(gameEvent.Data, "reasonKey"),
+            };
+        }
+
         if (gameEvent.EventType == "PULL_DECLARED")
         {
             return new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["sourceId"] = ValueOrNull(gameEvent.Data, "source"),
                 ["targetIds"] = SingleTargetList(gameEvent.Data, "target"),
+            };
+        }
+
+        if (gameEvent.EventType == "COMMIT_DECLARED")
+        {
+            return new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["sourceId"] = ValueOrNull(gameEvent.Data, "source"),
+                ["targetIds"] = SingleTargetList(gameEvent.Data, "source"),
+            };
+        }
+
+        if (gameEvent.EventType == "CARD_COMMITTED"
+            || gameEvent.EventType == "CARD_PUSHED")
+        {
+            return new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["targetIds"] = SingleTargetList(gameEvent.Data, "target"),
+                ["amount"] = ValueOrNull(gameEvent.Data, "cost"),
             };
         }
 

@@ -1,0 +1,15 @@
+{
+  "contractVersion": 1,
+  "eventId": "evt_000000000022",
+  "parentEventId": null,
+  "type": "GAME_OVER",
+  "turn": 3,
+  "phase": "OVER",
+  "snapshotRevision": 6,
+  "targetIds": [],
+  "reasonKey": "win.royal_castle_break",
+  "data": {
+    "winnerPlayerIndex": 0,
+    "reasonKey": "win.royal_castle_break"
+  }
+}

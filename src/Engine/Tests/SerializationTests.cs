@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using DominionWars.Adapters;
+using DominionWars.Engine.Model;
 using NUnit.Framework;
 
 namespace DominionWars.Engine.Tests
@@ -188,6 +190,171 @@ public sealed class SerializationTests
         var copy = JsonSerializer.Deserialize<RuntimeSnapshotEnvelope>(json)!;
         Assert.That(json, Does.Contain("\"EntityId\":7"));
         Assert.That(copy.Players[0].Hand[0].EntityId, Is.EqualTo(7L));
+    }
+
+    [Test]
+    public void EngineAssemblyIsSerializerAgnostic()
+    {
+        var engineAssembly = typeof(CardDefinition).Assembly;
+
+        Assert.That(engineAssembly.GetReferencedAssemblies()
+                .Any(reference => string.Equals(
+                    reference.Name,
+                    "Newtonsoft.Json",
+                    StringComparison.OrdinalIgnoreCase)),
+            Is.False);
+    }
+
+    [Test]
+    public void RuntimeV131NewProjectionFieldsAreOptionalAndRoundTrip()
+    {
+        var legacy = JsonSerializer.Deserialize<RuntimePlayerSnapshot>(
+            "{\"PlayerId\":\"player_0\"}")!;
+        Assert.That(legacy.LeaderZone, Is.Empty);
+        Assert.That(legacy.CycleWinCount, Is.Zero);
+
+        var source = new RuntimePlayerSnapshot
+        {
+            PlayerId = "player_0",
+            CycleWinCount = 6,
+            LeaderZone = new[]
+            {
+                new RuntimeCardSnapshot
+                {
+                    EntityId = 17,
+                    CardId = "leader",
+                    OwnerPlayer = 0,
+                    Sealed = true,
+                },
+            },
+        };
+        var copy = RoundTrip(source);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(copy.CycleWinCount, Is.EqualTo(6));
+            Assert.That(copy.LeaderZone, Has.Count.EqualTo(1));
+            Assert.That(copy.LeaderZone[0].EntityId, Is.EqualTo(17L));
+            Assert.That(copy.LeaderZone[0].Sealed, Is.True);
+        });
+    }
+
+    [Test]
+    public void RuntimeV131CardStateAndMechanicalZonesAreOptionalAndRoundTrip()
+    {
+        var legacy = JsonSerializer.Deserialize<RuntimeSnapshotEnvelope>(
+            "{\"MatchId\":\"match_legacy\",\"Players\":[{\"PlayerId\":\"player_0\"},{\"PlayerId\":\"player_1\"}]}")!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(legacy.Players[0].CommitQueue, Is.Empty);
+            Assert.That(legacy.Players[0].CloudStack, Is.Empty);
+            var legacyCard = JsonSerializer.Deserialize<RuntimeCardSnapshot>(
+                "{\"EntityId\":1,\"CardId\":\"legacy\",\"OwnerPlayer\":0}")!;
+            Assert.That(legacyCard.CurrentAttack, Is.Null);
+            Assert.That(legacyCard.CurrentHealth, Is.Null);
+        });
+
+        var source = new RuntimeSnapshotEnvelope
+        {
+            MatchId = "match_runtime_state",
+            Players = new[]
+            {
+                new RuntimePlayerSnapshot
+                {
+                    PlayerId = "player_0",
+                    CommitQueue = new[]
+                    {
+                        new RuntimeCardSnapshot
+                        {
+                            EntityId = 20,
+                            CardId = "queued_first",
+                            OwnerPlayer = 0,
+                            CurrentAttack = 2,
+                            CurrentHealth = 5,
+                        },
+                        new RuntimeCardSnapshot
+                        {
+                            EntityId = 21,
+                            CardId = "queued_second",
+                            OwnerPlayer = 0,
+                            CurrentAttack = 4,
+                            CurrentHealth = 3,
+                        },
+                    },
+                    CloudStack = new[]
+                    {
+                        new RuntimeCardSnapshot
+                        {
+                            EntityId = 30,
+                            CardId = "cloud_bottom",
+                            OwnerPlayer = 0,
+                            CurrentAttack = 1,
+                            CurrentHealth = 2,
+                        },
+                        new RuntimeCardSnapshot
+                        {
+                            EntityId = 31,
+                            CardId = "cloud_top",
+                            OwnerPlayer = 0,
+                            CurrentAttack = 8,
+                            CurrentHealth = 1,
+                        },
+                    },
+                },
+                new RuntimePlayerSnapshot { PlayerId = "player_1" },
+            },
+        };
+
+        var copy = RoundTrip(source);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(copy.Players[0].CommitQueue, Has.Count.EqualTo(2));
+            Assert.That(copy.Players[0].CommitQueue[0].EntityId, Is.EqualTo(20L));
+            Assert.That(copy.Players[0].CommitQueue[1].EntityId, Is.EqualTo(21L));
+            Assert.That(copy.Players[0].CloudStack, Has.Count.EqualTo(2));
+            Assert.That(copy.Players[0].CloudStack[0].EntityId, Is.EqualTo(30L));
+            Assert.That(copy.Players[0].CloudStack[1].EntityId, Is.EqualTo(31L));
+            Assert.That(copy.Players[0].CloudStack[1].CurrentAttack, Is.EqualTo(8));
+            Assert.That(copy.Players[0].CloudStack[1].CurrentHealth, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void RuntimeWireSerializerOmitsUnavailableCardStateAndUsesWireNames()
+    {
+        var legacy = RuntimeWireSerializer.Deserialize<RuntimeCardSnapshot>(
+            "{\"entityId\":1,\"cardId\":\"legacy\",\"ownerPlayer\":0}");
+        var legacyJson = RuntimeWireSerializer.Serialize(legacy);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(legacy.CurrentAttack, Is.Null);
+            Assert.That(legacy.CurrentHealth, Is.Null);
+            Assert.That(legacyJson, Does.Not.Contain("currentAttack"));
+            Assert.That(legacyJson, Does.Not.Contain("currentHealth"));
+        });
+
+        var source = new RuntimeCardSnapshot
+        {
+            EntityId = 9,
+            CardId = "field_minion",
+            OwnerPlayer = 1,
+            CurrentAttack = 7,
+            CurrentHealth = 2,
+        };
+        var json = RuntimeWireSerializer.Serialize(source);
+        var copy = RuntimeWireSerializer.Deserialize<RuntimeCardSnapshot>(json);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(json, Does.Contain("\"currentAttack\":7"));
+            Assert.That(json, Does.Contain("\"currentHealth\":2"));
+            Assert.That(json, Does.Not.Contain("\"CurrentAttack\""));
+            Assert.That(copy.CurrentAttack, Is.EqualTo(7));
+            Assert.That(copy.CurrentHealth, Is.EqualTo(2));
+        });
     }
 
     [Test]

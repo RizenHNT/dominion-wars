@@ -61,6 +61,7 @@ public sealed class ContractBoundaryTests
             TurnAction.SetAmbush,
             TurnAction.SkipAmbush,
             LegalActionGenerator.Attack,
+            LegalActionGenerator.Commit,
             LegalActionGenerator.Pull,
             TurnAction.DiscardComplete,
             LegalActionGenerator.EndTurn,

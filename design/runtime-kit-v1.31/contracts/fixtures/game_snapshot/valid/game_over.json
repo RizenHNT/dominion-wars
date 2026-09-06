@@ -1,0 +1,18 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 6,
+  "turn": 3,
+  "phase": "OVER",
+  "currentPlayer": 0,
+  "viewerPlayerId": "player_0",
+  "players": [
+    { "playerId": "player_0", "life": 20, "deckCount": 0, "handCount": 1, "fieldCount": 1, "graveyardCount": 0, "ambushCount": 0, "hand": [], "field": [], "graveyard": [] },
+    { "playerId": "player_1", "life": 20, "deckCount": 5, "handCount": 1, "fieldCount": 1, "graveyardCount": 0, "ambushCount": 0, "hand": [], "field": [], "graveyard": [] }
+  ],
+  "castle": { "enabled": true, "health": 0 },
+  "legalActions": [],
+  "pendingPrompt": null,
+  "winnerPlayerIndex": 0,
+  "reasonKey": "win.royal_castle_break"
+}

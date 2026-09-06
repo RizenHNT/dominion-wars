@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace DominionWars.Adapters
 {
@@ -18,6 +19,13 @@ public sealed class RuntimeSnapshotEnvelope
     public RuntimeCastleSnapshot Castle { get; set; } = new RuntimeCastleSnapshot();
     public object? PendingPrompt { get; set; }
     public IReadOnlyList<RuntimeLegalAction> LegalActions { get; set; } = Array.Empty<RuntimeLegalAction>();
+    /// <summary>
+    /// Optional terminal outcome. It is populated only when the engine has
+    /// already moved the turn to OVER; absent/null is the safe default for
+    /// legacy and in-progress snapshots.
+    /// </summary>
+    public int? WinnerPlayerIndex { get; set; }
+    public string? ReasonKey { get; set; }
 }
 
 public sealed class RuntimePlayerSnapshot
@@ -29,14 +37,20 @@ public sealed class RuntimePlayerSnapshot
     public int FieldCount { get; set; }
     public int GraveyardCount { get; set; }
     public int AmbushCount { get; set; }
+    public int CycleWinCount { get; set; }
     public int RootStacks { get; set; }
     public int RampantStacks { get; set; }
     public int PullCount { get; set; }
     public int CommitQueueCount { get; set; }
     public int CloudStackCount { get; set; }
     public IReadOnlyList<RuntimeCardSnapshot> Hand { get; set; } = Array.Empty<RuntimeCardSnapshot>();
+    /// <summary>Viewer-owned set ambushes. Opponent ambush identities remain redacted.</summary>
+    public IReadOnlyList<RuntimeCardSnapshot> Ambush { get; set; } = Array.Empty<RuntimeCardSnapshot>();
     public IReadOnlyList<RuntimeCardSnapshot> Field { get; set; } = Array.Empty<RuntimeCardSnapshot>();
+    public IReadOnlyList<RuntimeCardSnapshot> LeaderZone { get; set; } = Array.Empty<RuntimeCardSnapshot>();
     public IReadOnlyList<RuntimeCardSnapshot> Graveyard { get; set; } = Array.Empty<RuntimeCardSnapshot>();
+    public IReadOnlyList<RuntimeCardSnapshot> CommitQueue { get; set; } = Array.Empty<RuntimeCardSnapshot>();
+    public IReadOnlyList<RuntimeCardSnapshot> CloudStack { get; set; } = Array.Empty<RuntimeCardSnapshot>();
 }
 
 public sealed class RuntimeCardSnapshot
@@ -45,6 +59,20 @@ public sealed class RuntimeCardSnapshot
     public string CardId { get; set; } = string.Empty;
     public int OwnerPlayer { get; set; }
     public bool Sealed { get; set; }
+
+    /// <summary>
+    /// Current attack from the authoritative CardInstance. It is optional so
+    /// legacy snapshots remain readable; null means unavailable, not zero.
+    /// </summary>
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public int? CurrentAttack { get; set; }
+
+    /// <summary>
+    /// Current health from the authoritative CardInstance. It is optional so
+    /// legacy snapshots remain readable; null means unavailable, not zero.
+    /// </summary>
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public int? CurrentHealth { get; set; }
 }
 
 public sealed class RuntimeCastleSnapshot

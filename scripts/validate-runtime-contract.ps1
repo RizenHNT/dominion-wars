@@ -40,6 +40,25 @@ function Test-SchemaNode {
         Test-SchemaNode -Value $Value -Schema $def.Value -Path $Path -Root $Root -Errors $Errors
         return
     }
+    $allOfProperty = $Schema.PSObject.Properties['allOf']
+    if ($null -ne $allOfProperty) {
+        foreach ($subSchema in @($allOfProperty.Value)) {
+            Test-SchemaNode -Value $Value -Schema $subSchema -Path $Path -Root $Root -Errors $Errors
+        }
+    }
+    $ifProperty = $Schema.PSObject.Properties['if']
+    if ($null -ne $ifProperty) {
+        $conditionErrors = New-Object 'System.Collections.Generic.List[string]'
+        Test-SchemaNode -Value $Value -Schema $ifProperty.Value -Path $Path -Root $Root -Errors $conditionErrors
+        $branchProperty = if ($conditionErrors.Count -eq 0) {
+            $Schema.PSObject.Properties['then']
+        } else {
+            $Schema.PSObject.Properties['else']
+        }
+        if ($null -ne $branchProperty) {
+            Test-SchemaNode -Value $Value -Schema $branchProperty.Value -Path $Path -Root $Root -Errors $Errors
+        }
+    }
     $kind = Get-JsonKind $Value
     if ($Schema.type) {
         $allowed = @($Schema.type)

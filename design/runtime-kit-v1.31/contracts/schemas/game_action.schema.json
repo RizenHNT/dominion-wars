@@ -12,7 +12,7 @@
     "actionId": { "type": "string", "minLength": 1, "maxLength": 128 },
     "type": {
       "type": "string",
-      "enum": ["PLAY_CARD", "SET_AMBUSH", "SKIP_AMBUSH", "ATTACK", "PULL", "DISCARD", "END_TURN"]
+      "enum": ["PLAY_CARD", "SET_AMBUSH", "SKIP_AMBUSH", "ATTACK", "COMMIT", "PULL", "DISCARD", "END_TURN"]
     },
     "actor": { "type": "integer", "enum": [0, 1] },
     "sourceId": { "type": ["integer", "string", "null"], "minimum": 1, "pattern": "^(leader_[01])$" },
@@ -30,7 +30,8 @@
         "targetId": { "type": ["integer", "string", "null"], "minimum": 1, "pattern": "^(player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },
         "count": { "type": "integer", "minimum": 0 },
         "promptId": { "type": "string", "minLength": 1 },
-        "optionIndex": { "type": "integer", "minimum": 0 }
+        "optionIndex": { "type": "integer", "minimum": 0 },
+        "commitCost": { "type": "integer", "minimum": 0 }
       }
     }
   }
