@@ -175,12 +175,63 @@ public sealed class TurnFlow
         return Array.Empty<LegalAction>();
     }
 
-    private static IReadOnlyList<LegalAction> CreateAmbushActions(GameState _, int playerIndex)
+    private static IReadOnlyList<LegalAction> CreateAmbushActions(GameState state, int playerIndex)
     {
-        return new LegalAction[]
+        var actions = new List<LegalAction>();
+        var player = state.GetPlayer(playerIndex);
+        var lockdownActive = false;
+        foreach (var setCard in player.AmbushZone)
         {
-            new LegalAction { ActionId = $"skip_ambush_{playerIndex}", Type = TurnAction.SkipAmbush, Actor = playerIndex, ReasonKey = "action.skip_ambush" },
-        };
+            if (string.Equals(setCard.Definition.AmbushKind, "LOCKDOWN", StringComparison.Ordinal))
+            {
+                lockdownActive = true;
+                break;
+            }
+        }
+
+        if (!player.AmbushSetThisTurn && !lockdownActive)
+        {
+            foreach (var card in player.Hand)
+            {
+                if (!card.Definition.IsLeader &&
+                    string.Equals(card.Definition.Type, "AMBUSH", StringComparison.Ordinal))
+                {
+                    var punish = CardPlayRules.EffectivePunish(player, card);
+                    var payload = new Dictionary<string, object?>
+                    {
+                        ["punish"] = punish,
+                    };
+                    if (player.PunishToSelfDiscardThisTurn && punish > 0)
+                    {
+                        var candidates = new List<long>();
+                        foreach (var discard in player.Hand)
+                            if (!ReferenceEquals(discard, card)) candidates.Add(discard.InstanceId);
+                        payload["discardRequired"] = punish;
+                        payload["discardCandidateIds"] = candidates;
+                    }
+
+                    actions.Add(new LegalAction
+                    {
+                        ActionId = AmbushActionHandler.ActionId(card.InstanceId),
+                        Type = TurnAction.SetAmbush,
+                        Actor = playerIndex,
+                        SourceId = card.InstanceId,
+                        CardId = card.Definition.Id,
+                        ReasonKey = "action.set_ambush",
+                        Payload = payload,
+                    });
+                }
+            }
+        }
+
+        actions.Add(new LegalAction
+        {
+            ActionId = $"skip_ambush_{playerIndex}",
+            Type = TurnAction.SkipAmbush,
+            Actor = playerIndex,
+            ReasonKey = "action.skip_ambush",
+        });
+        return actions.AsReadOnly();
     }
 
     private void CompleteTurn(GameState state)
@@ -194,6 +245,9 @@ public sealed class TurnFlow
             outgoing.ProtectedThisTurn = false;
             outgoing.EffectsNegatedThisTurn = false;
             outgoing.PunishDrawnThisTurn = 0;
+            outgoing.AmbushSetThisTurn = false;
+            state.Players[0].AmbushFocusTriggeredThisTurn = false;
+            state.Players[1].AmbushFocusTriggeredThisTurn = false;
             state.Players[0].UsedTags.Clear();
             state.Players[1].UsedTags.Clear();
             item.EndTurnRequested = false;

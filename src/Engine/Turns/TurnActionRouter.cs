@@ -38,7 +38,9 @@ public sealed class TurnActionRouter
     {
         return new TurnActionRouter(flow, new ITurnActionHandler[]
         {
+            new AmbushActionHandler(),
             new PlayCardActionHandler(targetPolicy, punishResponses),
+            new CommitActionHandler(),
             new PullActionHandler(),
             new AttackActionHandler(),
             new DiscardPhaseHandler(),
@@ -57,7 +59,9 @@ public sealed class TurnActionRouter
     {
         return new TurnActionRouter(flow, new ITurnActionHandler[]
         {
+            new AmbushActionHandler(),
             new PlayCardActionHandler(targetPolicy, punishResponses, PlayCardActionHandler.DefaultChainLimit, costModel),
+            new CommitActionHandler(),
             new PullActionHandler(),
             new AttackActionHandler(),
             new DiscardPhaseHandler(),

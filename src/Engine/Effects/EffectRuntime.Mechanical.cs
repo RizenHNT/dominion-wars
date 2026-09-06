@@ -266,7 +266,7 @@ public sealed partial class EffectRuntime
         return null;
     }
 
-    private static bool IsMechanicalCard(CardInstance card)
+    internal static bool IsMechanicalCard(CardInstance card)
     {
         return card.Definition.Tags.Contains("机械")
             || card.Definition.Tags.Contains("MECHANICAL")

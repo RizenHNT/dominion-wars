@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DominionWars.Engine.Model;
+using DominionWars.Engine.Turns;
 
 namespace DominionWars.Engine.Effects
 {
@@ -259,6 +260,15 @@ public sealed partial class EffectRuntime
             "player", player.PlayerIndex,
             "count", drawn.Count,
             "byPunish", byPunish));
+        if (drawnCards.Count > 0 && !IsGameOver)
+        {
+            new AmbushTriggerResolver().Resolve(
+                State,
+                player.PlayerIndex,
+                new[] { "OPPONENT_DRAWS" },
+                context.RootEventId,
+                drawnCards: drawnCards.AsReadOnly());
+        }
         return drawnCards.AsReadOnly();
     }
 

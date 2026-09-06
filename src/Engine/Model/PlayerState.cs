@@ -56,6 +56,10 @@ public sealed class PlayerState
     public int CycleWinCount { get; set; }
     public int TotalDiscarded { get; set; }
     public int PunishDrawnThisTurn { get; set; }
+    /// <summary>At most one non-leader ambush may be set by this player each turn.</summary>
+    public bool AmbushSetThisTurn { get; set; }
+    /// <summary>A triggered FOCUS ambush suppresses this player's other ambushes until handoff.</summary>
+    public bool AmbushFocusTriggeredThisTurn { get; set; }
     public bool DamagedThisCycle { get; set; }
     public int NoDamageTurns { get; set; }
     public int PullCount { get; set; }

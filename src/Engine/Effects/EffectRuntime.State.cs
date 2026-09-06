@@ -133,7 +133,11 @@ public sealed partial class EffectRuntime
 
     public void WinGame(EffectSpec spec, EffectContext context)
     {
-        var reasonKey = string.IsNullOrWhiteSpace(spec.Param) ? "win.special" : spec.Param!;
+        var reasonKey = WinReasonKey.FromEffect(
+            spec.Param,
+            context.SourceCard,
+            context.PlayedCard,
+            context.Attacker);
         TryDeclareWinner(context.SourcePlayerIndex, reasonKey, context);
     }
 

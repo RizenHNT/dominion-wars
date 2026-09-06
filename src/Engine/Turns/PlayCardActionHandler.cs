@@ -255,16 +255,32 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
                 "cardId", card.Definition.Id));
         }
 
-        if (card.Definition.Chant == 0 && preparation.Effects.Count > 0)
+        var triggerKinds = new List<string> { "OPPONENT_PLAYS_CARD" };
+        triggerKinds.Add(card.Definition.IsMinion
+            ? "OPPONENT_SUMMONS"
+            : "OPPONENT_PLAYS_SPELL");
+        var actionContext = new EffectContext(
+            player.PlayerIndex,
+            rootEventId,
+            sourceCard: card,
+            playedCard: card,
+            selectedTargetId: preparation.Selection.EntityId,
+            selectedCoreTarget: preparation.Selection.CoreTarget);
+        var ambushResult = new AmbushTriggerResolver().Resolve(
+            state,
+            player.PlayerIndex,
+            triggerKinds,
+            rootEventId,
+            playedCard: card,
+            actionContext: actionContext);
+
+        if (!ambushResult.Negated
+            && !state.WinnerPlayerIndex.HasValue
+            && card.Definition.Chant == 0
+            && preparation.Effects.Count > 0)
         {
             var dispatcher = EffectDispatcher.CreateDefault(new EffectRuntime(state));
-            dispatcher.ApplyAll(preparation.Effects, new EffectContext(
-                player.PlayerIndex,
-                rootEventId,
-                sourceCard: card,
-                playedCard: card,
-                selectedTargetId: preparation.Selection.EntityId,
-                selectedCoreTarget: preparation.Selection.CoreTarget));
+            dispatcher.ApplyAll(preparation.Effects, actionContext);
         }
 
         if (!card.Definition.IsMinion && card.Definition.Chant == 0)

@@ -10,7 +10,8 @@ public sealed partial class EffectRuntime
         CardInstance attacker,
         long? targetEntityId,
         CoreTarget? coreTarget,
-        long rootEventId)
+        long rootEventId,
+        EffectContext? context = null)
     {
         if (attacker is null)
         {
@@ -27,12 +28,17 @@ public sealed partial class EffectRuntime
             throw new ArgumentException("An attack needs exactly one entity or core target.");
         }
 
-        var context = new EffectContext(
+        context ??= new EffectContext(
             attacker.ControllerPlayerIndex,
             rootEventId,
             sourceCard: attacker,
             attacker: attacker);
         Commit(_ => attacker.AttacksUsed++);
+        if (context.Negated)
+        {
+            CheckAll(context);
+            return;
+        }
         if (targetEntityId.HasValue)
         {
             ResolveEntityAttack(attacker, targetEntityId.Value, context);

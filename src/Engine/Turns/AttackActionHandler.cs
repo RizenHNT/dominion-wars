@@ -56,11 +56,25 @@ public sealed class AttackActionHandler : ITurnActionHandler
             "player", request.ActorPlayerIndex,
             "source", attacker.InstanceId,
             "target", target.Id));
+        var actionContext = new EffectContext(
+            request.ActorPlayerIndex,
+            root.EventId,
+            sourceCard: attacker,
+            attacker: attacker);
+        var ambushResult = new AmbushTriggerResolver().Resolve(
+            state,
+            request.ActorPlayerIndex,
+            new[] { "OPPONENT_ATTACKS" },
+            root.EventId,
+            attacker: attacker,
+            actionContext: actionContext);
+        if (ambushResult.Negated) actionContext.Negated = true;
         new EffectRuntime(state).ResolveAttack(
             attacker,
             target.EntityId,
             target.CoreTarget,
-            root.EventId);
+            root.EventId,
+            actionContext);
         if (state.EndTurnRequested && !state.WinnerPlayerIndex.HasValue)
         {
             flow.Advance(state, request.ActorPlayerIndex);

@@ -27,6 +27,7 @@ public sealed class LegalActionGenerator
 
     public const string PlayCard = "PLAY_CARD";
     public const string Attack = "ATTACK";
+    public const string Commit = "COMMIT";
     public const string Pull = "PULL";
     public const string EndTurn = "END_TURN";
 
@@ -139,6 +140,27 @@ public sealed class LegalActionGenerator
 
         foreach (var source in player.Field)
         {
+            if (EffectRuntime.IsMechanicalCard(source)
+                && !source.IsLeaderEntity
+                && !source.Definition.IsLeader
+                && source.Definition.CommitCost == 0
+                && CommitActionHandler.HasSupportedCommitEffects(state, source))
+            {
+                actions.Add(new LegalAction
+                {
+                    ActionId = $"commit_{source.InstanceId}",
+                    Type = Commit,
+                    Actor = playerIdx,
+                    SourceId = source.InstanceId,
+                    CardId = source.Definition.Id,
+                    ReasonKey = "action.commit",
+                    Payload = new Dictionary<string, object?>
+                    {
+                        ["commitCost"] = source.Definition.CommitCost,
+                    },
+                });
+            }
+
             foreach (var target in _attackTargets.GetLegalTargets(state, source))
             {
                 actions.Add(new LegalAction
