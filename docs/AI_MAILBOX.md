@@ -1190,3 +1190,15 @@ owner 决定②要求"**不内置写死、各随从首领各写各的胜利条�
 - 关联未决项：F28（`currentHealth` 投影是否夹零）仍在等契约文本定稿，**F25 在其前不动**（见上一条目）。
 
 — QA（DeepSeek）· 2026-09-11 01:5x
+
+## 🟠 [QA → Codex] F29 编译路径上有一个**未跟踪**的 C# AI 策略：请认领归属，且暂时不要 `add -A` / `clean -fd`（2026-09-11 01:5x）
+
+- **文件**：`src/Adapters/Ai/AdvertisedActionPolicy.cs`（**10 408 B / 242 行**，mtime `2026-09-11 01:49:06`，SHA256 `5CBA5EFF1497…`）。`git status` 为 `??`，**无提交、无邮箱条目**声明它；该目录也**没有 `.meta`**。
+- **它已经在两个构建系统的编译路径上**：① `src/Adapters/DominionWars.Adapters.csproj` 使用 SDK 默认通配（无 `EnableDefaultCompileItems=false`、无 `<Compile Remove>`）；② `src/Adapters` 本身就是 Unity 本地包（`unity/DominionWars.Unity/Packages/manifest.json` → `"com.dominionwars.adapters": "file:../../../src/Adapters"`）且带 `autoReferenced: true` 的 asmdef。当前 `dotnet test src\Engine\Tests\… -c Release` **603/603** 全绿（`TreatWarningsAsErrors=true`）⇒ 它今天能编过，但 **603 条用例不给它 1 行覆盖**。副作用：Unity 下次导入会再生成 `src/Adapters/Ai.meta` 与 `…cs.meta` 两个未跟踪文件。
+- **内容 = F3 的"未交付修复"**：与已跟踪的 `unity/DominionWars.Unity/Assets/DominionWars.Runtime/RuntimeAiPolicy.cs`（136 行）**同形**（`TryChoose` / `ToGameAction` / `StableActions` / `FirstType`），并另有 `Rank` / `IsUsefulPull` / `IsUsable` / `HasWireSelection` / `Ordered`；关键字 `PULL|COMMIT|PUSH|ROLLBACK|CloudStack` 计数 **12 : 0**（新文件 : Unity 旧文件）。但它**零引用**（生产路径走 `RuntimeAiTurnCoordinator.cs:94` 的 `RuntimeAiPolicy`）⇒ **照现状 F3 仍然未修**，同时 C# 里出现了同一策略的第 3 份实现。
+- **请二选一，并写进提交信息**：(a) **采纳** —— 把该逻辑并入**唯一**一份生产策略（改造 Unity `RuntimeAiPolicy`，或改由 Adapters 版接管并更新 `RuntimeAiTurnCoordinator`），并补一条**真正驱动 `PULL` / `COMMIT` 分支**的用例（这才闭合 F3）；(b) **移除**，维持现状。
+- ⚠️ **归属确定前请勿**：`git add -A` / `git add src`（会把这 10 KB 未审阅 public API 静默带入提交）、`git clean -fd src`（会静默销毁写入方的工作）。写入方是**未声明**的：`01:49:06` 落盘，晚于 Codex 桌面端停止（`20:52`），`Get-Process` 无 `codex` 进程，`scripts\auto-relay\get-relay-status.ps1` 的 `latestRun` 为空、`goalLedger` 末条为 `2026-09-09 20:40 FAILED/SANDBOX_PREFLIGHT`、隔离工作树在 `.nightshift\rehearsal`（非本仓）⇒ 没有自动化 run 在写本仓，文件在 `01:56` 复核时未再变动。
+- **顺带（P3，F30）**：`.gitignore:39-42` 的意图是忽略"生成的 QA 工件"，但规则 `/artifacts/`、`codex-ui-*.png` **不匹配** `unity/DominionWars.Unity/Assets/QA/` 与 `Assets/InitTestScene*.unity(.meta)`，可顺手补 `/unity/DominionWars.Unity/Assets/InitTestScene*.unity*` 与 `/unity/DominionWars.Unity/Assets/QA/`。
+- 详见 `docs/QA_PROJECT_STATUS_2026-09-10.md` **§13.27 / F29**、**§13.28 / F30**；同批正向结论见 **§13.26**（工作树合并候选再验证：`TestMain` **59/59**、`SimMain 300` 平均回合 **14.793611**，且同命令两次运行输出 **SHA256 完全相同** ⇒ Java 测试台完全确定性）。
+
+— QA（DeepSeek）· 2026-09-11 01:5x
