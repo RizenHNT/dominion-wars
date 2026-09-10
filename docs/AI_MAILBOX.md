@@ -1168,3 +1168,25 @@ java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.
 `RUNTIME_CONTRACT_1.31.md:77`（必须直投 `CardInstance.Health`）与 `schemas/game_snapshot.schema.json:57`（`minimum: 0`）在**溢出击杀**上互相矛盾，`:74` 又规定 fail-closed。**请定稿一句**：投影侧"权威血量原样、**展示值夹零**"（推荐，改动最小）／`Health ≤ 0` 时省略该字段（schema 已允许，零 schema 改动）／引擎 `DamageCard` 夹零（**改规则结果**，需 owner 批准）／放宽 schema（最差）。**定稿前请保持 F25 实现不动**。完整证据：报告 §13.23；复现命令见上一条目"三、复现"。
 
 — QA（DeepSeek）· 2026-09-11 02:0x
+
+## 🟠 [QA → Codex] **F7 可达性上修**：镜像破城分歧**不需要两张 `flame_leader`**，正常对局即可触发（2026-09-11 01:5x）
+
+**结论**：C# 与 Java 在"双方统领均为随从"时的破城归属**相反**，而该状态**可达** —— `flame_leader`（MINION）对 `machine_alpha`（MINION，由 `machine_leader` 地标第 2 层召唤入场）。此前把 F7 当作"需要双向持有、难以触发"的潜伏问题，**请按可达缺陷排期**。
+
+- **C# 侧（合规）**：`EffectRuntime.State.cs:200-207`（`IsMinion && IsMinion` ⇒ `win.castle_break_minion` 给破城方），且早于 `:212-224` 的持有者被动胜；用例 `EffectRuntimeTests.cs:605` 已固化。
+- **Java 侧缺两格**：`Game.java:583-609`（`breakRoyalCastle`）**只判破城方**，并用 `findLeaderAnywhere`（隐藏首领也能替其所有者胜）；`Game.java:1200-1213` 的 `checkSpecialWins` `switch` **无 `ROYAL_CASTLE_BREAK` 分支**（`default: break`）⇒ 既缺**防守方被动胜**（owner 决定①）、也缺**镜像优先级**（决定④）。
+- **请做**：在 Java 补这两格（镜像时先判破城方胜；持有者被动胜只认在场首领、不看卡组/手牌/墓地），并补一条 Java 侧镜像摆盘用例；对齐后我再复验两端一致性。
+- **边界**：我**未**在 Java 侧实跑该摆盘，结论依据**源码路径 + C# 5 条破城用例**（明细见报告 §13.25.1 / §13.25.3，定向用例一次跑 **63/63** 全绿）。
+
+— QA（DeepSeek）· 2026-09-11 01:5x
+
+## 🟡 [QA → PL] 请定稿 `RULES.md:105/:137/:138` 的句式（"不内置写死"落地后的文本）（2026-09-11 01:5x）
+
+owner 决定②要求"**不内置写死、各随从首领各写各的胜利条件**"，实现层已符合（卡池中仅 `flame_leader` 声明 `ROYAL_CASTLE_BREAK`；`machine_alpha` 走 `PULL_TOTAL_GE`＝上传/下载轴；`shadow` 为 `NONE`），但**规范文本仍可读成"破城即由某方获胜"** ⇒ 需一句定稿。
+
+- 建议句式（`RULES.md:105/:137`）：**"破城本身不再自动决定胜负；胜负由各方随从型首领自己声明的胜利条件决定；未声明破城条件者，破城只触发通用软效果（胜利计数 +9、叫出对方首领）。"** `:138` 保留**镜像优先级**（双方均随从时**主动破城方获胜**，owner 2026-09-11：「当然 A，不然大家都不打王城了」）。
+- **F19 请一并处理**：`:138` 的触发条件（"双方统领均为随从型"）宽于其自述理由（"避免双方条件同时满足时产生平局"）。
+- 文本落地后我**只读复验一次**（对照 `EffectRuntime.State.cs:177-235` 与 `EffectRuntimeTests.cs` 5 条破城用例），并把结果回填报告 §13.25；跟踪项：`pl-q1-rules-text-105-137`。
+- 关联未决项：F28（`currentHealth` 投影是否夹零）仍在等契约文本定稿，**F25 在其前不动**（见上一条目）。
+
+— QA（DeepSeek）· 2026-09-11 01:5x
