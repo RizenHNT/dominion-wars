@@ -1350,7 +1350,7 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 - 实际已有 **6 条**（`src\Engine\Tests\EffectRuntimeTests.cs`）：`:542`（`CastleEnabled` 门）、`:551`（破城 ⇒ `CycleWinCount=9`、`ForceLeaderOut`、`grantLife`/降临效果、破城方胜 + 事件序 `CASTLE_DAMAGED < CASTLE_BROKEN < LEADER_MANIFESTED < GAME_WON`）、`:604`（**双方皆随从 ⇒ 主动破城方胜**、`win.castle_break_minion`）、`:644`（**防守方持有 ⇒ 防守方被动胜**、`win.royal_castle_break`）、`:677`（只认在场统领：条件持有者仍在牌库 ⇒ 无胜者）、`:717`（计次只升不降、`CASTLE_BROKEN` 只发一次）；数据侧另有 `DataLoaderTests.cs:30`，投影/游标侧 `RuntimeOutcomeProjectionTests.cs:78`/`:168`、`RuntimeEventCursorTests.cs:72-112`。
 - **唯一未覆盖的组合 = 双方同时声明 `ROYAL_CASTLE_BREAK`**，正是 **F18**（`EffectRuntime.State.cs:214-217` 现返回"无人获胜"）要改的场景 ⇒ **落地 F18 时请一并补这条断言**（期望值按 owner 定稿"主动破城方优先"取破城方胜、`win.royal_castle_break`），与 §14 F17 行"补一格覆盖用例"是同一格。
 
-**D. 仍开（本轮未复核到变化）**：**F36**（P2，两行修复规格见上一条目 B 块，沙箱 633/633）、**F18**（P2，可立刻修）、**F31**（P3 陷阱重载）、**F32**（P1 跨端：C# 运行时无惩罚响应注入点）、**F24**（见上 A）、**F29**（编译路径上的未跟踪 `AdvertisedActionPolicy.cs`）。
+**D. 仍开（本轮未复核到变化）**：**F36**（P2，两行修复规格见上一条目 B 块；**04:0x 独立重建：干净源 632/634 ⇒ 修复后 634/634，详见下方 G 块**）、**F18**（P2，可立刻修）、**F31**（P3 陷阱重载）、**F32**（P1 跨端：C# 运行时无惩罚响应注入点）、**F24**（见上 A）、**F29**（编译路径上的未跟踪 `AdvertisedActionPolicy.cs`）。
 
 **E. 环境**：本轮**只读核对，未改任何生产/测试代码**；修订指纹与上一批相同（`461CE243874261EB90294FEEE9CB2777FD984C5CC1143D4F3F2537D268DAC0EA`，= `src/**` 403 个文件按 `FullName` 排序、以 `CRLF` 连接、**末尾再附一个 `CRLF`** 后的字节 SHA256；`Compare-Object` 与上一批 403 行清单**逐行全等**、最新 mtime 仍为 `02:38:45` ⇒ `src/**` 零写入），C# 全量 **631/631**。
 
@@ -1363,4 +1363,17 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
    - 参照事实（**非缺陷、不是待办**）：`design/runtime-kit-v1.31/contracts/README_FIRST.md:14` 明示 v1.31 = canonical-current、`design/runtime-kit-v1.30/` = 历史基线；`RUNTIME_CONTRACT_1.31.md:26` 规定 1.30 schema **冻结不改**。实测两版动作词表差 3 名：v1.30 = 7 项（含 `CHOOSE_TARGET`）、v1.31 = 8 项（含 `COMMIT`/`PULL`）⇒ **是设计结果**，不要"同步"两版枚举。
 3. **请 PL 转达 owner / GPT Web（P3，前端提示，不是 Codex 待办）**：前端若按 **v1.30** 的 `game_action.schema.json` 枚举实现交互，会做出**永不触发**的 `CHOOSE_TARGET`，并**漏掉 `COMMIT`/`PULL`** —— `PULL` 正是 owner 本轮定的"上传/下载"轴 ⇒ **请以 v1.31 为准**。附带信息：`src/Engine/Localization/Resources.cs:26` 的 `action.activate_punish`（及同类 `action.use_leader_ability`）**无运行时动作对应**（MVP 排除/保留键）；`web/app.js` 自带内联文案表、**未**引用这两个键（全仓 `activate_punish` 仅命中 `Resources.cs:26` 与上面两条测试断言）⇒ **当前无死按钮**。
 
-— QA（DeepSeek）· 2026-09-11 03:0x / **契约版本源核对追加 2026-09-11 03:3x**
+**G. F36 独立重建实证（04:0x 追加）—— 给 Codex 的两行修复 + 一条验证硬约束；给 PL 的一条联动项**
+
+1. **结论**：F36 已**独立第二次复现**（不同夹具、不同命令、新增单段控制组）并**验证修复**。全部工作在仓库外沙箱 `%TEMP%\dw-qa-f36-probe`，仓库 `src/` 本轮零写入。
+2. **修复（两行，位置精确）**：
+   - `src\Engine\Effects\EffectRuntime.Cards.cs` —— 紧随 `:423`（`leaderContext` 构造结束）之后、`:424` `var dispatcher` 之前，加：`leaderContext.DeferDeaths = context.DeferDeaths;`
+   - `src\Engine\Effects\EffectRuntime.Mechanical.cs` —— 紧随 `:199` 之后、`:200` `pullDispatcher.ApplyAll(...)` 之前，加：`pullContext.DeferDeaths = context.DeferDeaths;`
+   - 依据：`ApplyAll` 读写的 `DeferDeaths` 属于**传入上下文自带**的窗口（`EffectContext.cs:84-112`）；`ForSource`（`:90-101`）复用同一个 `_window`、`Cards.cs:213` 已是同款继承 ⇒ 两行只是把新建站点补齐到既有约定，不动 `ApplyAll`/`CheckAll` 语义、不动胜负判定。
+3. **实测**（每次先整删 `<root>\build-output\` 强制重建）：沙箱 = 工作树 631 条 + 3 探针；**干净源 632 通过 / 2 失败（共 634）**，失败为 `EFFECT_SKIPPED{action=DAMAGE,reasonKey=target.none}`、`DAMAGE_DEALT` 期望 4 实测 2；**加两行后 634/634、零回归**；同期仓库工作树 **631/631**。
+4. **请把两条探针形态转正为生产用例**（测试代码归 Codex，我只提供探针与期望值）：ProbeA 父批 `[DRAW 1, DAMAGE ALL_ENEMY_MINIONS 5]` + 牌库顶首领（`leaderEnterEffects = [DAMAGE ALL_ENEMY_MINIONS 2]`）；ProbeB 父批 `[PULL, DAMAGE ALL_ENEMY_MINIONS 5]` + CloudStack 顶机械（`pullEffects = [DAMAGE ALL_ENEMY_MINIONS 2]`）+ 载体须满足 `IsDownloadCarrier`（`Mechanical.cs:432-452`）；对照的 ProbeC 单段批必须保持绿。修复须**连同回归用例一起提交**。
+5. **⚠️ 验证硬约束（会影响"修了没修"的判断）**：`Copy-Item` 会保留源文件旧 mtime ⇒ 还原干净源码后 `.dll` 仍比 `.cs` 新 ⇒ MSBuild **跳过重编译** ⇒ 探针依旧全绿（**假绿**）。改前后比较**必须先 `Remove-Item <root>\build-output -Recurse -Force`**（或 `-t:Rebuild`）。
+6. **可达性（出厂数据扫描，`data\**\*.json`）**：全树 **14 个多段批**中，"先登场/下载类、后续还有其他动作"的排序 **0 个** ⇒ F36 的**主症状当前不可达**（维持 P2、不是 P1）；唯一"同批内既有登场类又有致伤类"的是 `data\cards\machine.json` 的 `punishEffects = [DAMAGE ALL_ENEMY_MINIONS 3, DRAW 1]`（致伤在**前**、其后无段）；出厂 `DAMAGE_CASTLE` 只有 `sea.json:492` 且为**单段** `onOpponentDiscardEffects`；`pullEffects` 仅 **8** 张、全为单段 `[BUFF]`。⇒ **不是"可以永远不修"**：任何新卡只要在"登场/下载"之后再加一段，就会踩到。
+7. **给 PL 的联动项（设计口径，不是缺陷）**：修复后批内后续段会**继续命中"0 血但仍在场"的随从**（探针断言 `Health == -5`）⇒ 这与 F28（投影不得发布负 `currentHealth`）**方向一致**：F28 是**投影/快照层**问题，不是"禁止命中"。**请 PL 在 F28 定稿时把这条口径一并写清**（先修 F36 会让 F28 的形态出现在更多路径上）。
+
+— QA（DeepSeek）· 2026-09-11 03:0x / **契约版本源核对追加 2026-09-11 03:3x** / **F36 独立重建实证追加 2026-09-11 04:0x**
