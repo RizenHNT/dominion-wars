@@ -135,7 +135,7 @@ PL 在 `build-output/pl-csim/`（已 gitignore）跑出 **14 组配置 × 720 �
 | **F22** | **⚠️ 本轮唯一的 P1（流程 / 数据丢失）——`HEAD` 与工作树是两个不同的引擎**：工作树里 8 个 `src/main/java` 文件 + `TestMain.java` **共 1 402 行插入未提交**（`Game +240`、`Effects +197`、`AiAgent +143`、`CardDef +114`、`TestMain +658` …），而 `git branch -avv` 的**全部落点**与 `git stash list`（仅一条无关的 `codex-cycle-flip-wip-pre-existing`）**都不包含它们**。用 `git archive HEAD \| tar -x` 在仓外**独立重建提交态**实测：`build.bat` exit 0、`TestMain` **38/38**、`SimMain 300` 平均回合 **22.61**（**超出 10–20 带**）、烈焰 59.1% / 机械 14.3% / 深海 **90.9%** / 古木 **35.7%**（两项在 40–60 带外）；工作树则为 59/59、14.79、51.2/13.2/80.3/55.3。差异 **100% 来自那 8 个引擎/AI 文件**（`SimMain.java` 与 `data/` 两边一致） | **P1（流程）** | **Codex / harness**：把这批 WIP 落到**明确命名的提交或分支**（哪怕标 `WIP`）并回报 hash；**owner**：或明确决定归档/丢弃（**丢弃不可恢复，需明确同意**）。**在此之前：不要用 `HEAD` 评估合并、不要把工作树读数当"已交付"、任何"干净基线"结论必须先声明测的是哪个修订版。** 详见报告 §13.19（仓外取证快照见本文件 §6） |
 | **F23** | **PL 报告的 C# 实测：结论可复现，但有五处取值/表述问题**（⚠️ **表述层**，**结论方向不变**）**① §3 链深直方图**是**引擎 `PUNISH_TRIGGERED` 事件 + 策略 `Decide` 调用**逐档相加（`Simulator.cs:375-376` 合并、`:165-166` 输出；合计 **108 730 = 48 060 + 60 670**，是链数 7 541 的 **14.4 倍**，仅 depth-1 桶 9 855 已 > 链数）⇒ **不可读作链数**；"链顶到 20 档上限"**仍成立**，但依据应是 `data/balance.json:8 chainLimit = 20` + **8 组 A 配置 `maxChainDepth` 全为 20**；**② §5 表 10.61% → 10.56%**（产物与 §5 正文都是 10.56）；**③ §4「平均回合」列 = `factions[烈焰帝国].avgTurns`**（5/5 逐值 diff = 0）⇒ 非全局（全局 ≈ **6.01**）；**④ §4 清深海行 23.11 → 23.06**（另三项按 1 位小数；−61.4 pts 不变），json/txt **文件名不一致**；**⑤ §3 的 88% 与 A→B 差存在分母问题**（`punishDrawInitial` A 12 126 / B 45 248，roots 7 541 / 24 237）⇒ **A→B 不是单变量消融**；B 模式 `maxChainDepth = 0` 是**未填充字段**。另：**5 组 A 配置各 1 次**非法 `SET_AMBUSH` 被**引擎正确拒绝** | **P2（表述）+ P3（报表）** | **PL**：更正上述文字 + harness 三小项（两个直方图**分开输出**、统一产物文件名、B 模式输出 `null`） | **QA 追加证据（强化 S1）**：`abl-B-sea-non-activatable` ⇒ 深海 67.5% → **31.11%**（−36.4 pts），烈焰/机械/古木升至 70.83 / 40.56 / 57.5 ⇒ **关闭响应回环后"可降临密度"依然是决定性货币**（PL 的 B 模式只消融了 flame/sea）。**QA 不改 PL 的文件，只提案**（详见报告 §13.20） |
 
-| **F24** | **C# 引擎完全不读 `data/balance.json`（跨引擎参数单一来源缺失）**：`src/` 内该文件**零命中**（只有 Java `Balance.load`）。C# 把 `chainLimit=20`（`PlayCardActionHandler.DefaultChainLimit`）、`castleHealth=75`（`MatchSetup`/`GameState`）、`reshuffleLossThreshold=10`、`castleBreakVictoryCount=9`（`GameState`）、`handLimit=8`、`pioneerHandLimitBonus=2`（`MatchRules`）**全部硬编码** ⇒ **改这份平衡文件对 Unity 侧完全无效**，而 PL/owner 的平衡讨论正围绕它。**PL 清单的 P0-1（先驱惩罚缺失）只是它的一个实例**：C# 已实现 pioneer 的**手牌上限**那一半（`DiscardPhaseHandler.cs:111-114`），缺的正是读参数的**惩罚**那一半（Java `Game.java:426-431` 两端都有） | **P0（主线）** | **Codex** | 让 C# 从 `data/balance.json` 装载（或明确声明唯一来源）+ 一致性测试；修 P0-1 时**复用 `:111` 的 solo-leader 判据并抽成公共 helper**（同时解决清单 P2-9：现在"先驱"有两处定义） |
+| **F24** | **C# 引擎完全不读 `data/balance.json`（跨引擎参数单一来源缺失）**：`src/` 内该文件**零命中**（只有 Java `Balance.load`）。C# 把 `chainLimit=20`（`PlayCardActionHandler.DefaultChainLimit`）、`castleHealth=75`（`MatchSetup`/`GameState`）、`reshuffleLossThreshold=10`、`castleBreakVictoryCount=9`（`GameState`）、`handLimit=8`、`pioneerHandLimitBonus=2`（`MatchRules`）**全部硬编码** ⇒ **改这份平衡文件对 Unity 侧完全无效**，而 PL/owner 的平衡讨论正围绕它。**PL 清单的 P0-1（先驱惩罚缺失）只是它的一个实例**：C# 已实现 pioneer 的**手牌上限**那一半（`DiscardPhaseHandler.cs:111-114`），缺的正是读参数的**惩罚**那一半（Java `Game.java:426-431` 两端都有）。**⚠️ 01:2x 行为级实证（报告 §13.22）**：改该文件 5 个键 ⇒ **Java** 平均回合 14.7936→9.3111、胜率位移 4.8–28.4 pts，**C# 1 500 局输出逐字节不变**；阳性对照（只改 `machine_leader.winParam` 6→2）⇒ 输出立刻变 ⇒ **C# 读卡不读全局参数** | **P0（主线）** | **Codex** | 让 C# 从 `data/balance.json` 装载（或明确声明唯一来源）+ 一致性测试（**唯一能防两套默认值漂移的门禁**）；修 P0-1 时**复用 `:111` 的 solo-leader 判据并抽成公共 helper**（同时解决清单 P2-9：现在"先驱"有两处定义） |
 | **F25** | **快照 wire format 从来没有契约测试**：canonical `game_snapshot.schema.json`（`additionalProperties:false`、required 含 `snapshotRevision`/`viewerPlayerId`/`pendingPrompt`、**无 `deck` 字段**、`card.currentHealth minimum 0`）**从未被任何 C# 测试引用**（`ContractBoundaryTests.cs:151` 只引 `game_action.schema.json`）；legacy `SnapshotDto`（`ContractDtos.cs:7-49`，PascalCase + **有序 `Deck`** + 双方手牌）**结构上不可能通过 v1.31 校验**却仍在仓库被测试固化。这同时是清单 **P2-3（Enfeeble 负 HP）** 的根因：`EffectRuntime.Advanced.cs:38/43` 只夹了 Attack/MaxHealth，**`target.Health += spec.Amount` 无下限** ⇒ 会产生**非法 wire 数据** | **P1（契约）** | **Codex** | ① 加 `game_snapshot.schema.json` 校验生产快照的测试；② legacy 1.30 DTO/适配器 `[Obsolete]` 或删除；③ 修 `RuntimeSnapshotProjectionTests.cs:453`（只断言 `DeckCount`，从未断言 `Deck` 列表）；④ HP 夹零 |
 | **F26** | **v1.31 事件契约有校验器、没有生产者**：引擎发 **46** 种事件类型 / **51** 种载荷键（字面量扫描，**下界**），契约 `ui_event.schema.json` 只收 **29**/**7**（`RuntimeEventCursor.cs:29-38` 逐项对齐 enum；`:40-43` 键白名单；`:92` 未知键即 `event.data_field_unknown`）。**但 `RuntimeEventEnvelope`/`RuntimeEventCursor` 在 `src/` 中只被 `src/Engine/Tests/RuntimeEventCursorTests.cs` 构造**；`RuntimeMatchGateway` 返回**原始 `GameEvent`**（`:110-111/:177`）。唯一改名表是 legacy `EngineProjectionAdapter.cs:14-43`（26 键 / 覆盖 22 型；批量**静默丢弃**、单条**抛异常**）⇒ **28 型不可表达、11 型无生产者**。清单 **P2-8（`DEFEAT_PREVENTED`，`EffectRuntime.cs:80` 确实发出）** 是本条的一个实例 | **P1（集成缺口）** | **Codex**（enum 是否最终由 **PL/owner** 确认） | 补 `GameEvent → RuntimeEventEnvelope` 生产映射（改名表 + 载荷裁剪 + `snapshotRevision` 打戳），覆盖 46 型或与 PL 一起收窄 enum。**别重写 `RuntimeEventCursor`** —— 它的校验已经很完整（乱序/缺号/重复/父缺失/`GAME_OVER` 恰好两字段） |
 | **F27** | **（澄清）** 清单把 P2-8 描述为"白名单缺失"**低估了已有实现**：`RuntimeEventCursor` 的拒绝原因集已相当完整（见 F26）⇒ 真正缺的是**生产端映射**，不是校验逻辑 | 澄清 | — | 记录在案，供 Codex 复用 |
@@ -178,6 +178,29 @@ DeclareWinner(breakerHolds ? breaker : defender.PlayerIndex,  // 持有者胜；
 3. **`data/decks/*.json` 仍是 2026-06-12 的旧构筑**：牌组没随 91 卡迁移，所有胜率都建立在"9 月卡牌 × 6 月牌组"上。
 4. **发布路径 AI 不会打生命周期胜利条件（F3）**：见上表。
 
+5. **⚠️ `data/balance.json` 对 Unity 侧根本无效（F24，01:2x 行为级实证）**：这份文件是 owner/PL 唯一的调参入口（`README.md:99` 正是这么写的），但 C# 侧**一次都没读它**。四臂对照（**同一可执行体，唯一变量 = 引擎实际读到的数据目录**）：
+
+   | 臂 | 引擎 | 数据 | 结果 | 输出 SHA256 |
+   |---|---|---|---|---|
+   | A | Java | 仓库 `data/` | 平均回合 **14.7936**；烈焰 51.2 / 机械 13.2 / 深海 80.3 / 古木 55.3 | `234ADB28…` |
+   | B | Java | 副本（改 5 键） | 平均回合 **9.3111**；**79.6 / 8.4 / 73.2 / 38.8** | `BA7B1426…` |
+   | A′ | C# | 仓库 `data/` | 平均回合 **10.16** | `9F969FF7…` |
+   | B′ | C# | 同一副本 | **逐字节相同（diff 0）** | **`9F969FF7…`** |
+   | C | C# | 副本、`balance.json` 复原、**只改一张卡**（`machine_leader.winParam` 6→2） | 机械 **0.0%→2.3%**、`maxPull` **3→2**、`win.pull_total_ge` **0→17** | `169AB81B…` |
+
+   改的 5 键：`openingHand 5→3`、`handLimit 8→4`、`reshuffleLoseAt 10→3`、`chainLimit 20→5`、`royalCastleMaxHp 75→15`。⇒ **Java 敏感、C# 零敏感**，且阳性对照排除了"探针没读数据"这一替代解释 ⇒ **C# 读卡（`data/cards`）不读全局参数**。又因两套默认值**当前恰好相等**（`MatchSetup.cs:47`/`:50`、`MatchRules.cs:9`、`GameState.cs:20`/`:21`/`:85`、`PlayCardActionHandler.cs:15`），`sanity_check_v2.py` 与 603/603 **都发现不了** ⇒ **任何一次按文档调参都会静默造成跨引擎规则分叉**。
+
+   复现命令（**全部在仓库外副本上操作，仓库内数据/生产文件一字未改**；C# 用我的仓外预言机，参数为"含 `data/` 的根目录"）：
+
+   ```
+   # Java：只换 CWD 指向的数据目录（data/cards、data/decks 全同）
+   & $env:ComSpec /d /c "cd /d %TEMP%\qa-f24 && java ""-Dfile.encoding=UTF-8"" ""-Dstdout.encoding=UTF-8"" -cp ""<repo>\build\classes;<repo>\build\test-classes"" com.dominionwars.test.SimMain 300"
+   # C#：只换 repoRoot 参数（预言机引用 build-output\...\DominionWars.Engine.dll = FBEBCABD…）
+   dotnet %TEMP%\dw-cs-sim\bin\Release\net8.0\DwSim.dll <repo>                  250 decline 60  # A′ 基线（SHA 9F969FF7…）
+   dotnet %TEMP%\dw-cs-sim\bin\Release\net8.0\DwSim.dll %TEMP%\qa-f24          250 decline 60  # B′ 改 balance.json（SHA 同 A′）
+   dotnet %TEMP%\dw-cs-sim\bin\Release\net8.0\DwSim.dll %TEMP%\qa-f24-cards2   250 decline 60  # C  只改一张卡（SHA 169AB81B…）
+   ```
+
 ### 建议的合并路线
 
 ```
@@ -206,8 +229,9 @@ DeclareWinner(breakerHolds ? breaker : defender.PlayerIndex,  // 持有者胜；
 - **我另做了一件超出"只读取证"但仍在 QA 边界内的事（00:5x）**：F22 那 1 402 行**不在任何分支/ref/stash 里**，等待落地期间有被静默销毁的风险，所以我在**仓库外**（QA 会话目录 `…\files\wip-snapshot-20260911\`）留了一份**可复原快照**：`git diff --binary -- src` 的原样补丁（`git apply --check --reverse` **exit 0**、SHA256 已记录）+ 9 个文件的逐字节副本（SHA256 **9/9 一致**）。**边界**：我只**复制**，没有提交、没有动 Git 指针、没有改生产/测试代码；快照**不是交付物**，也不改变"正解是把 WIP 落地为具名提交/分支"这一条；若写入方此后继续改代码，快照即过期。
 - **`unity-editmode-and-windows` 恒 BLOCKED**（设计行为）；`unity-editmode-unlock` = `HUMAN_REQUIRED`（Editor 项目锁）。
 - ⚠️ **PL 的 09-09 代码审核清单我已逐条复核（01:1x，报告 §13.21），其中三项请注意"不要照做"**：**P0-4 主结论不成立**（`EffectRuntime.Cards.cs:514` 确实读取阈值 ⇒ 破城方只差 1 次循环即胜，不是死局；只剩 `State.cs:214-217` 的窄分支 = F18）、**D-1 是误读**（`RULES.md:125-126` 与代码方向一致）、**D-2 已定稿**；**P0-3 已修复且已有回归测试**（只需补一条两段 AOE 用例）、**P2-11 死分支存在但清单举错了条件名**。复核基线是当前修订版 **603/603 全绿**（`dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBuildEnableWorkloadResolver=false`）⇒ 上表"仍成立"的条目**都是绿灯下存在但无覆盖**。**边界**：**P0-3 的 AOE 变体与 P0-4 的双持有分支属结构推断，我未跑探针**；**P1-1 / P2-7 / D-3 / D-4 / 清单第五节"测试盲点 12 条"本轮未逐条复检**，不代表"已修复"。
+- **F24 行为实测的两条边界（01:2x）**：① 5 个键是**成组**修改 ⇒ 行为实验证明"对该文件**整体**零敏感"，**逐键**归因靠源码硬编码行号（`MatchSetup.cs:47`/`:50`、`MatchRules.cs:9`、`GameState.cs:20`/`:21`/`:85`、`PlayCardActionHandler.cs:15`）；② 我的预言机自身也没有 balance 装载代码 ⇒ 行为实验覆盖的是"**host + engine 路径**"，而"**产品里没有任何宿主读它**"这一句依据的是**全仓库排除 `docs/`/`design/` 后的零命中取证**（含 `unity/Assets` 全部脚本）——两条证据合起来才是 F24 的完整结论。**另**：数据改动全部发生在仓库外的 `%TEMP%` 副本，仓库内数据/生产文件一字未改，Git 指针未动，未启动 relay。
 - 我**未**改动 `.gitignore`、**未**重置 `codex/p0-complete-match-loop-2026-09-06` 指针（避免运行期破坏性操作）、**未** push。
 
 ---
 
-— DeepSeek（测试负责人）· 2026-09-11 00:20 / 追加 00:26 / **更正 00:34（F17 撤回、新增 F21）** / **读数复现校验 + F21-② 收窄为"部分失效" 00:36** / **提交态独立重建对比、新增 F22 00:44** / **仓外取证快照 00:5x** / **PL 的 10 080 局 C# 实测独立复现（14/14 逐字段一致）+ 新增 F23 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27 01:1x**
+— DeepSeek（测试负责人）· 2026-09-11 00:20 / 追加 00:26 / **更正 00:34（F17 撤回、新增 F21）** / **读数复现校验 + F21-② 收窄为"部分失效" 00:36** / **提交态独立重建对比、新增 F22 00:44** / **仓外取证快照 00:5x** / **PL 的 10 080 局 C# 实测独立复现（14/14 逐字段一致）+ 新增 F23 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27 01:1x** / **F24 行为级实证（四臂对照 + 阳性对照，改该文件 C# 输出零变化、改一张卡即变）§13.22 / 本文件 §5-5 01:2x**
