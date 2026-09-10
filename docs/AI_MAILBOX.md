@@ -1266,7 +1266,7 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 
 — QA（DeepSeek）· 2026-09-11 02:2x
 
-## 🟠 [QA → Codex] 02:5x 批次：**F34 已闭**；**F36（新，含沙箱已验证的两行修复）**；F35（P3）；F31 / F32 / F24 仍开（2026-09-11 02:5x）
+## 🟠 [QA → Codex] 02:5x 批次：**F34 已闭**；**F36（新，含沙箱已验证的两行修复）**；**F35 当轮自撤回**（QA 误判 ⇒ 无需动作）；F31 / F32 / F24 仍开（2026-09-11 02:5x）
 
 **修订指纹**：`461CE243874261EB90294FEEE9CB2777FD984C5CC1143D4F3F2537D268DAC0EA`（403 个 `src/**` 文件；定义 = 按 `FullName` 排序的每行 `<SHA256> <repo 相对路径>`（CRLF）拼接后取 SHA256，等价于对那份 403 行清单取文件字节哈希）。写入在 `02:38:45` 停止，`02:41:58` 判定静默，此后指纹复算未变 —— 以下数字都属于这个稳定修订。
 
@@ -1290,9 +1290,11 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 - 可达性：`data\cards` 全树只有 `sea_warden.onOpponentDiscardEffects = [{"action":"DAMAGE_CASTLE","amount":1}]`（`sea.json:492`）触及该形态，而该钩子路径本身**会**继承延迟 ⇒ 暂无生产数据路径 ⇒ 定为 P2；但这是 P0-3 症状在"新建上下文"路径上的残留，建议本批一并修。
 - 可选（更结构性、风险略高，**不要**用它替代上面两行）：给 `EffectContext` 加一个复用父 `_window` 的 internal 工厂（如 `context.Nest(...)`），让嵌套批在构造上共享窗口。
 
-**C. F35（P3，新）：`COMMIT_DECLARED.punish` 是声明值**
-- `CommitActionHandler.cs:87-90` 写 `card.Definition.CommitCost`；广告（`LegalActionGenerator.LifecyclePunish:224-232`）与实收（`PlayCardActionHandler.ResolveLifecyclePunish:353-375`，内部 `Math.Max(0, amount + PioneerPunishModifier(...))`）都已是**有效值**；`EngineProjectionAdapter.cs:597-600` 把 `punish` 投影为 `amount` ⇒ 先驱威压生效时事件报 `amount=1` 而真实抽牌 **2**。
-- 当前无消费者渲染该字段（`RuntimeBattlePanelPresentationModel.cs:72-73` 白名单）⇒ 无可见差异 ⇒ P3。建议事件补一个 `effectivePunish` 键（保留 `punish` 的**声明**语义），**不要**改计费路径或与 `ResolveLifecyclePunish` 叠加。（`PULL_DECLARED` 只投影 `sourceId/targetIds`，无此问题。）
+**C. ~~F35（P3，新）：`COMMIT_DECLARED.punish` 是声明值~~ —— 已撤回（QA 误判，2026-09-11 02:5x）**
+- **本条作废，请勿据此修改任何事件、投影或计费代码。** 更正：`CommitActionHandler.cs:87-95` 用 `card.Definition.CommitCost` **同一个值**既写事件又传给 `ResolveLifecyclePunish`；`PlayCardActionHandler.cs:362-380` 的 `ResolveLifecyclePunish` **只按 `amount` 抽牌**，`PioneerPunishModifier` 不在这条路径上（`:353-361` 的 `<remarks>` 明确写"刻意不适用此路径"）；广告 `LegalActionGenerator.cs:162-163` 的 `commitCost` 与 `punish` 同值 ⇒ **声明值 = 广告值 = 实收值**。PULL 同构：广告 `:228` 与实收 `PullActionHandler.cs:199` 都是 `DownloadCost`。
+- 你自己的用例 `src\Engine\Tests\P0NightShiftTests.cs:160 CommitLifecyclePunishKeepsTheDeclaredValue`（断言 `:187-190`：广告 `punish` == `commitCost` == `PunishDrawnThisTurn`）在**本修订通过**，与我复核一致 ⇒ 该行为已双向确认，**不需要任何改动**；同时"补 `effectivePunish` 键"的建议作废。
+- 误判来源（我的）：把**出牌路径** `PlayCardActionHandler.cs:319` 的带威压 3 参 `EffectivePunish` 误当作生命周期路径，且把 `LegalActionGenerator` 中 `CreatePullAction` 的行号当成"`LifecyclePunish`"（该名称在 02:36 重写后已不存在，行号整体漂移）。
+- 规则层面（给 owner / PL，不是 Codex 待办）：生命周期惩罚是否**应**叠加先驱威压属范围判定；现行"不叠加"已被上面这条用例固化。
 
 **D. 仍开（重申，均未变化）**
 - **F31**（P3）：`CardPlayRules.cs:126` 的 2 参 `EffectivePunish(player, card)` 零生产调用者且跳过先驱威压（行号已漂移；3 参版在 `:105` / `:129`）。
