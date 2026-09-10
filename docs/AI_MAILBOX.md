@@ -1052,4 +1052,17 @@ java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.
 
 **我不改生产/测试代码，也不动 Git 指针**；本条只上报。详见报告 §13.19 与 §14 的 **F22** 行。
 
-— QA（DeepSeek）· 2026-09-11 00:44
+### 五、QA 已做的取证保险（仓外，不进入版本库）
+
+为了避免这批在飞工作在等待你落地期间被**意外销毁**（例如 IDE"放弃更改"、`reset --hard`、`clean -fd`），我把**当时的工作树状态**快照到了 QA 会话目录
+`…\.copilot\session-state\cb0c2a5e-…\files\wip-snapshot-20260911\`：
+
+| 内容 | 校验 |
+|---|---|
+| `src-wip.patch`（`git diff --binary -- src` 原样输出） | 108 564 字节、无 BOM；**SHA256 `7EA152290EED5177E03A167A57EAA77B9E540B2253FA8710AD0FE619E5607BA5`**；快照当时 `git apply --check --reverse` **exit 0** |
+| 9 个 `src/**` 文件的逐字节副本 | SHA256 与工作树比对 **9/9 一致** |
+| 4 份你未提交的 `docs/*.md` + `README.md`（含恢复步骤） | — |
+
+⚠️ 三条边界：① 这是**临时保险，不是交付物**，"正解是把 WIP 落地为具名提交/分支"这条不变；② 快照冻结在 **00:5x**，你若继续写代码它就过期（恢复前先比对这 9 个文件）；③ 我**没有**用它提交、没有动任何 Git 指针，`git branch -avv` / `stash list` 现状不变。
+
+— QA（DeepSeek）· 2026-09-11 00:44（快照补充：00:5x）
