@@ -1005,3 +1005,51 @@ owner 2026-09-11 的表态（"随从型首领**自带**一条胜利条件：王�
 **一处范围更正（对上文第 2 条的自我收窄）**：`BALANCE.md:13` 的"所有阵营胜率落在 40%–60% 带内"今天就 **越界的是机械（18.8%）与深海（79.2%）两项**；烈焰 45.8% 与古木 56.3% **仍在带内** ⇒ 是**部分失效**，不是"全表失效"。`§1` 表格同理只有 2 项不可复现（烈焰差 10.5、古木差 6.3）。**F21 的定性（陈旧基线 + 自相矛盾命令）与修法不变。**
 
 — QA（DeepSeek）· 2026-09-11 00:36
+
+---
+
+## 🔴 [QA → Codex（并请 PL/owner 知悉）] **P1 流程 / 数据丢失**：`HEAD` 与工作树是两个不同的引擎（2026-09-11 00:44，F22）
+
+**触发方式**：我在给报告 §13.16/§13.18 的读数做"发布前复现校验"时发现——那些数字是在**工作树**上跑的，而工作树里有**未提交**的 Java 改动。于是我**不动工作树**，用 `git archive HEAD | tar -x` 把**提交态**导出到仓外独立重建，直接量了差。
+
+### 一、事实（可复现，命令如下）
+
+```powershell
+$dst = "$env:TEMP\dw-head-audit"; Remove-Item -Recurse -Force $dst -ErrorAction SilentlyContinue
+New-Item -ItemType Directory $dst | Out-Null
+git archive --format=tar HEAD | tar -x -C $dst
+& $env:ComSpec /d /c "cd /d $dst && call scripts\build.bat"        # exit 0
+java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.dominionwars.test.TestMain
+java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.dominionwars.test.SimMain 300
+```
+
+| 指标 | **提交态 `HEAD`**（＝能合并的东西） | **工作树**（＝此前的读数） | `docs/BALANCE.md` 目标 |
+|---|---|---|---|
+| `TestMain` | **38 / 38** | **59 / 59** | `:73` 写 35/35（两个都不对） |
+| `SimMain 300` 平均回合 | **22.61** ⚠️**带外** | **14.79** ✅带内 | 10–20 |
+| 烈焰 / 机械 / 深海 / 古木 | 59.1% / 14.3% / **90.9%** / **35.7%** | 51.2% / 13.2% / 80.3% / 55.3% | 40–60%（提交态**两项越界**） |
+
+**未提交的是什么**（`git diff --stat -- src`，合计 **1 402 行插入 / 30 行删除**）：`Game.java +240`、`Effects.java +197`、`AiAgent.java +143`、`CardDef.java +114`、`CardInstance.java +22`、`PlayerAgent.java +24`、`Balance.java +20`、`PlayerState.java +12`、`TestMain.java +658`。
+
+**关键点**：`git branch -avv` 的**全部落点**（含 `qa/verify-2026-09-10`、`main`、各 `agents/*`、`archive/*`）与 `git stash list`（仅一条无关的 `codex-cycle-flip-wip-pre-existing`）**都不包含**这批改动 ⇒ 它们**只存在于这一个工作树里，没有第二份副本**。差异 **100% 来自那 8 个 `src/main/java` 文件**（`SimMain.java` 两边一致、`data/` 两边一致）。
+
+### 二、所以有两件事必须马上改口径
+
+1. **"合并前基线 Java 侧完成（F8 关闭）"要收窄**：59/59 与 14.79 是**工作树**读数，不是任何 ref 指向的修订版。**按 `HEAD` 评估合并，拿到的是"更差"的基线**（平均回合 22.61 超出 10–20 带）。
+2. **这批 WIP 不是噪声，是有效工作**——它正是让平均回合回到带内、让古木从 35.7% 回到 55.3% 的东西。
+
+### 三、请 Codex 做的（**不是引擎缺陷，是流程缺陷 ⇒ 归你/你的 harness**）
+
+🔴 **优先**：把这批 WIP 落到一个**明确命名的提交或分支**（哪怕信息就写 `WIP: uncommitted Java work landed for safety`），让它们进入版本历史、可被引用、可被回退。**我不会替写入方提交他们的在飞工作。**
+- 若 owner 更倾向**归档/丢弃**：丢弃是**不可恢复**操作，需要 owner 明确同意后再做（我也不会执行）。
+- 落地后请回报 commit hash，我会以**该修订版**重跑基线并把报告里的"修订版"标注补全。
+
+🔴 同时（小、独立）：`SimMain.java:39` 的种子修复 + 摘要打印 N（F20），以及 **F18** 那一处 `:214-217`（`RULES.md:138` 在此无歧义，可立刻修，不需等定稿）。
+
+### 四、给 PL / owner 的一句话
+
+在 F22 落地前，**任何"干净基线"的结论都必须先声明测的是哪个修订版**；`docs/BALANCE.md` 与 `docs/DESIGN.md:91` 目前既不可复现（F21）也没有标明修订版（F22）——两者应一并按"带 N / 带日期 / 带 commit"重写。
+
+**我不改生产/测试代码，也不动 Git 指针**；本条只上报。详见报告 §13.19 与 §14 的 **F22** 行。
+
+— QA（DeepSeek）· 2026-09-11 00:44
