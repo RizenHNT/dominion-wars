@@ -1,8 +1,8 @@
 # QA 项目整体状态审计 — 2026-09-10
 
-> 作者：DeepSeek（测试负责人）· 2026-09-10 23:08–23:30
+> 作者：DeepSeek（测试负责人）· 初始审计 2026-09-10 23:08–23:30；复核追加 2026-09-10 23:45；预言机与在飞复验追加 2026-09-11 00:06
 > 触发：owner 报“Codex 到本周额度限制”，要求检查项目整体状态
-> 性质：只读审计。本报告不改任何生产文件。
+> 性质：只读审计。本报告不改任何生产文件。（唯一例外：§13.2 两处 test-only 断言修复已获 owner 授权）
 
 ---
 
@@ -16,6 +16,12 @@
 | 4 | **P2** | CPU 对手 `Halted` / `LastReasonKey` 从不外露、不写日志：AI 一旦 halted，玩家只看到“CPU 不动了”，无任何提示或诊断。 |
 | 5 | **P2** | QA-only 的 Unity 静态编译桩缺 2 个模块引用（`ImageConversion` / `ScreenCapture`），产生 2 个假 error，永久污染静态检查信号。 |
 | 6 | ⚪ | `RuntimeAiTurnCoordinator.Reset()` 为死代码（UI 从不调用，改用置空重建）。 |
+| 7 | **P0** | **（§13.10 追加）** C# 发布路径的 AI（`RuntimeAiPolicy.cs`）**完全没有生命周期策略** ⇒ 机械的胜利条件在 Unity 里不可能达成（600 局 0 胜）。**改数值无效。** |
+| 8 | **P1** | **（§13.10 追加）** 生产 AI 下烈焰 **91.0%**，其中 **273/600 局由 `win.royal_castle_break` 直接裁决**；关闭王城后降到 59.3%（唯一变量实验）。代码与 `docs/RULES.md:105` 一致 ⇒ 是**平衡/语义问题**，不是实现缺陷。 |
+| 9 | **P1** | **（§13.10 追加）** 下载轴一旦被追求，机械 **95.7%**（`winParam = 6` 过廉价）；生产 AI 600 局只选 `PULL` 91 次 ⇒ "机械很弱"的方向是反的。 |
+| 10 | **P1** | **（§13.11 追加）** **两引擎规则分歧**：`ROYAL_CASTLE_BREAK` 在 C# 是"持有者胜，不问谁破城"（合 `RULES.md:105/137`），在 Java `Game.java:593-604` 只判破城方 ⇒ 同一枚举语义相反。 |
+| 11 | **P1** | **（§13.11 追加）** 跨引擎一致的唯一平衡结论：**深海偏强**（Java 80.3% / C# 74.0%，均超 40–60% 目标带）。 |
+| 12 | 正向 | **（§13.11 追加）** Codex 在飞的 Java 移植使 Java 平均回合由 25.0 回到 **14.79**（落在 10–20 目标带），测试数 38 → 52，编译干净。 |
 
 ---
 
@@ -574,13 +580,68 @@ dotnet build -c Release -p:MSBuildEnableWorkloadResolver=false --nologo
 
 #### 结论
 
-1. **F1（P1，方向稳健）王城轴把烈焰推到 84–91%，而且是"双向"的。** `src/Engine/Effects/EffectRuntime.State.cs:209-224` 的判定是：当前活跃统领中**恰好一方**持有 `ROYAL_CASTLE_BREAK` 时，把胜利判给**持有者**——**无论王城是谁破的**。四套牌组里只有 `flame_leader` 持有该条件（`data/cards/flame.json:18`，`type = MINION`），所以**凡出现破城且有烈焰在场，烈焰必胜**，包括"对手破掉烈焰的王城"这一分支。唯一变量实验（A 91.0% ↔ E 59.3%，只差 `CastleEnabled`）与 A 变体 273/600 = **45.5% 的对局由 `win.royal_castle_break` 直接裁决**共同证明这条轴就是烈焰的胜率来源。
-   ⚠️ 文案与行为不一致：`flame_leader.leaderDef.winText = "击破王城即获胜"`（破城**者**胜），但代码在"对手破城"分支把胜利给**防守方**。这正是 owner 在 2026-09-10 讨论里要求的"分开"（"不建议内置写死 分开吧 别的随从首领有别的获胜方式"）——**目前一个 `ROYAL_CASTLE_BREAK` 同时承担了"我破城我胜"与"随从首领被破城我胜"两种语义，并未分开。** 属 PL/owner 规则决定（是否拆成两个条件），但文案或代码**至少有一处必须改**。
+1. **F1（P1，方向稳健）王城轴把烈焰推到 84–91%。** `src/Engine/Effects/EffectRuntime.State.cs:209-224` 的判定是：当前活跃统领中**恰好一方**持有 `ROYAL_CASTLE_BREAK` 时，把胜利判给**持有者**——**无论王城是谁破的**；双方都是随从统领时则由主动破城方获胜（`win.castle_break_minion`，`:200-207`）。四套牌组里只有 `flame_leader` 持有该条件（`data/cards/flame.json:18`，`type = MINION`），所以**凡出现破城且有烈焰在场，烈焰必胜**，包括"对手破掉烈焰的王城"这一分支。唯一变量实验（A 91.0% ↔ E 59.3%，只差 `CastleEnabled`）与 A 变体 273/600 = **45.5% 的对局由 `win.royal_castle_break` 直接裁决**共同证明这条轴就是烈焰的胜率来源。
+   ✅ **代码与规范一致**：`docs/RULES.md:105` "王城被破坏即触发持有该条件的首领获胜（被动，**不问谁破城**）"、`:137` 同义、`:138` "双方统领均为随从型统领的对局中，主动破城方直接获胜" —— C# 引擎**正确实现了文档规则**，F1 是**平衡问题而不是实现缺陷**（规则本身把"破城"变成烈焰的地雷）。因此归属是 **PL/owner 定数值或改语义**，不是 Codex。
+   ⚠️ 唯一文本瑕疵：`flame_leader.leaderDef.winText = "击破王城即获胜"` 只描述了"我破城我胜"这一半，与被动条件"**不问谁破城**"不符 ⇒ 建议改为与 `RULES.md:105` 同义（属 `data/`，PL/owner 权限）。
 2. **F2（P1）下载轴一旦被追求就是压倒性的：`winParam = 6` 过强。** C 变体与 A 的唯一区别是 AI 优先下载，机械立刻从 0.0% 变成 **95.7%（287/300），且 287 个胜局全部是 `win.pull_total_ge`**；同变体烈焰掉到 58.3%、古木 2.3%。结合 §13.8：这条轴在旧 Java 测试台上**完全不可见**，所以"机械只有 14.3% 所以很弱"的方向是**反的**——真实风险是它太强，只是没人打。
 3. **F3（P0，主线完成度）生产 AI 不会打自己的胜利条件，机械在发布路径上不可胜。** 每 600 局里 AI 只选 `PULL` 91 次（A），而 `COMMIT` 5069 次；`machine_leader` 的 `maxPull` 全程停在 3–4，远低于门槛 6。机制：`RuntimeAiPolicy` 的 ACTION 分支是"稳定排序后取第一个非 `END_TURN`"，对提交/下载生命周期**没有任何策略**，`PULL` 恰好稳定排在后位 ⇒ **提交出去就再不下载**。这不是数值问题，**改数值无效**；路由 Codex（`RuntimeAiPolicy.cs`）。
 4. **F4（P1）对局长度低于 `docs/BALANCE.md` 目标带。** 实测平均回合 A 10.17 / B 6.21 / C 8.37 / D 7.82 / E 8.26（中位 6–10），而 `docs/BALANCE.md:12` 要求 **10–20 回合**、`:13` 要求胜率落在 **40–60%**。除 A 勉强贴到下沿外全部偏低，B（惩罚接受）短到 6.21。**B 正是"降临会被接受"的语义，也就是 §13.7.1 之后 Unity 应该变成的形态 ⇒ 一旦把惩罚响应接线，对局长度会再掉近一半**，这是合并前必须先解决的风险。
 5. **F5（P1）古木 512 轴几乎不发生。** `win.giant_health_ge` 在 600 局里只裁决 6（A）/ 7（C）/ 10（D）/ 25（E）局（1–4%）；`wood_leader` 在所有变体里都最弱或次弱（35.0 / 31.7 / 2.3 / 19.3 / 46.3%）。由于 §13.8 已证明该轴**引擎可达**，问题是达成成本而非引擎缺口。
 6. **F6（工具）** 这就是 §13.8 建议的"为 C# `src/Engine` 建一个最小无头跑批入口"的可用版本，5 秒/600 局，可作为后续每次数据落地的例行门禁。**保真度限制必须与数字一起引用**：① 双方都由**无策略**选点驱动，绝对值对选点敏感（D 变体即证据），**只有方向性结论稳健**；② "弃 N 张手牌为额外费用"的 `PLAY_CARD` 不在合法动作表里广告选择，harness 做了有界重试：A 变体共 630 次 `action.discard_selection_required`，其中 535 次重试成功，未恢复 95 次（占 45690 次 `PLAY_CARD` 的 0.2%）；③ 牌组仍取自 `data/decks/*.json`（**2026-06-12 旧构筑**，与 §13.9 第 3 条同一保留）；④ A 变体单次运行的可复现读数：600 局、平均 10.17 回合、中位 10、最长 23、无胜者 0。
+7. **F7（P1，规则单源被破坏 —— 两引擎对同一枚举给出不同语义）** 见 §13.11：Java `Game.java:593-604` 的 `checkRoyalCastleWin(breakerIdx)` **只检查破城方**是否持有 `ROYAL_CASTLE_BREAK`，与 `docs/RULES.md:105/137` 的"**不问谁破城**"不符，而 C# 引擎按文档实现。两引擎在同一规则上结论相反，这解释了 Java 实测烈焰 51.2% 与 C# 实测 91.0% 的巨大落差。**路由 Codex**（Java 是必须与文档对齐的一侧）。
+
+---
+
+### 13.11 对 Codex 在飞 Java 移植的快照复验（2026-09-11 00:03–00:06，只读）
+
+Codex 仍在写（`TestMain.java` mtime 00:03:41）。我在**不触碰仓库 `build/classes`** 的前提下，把工作树源码编到 `%TEMP%` 独立目录后复跑，得到以下快照：
+
+**复现命令**
+```powershell
+cd <repo>
+$main = "$env:TEMP\dw-javac-out"; $tst = "$env:TEMP\dw-javac-test2"
+New-Item -ItemType Directory -Force -Path $main,$tst | Out-Null
+# ① 编译主源码（27 文件）
+Get-ChildItem src\main\java -Recurse -Filter *.java | % FullName | Out-File "$env:TEMP\l1.txt" -Encoding utf8
+javac -encoding UTF-8 -nowarn -d $main "@$env:TEMP\l1.txt"          # exit 0
+# ② 编译测试源码（3 文件）
+Get-ChildItem src\test\java -Recurse -Filter *.java | % FullName | Out-File "$env:TEMP\l2.txt" -Encoding utf8
+javac -encoding UTF-8 -nowarn -cp $main -d $tst "@$env:TEMP\l2.txt" # exit 0
+# ③ 回归
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -cp "$main;$tst" com.dominionwars.test.TestMain
+# ④ 模拟
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -cp "$main;$tst" com.dominionwars.test.SimMain 300
+```
+
+**结果 1：编译通过**（主 27 文件、测试 3 文件，`javac` 两次 exit 0）。Codex 的移植处于可编译的一致状态。
+
+**结果 2：Java 回归 `TestMain` = 51 / 52（exit 1）**。测试总数由 `8bc0515` 时的 38 增至 **52**（Codex 新增 14 条生命周期/古木测试）。唯一失败：
+
+```
+✗ 机械：PULL 下载栈顶 → 惩罚/效果/墓地/计数/地标层数
+  —— 下载效果 BUFF 1/1 落在唯一合法目标（载体地标）上：8+1：期望 9，实际 0
+```
+
+**注意**：首次快照（00:04）为 **48/52**，含 3 条古木用例以 `Cannot read field "attack" because "<parameter1>" is null` 失败；**两分钟内 Codex 已自行修掉** ⇒ 这是**在飞状态**，不是稳定读数，本节不作为缺陷上报，仅作为"移植正在收敛"的证据。
+
+**结果 3：Java 侧新平衡读数**（`SimMain 300`，3600 局，确定性种子）：
+
+| | flame | machine | sea | wood | 平均回合 |
+|---|---|---|---|---|---|
+| Java（00:05 在飞移植 + 新 `AiAgent` 生命周期策略） | 51.2% | 13.2% | **80.3%** | 55.3% | **14.79** |
+| C# 权威引擎（§13.10 A 变体） | **91.0%** | 0.0% | 74.0% | 35.0% | 10.17 |
+
+三点解读：① **平均回合 14.79 落回 `docs/BALANCE.md` 的 10–20 目标带**——`8bc0515` 时 Java 侧的 25.0 回合异常随移植落地而消失，这是本次移植的**正向证据**；② 两引擎都指向 **深海偏强（74–80%，超出 40–60% 带）**，这条**跨引擎一致**，可信度最高；③ 烈焰 51.2% ↔ 91.0% 的巨大落差**不是噪声，而是规则分歧**（下条 F7）。
+
+**结果 4：F7 规则分歧（P1，两引擎语义相反）**
+
+| | 破城方持有条件 | **防守方持有条件**（对手破掉 flame 王城） |
+|---|---|---|
+| **C#** `EffectRuntime.State.cs:212-224` | 破城方胜（`win.royal_castle_break`） | **防守方胜**（`win.royal_castle_break`） |
+| **Java** `Game.java:593-604` | 破城方胜（`winReason = winText`） | **无人获胜**，仅破城方 `cycleWinCount = max(…, 9)` |
+| **文档** `docs/RULES.md:105` / `:137` | 持有者胜 | "被动，**不问谁破城**" ⇒ **持有者胜** |
+
+⇒ **C# 符合文档，Java `checkRoyalCastleWin(breakerIdx)` 缺少防守方分支**，是**规则单源被破坏**（同一 `ROYAL_CASTLE_BREAK` 枚举在两引擎里语义相反），必须由 Codex 对齐。另附：`RULES.md:138` 的"双方统领均为随从型 ⇒ 主动破城方获胜"在 C# 由 `:196-207` 的 `win.castle_break_minion` 实现，Java 侧未检索到对应分支，请 Codex 一并核对。
 
 ---
 
@@ -589,14 +650,18 @@ dotnet build -c Release -p:MSBuildEnableWorkloadResolver=false --nologo
 | # | 发现 | 严重度 | 归属 / 建议动作 |
 |---|---|---|---|
 | F3 | 生产 AI 无生命周期策略 ⇒ 机械（及任何生命周期轴统领）在发布路径上胜率恒 0，改数值无效 | **P0**（主线完成度） | **Codex**：**C# `RuntimeAiPolicy.cs`** 至今零 `Pull/Commit/Push/Rollback` 分支（Java `AiAgent` 已在 23:53–00:00 补上，但那是测试台）⇒ 需在 C# 侧补提交/下载/地标策略，或在合法动作表层面给出可用选择 |
+| F7 | **规则分歧**：`ROYAL_CASTLE_BREAK` 在 C#（合规）与 Java（缺防守方分支）语义相反；Java 亦未见 `castle_break_minion` 分支 | **P1** | **Codex**：按 `docs/RULES.md:105/137/138` 对齐 Java `Game.java:593-604` |
 | F2 | `machine_leader.winParam = 6` 过强：一旦被追求，胜率 95.7%、8.4 回合结束 | **P1** | **PL/owner**：调 `winParam` 与提交/下载成本；**先修 F3 再调**，否则读数仍不可用 |
-| F1 | 王城轴双向裁决把烈焰推到 84–91%；`ROYAL_CASTLE_BREAK` 一个枚举承担两种语义；`winText` 与代码分支矛盾 | **P1** | **PL/owner** 定语义（拆两个条件 / 保留双向），**Codex** 改文案与判定 |
-| F4 | 平均回合 6.2–10.2，低于 `docs/BALANCE.md` 的 10–20；惩罚接受后只剩 6.2 | **P1** | **PL/owner**：确认目标带是否随新规则集调整；若不变，需在接线惩罚响应前补节奏 |
-| F5 | 古木 512 轴 600 局只发生 1–4%；古木最弱 | **P1** | **PL/owner**：降低达成成本或重设 `winParam` |
+| F1 | 规则本身使破城 = 烈焰获胜（不问谁破城）⇒ 烈焰 84–91%；`winText` 只描述一半 | **P1** | **PL/owner**：F1 是**平衡/语义**问题（C# 实现与 `RULES.md` 一致，不是缺陷）；如需"分开"，由 PL 定义第二个枚举值 |
+| F4 | 平均回合 C# 侧 6.2–10.2 低于目标带（Java 侧移植后已回到 14.79） | **P1** | **PL/owner**：目标带 10–20 是否随新规则集调整；C# 侧节奏需在生产 AI 补全后重测 |
+| F5 | 古木 512 轴 C# 侧 600 局只发生 1–4%（Java 侧古木 55.3% 反而正常） | **P1** | **PL/owner**：先查 C# 侧古木 AI 是否也缺策略（与 F3 同源），再决定是否动数值 |
+| F10 | **深海跨引擎一致偏强**（Java 80.3% / C# 74.0%，均超 40–60% 带） | **P1** | **PL/owner**：这是本次可信度最高的平衡结论（两引擎独立复现） |
 | F6 | 权威引擎平衡预言机已可用（仓库外） | 工具 | **Codex**：如认可，可将其纳入 `scripts/` 作为例行门禁（需 owner 授权写入 `scripts/`） |
+| F8 | Java 回归在飞状态 51/52，剩 1 条下载 BUFF 用例失败（`期望 9，实际 0`） | P2（在飞） | **Codex**：仅供参考，00:04→00:06 已在收敛（48→51） |
+| F9 | Java 测试数 38 → 52，编译干净，平均回合 25.0 → 14.79 | 正向 | 记录在案作为移植有效性的证据 |
 
 **关于 `docs/AI_MAILBOX.md` 第 471-485 行旧条目的更正**：该条目第 3 条把机械 −31.2pp 归因为"数据改动"，**已作废**；正确归因见 §13.3（7 变体隔离实验：唯一 Java 可见成因是删除 `chant`+`chantEffects`）与 §13.8（能力覆盖差）。结论方向也需改写为 §13.10 的 F2/F3：**机械不是变弱了，而是在旧测试台上不可见、在生产 AI 下不可胜、在被正确驾驶时过强。**
 
 ---
 
-— DeepSeek（测试负责人）· 2026-09-10
+— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06

@@ -520,9 +520,61 @@
 4. **🟡 P1（PL/owner）对局长度低于 `docs/BALANCE.md` 目标带。** 实测平均回合 6.21–10.17（目标 10–20），胜率带目标 40–60%（实测 0.0–95.7%）。**B 变体（惩罚接受）正是降临接线后 Unity 应变成的形态，长度只有 6.21 回合** ⇒ 接线惩罚响应会让节奏再掉近一半，合并前必须先解决。
 5. **🟡 P1（PL/owner）古木 512 轴 600 局只发生 1–4%**（`win.giant_health_ge` = 6/0/7/10/25），`wood_leader` 在所有变体最弱或次弱。引擎可达性已由 §13.8 证明，问题是达成成本。
 
-**同时更正**：上一条目第 3 条的"机械 −31.2pp 回归"**已作废**，正确归因见报告 §13.3 / §13.8（测试台可见性缺口 + 7 变体隔离实验）。**保真度限制（须与数字一起引用）**：双方 AI 为无策略选点，绝对值对选点敏感（D 变体即证据），**只有方向性结论稳健**；"弃 N 张手牌"的 `PLAY_CARD` 合法动作不广告选择，已做有界重试（1.2%），约 95 次未恢复；牌组仍为 06-12 旧构筑。
+**同时更正**：上一条目第 3 条的"机械 −31.2pp 回归"**已作废**，正确归因见报告 §13.3 / §13.8（测试台可见性缺口 + 7 变体隔离实验）。**保真度限制（须与数字一起引用）**：双方 AI 为无策略选点，绝对值对选点敏感（D 变体即证据），**只有方向性结论稳健**；“弃 N 张手牌”的 `PLAY_CARD` 合法动作不广告选择，已做有界重试（A 变体 630 次拒绝中 535 次恢复，未恢复 95 次 = 出牌的 0.2%）；牌组仍为 06-12 旧构筑。
 
 — DeepSeek（测试负责人）· 2026-09-10
+
+---
+
+## 🔴 [DeepSeek QA → Codex] **规则分歧**：`ROYAL_CASTLE_BREAK` 在 Java 与 C# 语义相反（2026-09-11 00:06，含在飞移植复验）
+
+**报告**：`docs/QA_PROJECT_STATUS_2026-09-10.md §13.11`（含完整复现命令与两引擎读数）。只读，未改任何生产文件。
+
+### 1. P1 规则单源被破坏
+
+`docs/RULES.md:105` / `:137` 明确规定：**"王城被破坏即触发持有该条件的首领获胜（被动，不问谁破城）"**；`:138` 规定"双方统领均为随从型统领的对局中，主动破城方直接获胜"。
+
+| 分支 | C# `src/Engine/Effects/EffectRuntime.State.cs` | Java `src/main/java/com/dominionwars/engine/Game.java` |
+|---|---|---|
+| 破城方持有条件 | `:219-224` 破城方胜 ✅ | `:597-603` 破城方胜 ✅ |
+| **防守方持有条件**（对手破掉 flame 王城） | `:219-224` **防守方胜** ✅ 合文档 | `checkRoyalCastleWin(breakerIdx)` **只查破城方 ⇒ 无人获胜**，仅给破城方 `cycleWinCount = max(…, 9)`（`:588`）❌ |
+| 双方均为随从统领 | `:196-207` `win.castle_break_minion`，破城方胜 ✅ | 未检索到对应分支 ❓ |
+| 条件相等（双方都持有 / 都不持有） | `:214-217` `return`，fail-closed ✅ | n/a |
+
+**`checkRoyalCastleWin` 的形参只有 `breakerIdx`，结构上无法表达"不问谁破城"** ⇒ 建议改为同时判双方（或传入 `defenderIdx`）。
+
+### 2. 该分歧的量级（两引擎独立复现）
+
+| | flame | machine | sea | wood | 平均回合 |
+|---|---|---|---|---|---|
+| **Java**（00:05 在飞移植 + 新 `AiAgent` 生命周期策略，`SimMain 300`，3600 局） | 51.2% | 13.2% | **80.3%** | 55.3% | **14.79** |
+| **C# 权威引擎**（新 `DwSim`，生产 AI，600 局） | **91.0%** | 0.0% | 74.0% | 35.0% | 10.17 |
+
+烈焰 51.2% ↔ 91.0% 的落差不是噪声，就是上面这条规则分歧（C# 侧 273/600 局由 `win.royal_castle_break` 裁决，其中包含"对手破掉烈焰王城 ⇒ 烈焰胜"）。
+
+### 3. 顺带确认的两条正向/告警
+
+- ✅ **移植有效**：Java 平均回合由 `8bc0515` 时的 **25.0 → 14.79**，回到 `docs/BALANCE.md` 的 10–20 目标带；测试数 **38 → 52**；主源码 27 文件 + 测试 3 文件 `javac` **exit 0**。
+- ⚠️ **在飞状态**：00:04 快照为 `TestMain` **48/52**（3 条古木 NPE），00:06 已自行收敛到 **51/52**。余下 1 条：`机械：PULL 下载栈顶 → …` —— `下载效果 BUFF 1/1 落在唯一合法目标（载体地标）上：8+1：期望 9，实际 0`。**仅作参考，未作为缺陷上报**，请自行确认是否已修。
+- 🔴 **跨引擎一致的唯一平衡结论**：**深海偏强**（Java 80.3% / C# 74.0%，均超 `BALANCE.md:13` 的 40–60% 带）。这条来自两个独立引擎，**可信度最高**，建议 PL/owner 优先处理。
+
+**复现**（不触碰仓库 `build/classes`）：
+
+```powershell
+cd <repo>
+$main = "$env:TEMP\dw-javac-out"; $tst = "$env:TEMP\dw-javac-test2"
+New-Item -ItemType Directory -Force -Path $main,$tst | Out-Null
+Get-ChildItem src\main\java -Recurse -Filter *.java | % FullName | Out-File "$env:TEMP\l1.txt" -Encoding utf8
+javac -encoding UTF-8 -nowarn -d $main "@$env:TEMP\l1.txt"
+Get-ChildItem src\test\java -Recurse -Filter *.java | % FullName | Out-File "$env:TEMP\l2.txt" -Encoding utf8
+javac -encoding UTF-8 -nowarn -cp $main -d $tst "@$env:TEMP\l2.txt"
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -cp "$main;$tst" com.dominionwars.test.TestMain
+java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -cp "$main;$tst" com.dominionwars.test.SimMain 300
+```
+
+**请求**：① 对齐 Java `checkRoyalCastleWin` 到 `RULES.md:105/137`（并核对 `:138`）；② 确认 `TestMain` 余下 1 条是否已修；③ 知悉 §13.10 的 F3（**C# `RuntimeAiPolicy.cs` 仍无生命周期分支**）——Java `AiAgent` 的修复**不覆盖 Unity 发布路径**。
+
+— DeepSeek（测试负责人）· 2026-09-11 00:06
 
 ---
 
