@@ -43,9 +43,10 @@
 
 | 27 | **P0×2 / P1×4（复核裁决）** | **（§13.21 追加）** **逐条复核 PL 的代码审核清单**（`docs/PL_CODE_AUDIT_2026-09-09.md`，110 行）：基线 **603/603 全绿**（`dotnet test … -c Release`，当前修订版）。**仍成立**：P0-1（先驱惩罚缺失，且 C# **只做了手牌上限那一半**）、P0-2（`AMBUSH_TRIGGER_WIN` **在 schema enum 里、引擎永不执行**）、P1-1/2/3、P2-2/3/8/9/10、§六"另注"（**升格 P0**：Unity 侧**没有任何"发动惩罚"的合法动作**，`LegalActionGenerator` 中 `punish` 零命中，而 Java `WebHumanAgent.askActivatePunish` 有完整人工路径）。**已过期/误读（建议删除）**：**P0-4 主体**（`EffectRuntime.Cards.cs:514` 确实读取阈值 ⇒ 破城方**只差 1 次循环即胜**，不是死局）、**D-1**（与 `RULES.md:125-126` 方向一致，无歧义）、**D-2**（已由 `:128` 定稿）。**需改表述**：P0-3（已修复 + 已有 `EffectChainTests.cs:38-61`，仅缺两段 AOE 用例）、P2-1（降 P3，两端玩法都有 `Math.max(0,…)`）、P2-4、P2-7、**P2-11**（死分支存在但清单举错了条件名）。**新增 F24–F27**：**F24 C# 完全不读 `data/balance.json`**（全参数硬编码 ⇒ 改平衡文件对 Unity 侧无效，P0-1 只是其一个实例；**已用四臂对照实测证明**：改该文件 C# 输出 SHA 不变、改一张卡即变，见 §13.22）；**F25 快照 wire format 无契约测试**（canonical `game_snapshot.schema.json` **从未被任何 C# 测试引用**，legacy `SnapshotDto` 结构上不可能通过却仍在仓库）；**F26 v1.31 事件契约有校验器却无生产者**（引擎发 **46** 种事件类型 / **51** 种载荷键，契约只收 **29**/**7**，`RuntimeEventEnvelope` 只在测试中构造）；**F27** 澄清（`RuntimeEventCursor` 的校验质量高于清单假设） |
 | 28 | **P1（契约 / 新发现）** | **（§13.23 追加）** **canonical v1.31 投影会发布违反自身 schema 的负 `currentHealth`（F28）**：`EffectRuntime.Combat.cs:333`（`DamageCard`）**不夹零**，而唯一 canonical 生产者 `RuntimeContractV131Snapshot.cs:160`（`CurrentHealth = card.Health`）**原样搬运** ⇒ 任意**溢出击杀**（伤害 > 剩余血量）使墓场卡 `currentHealth` 为负，违反 `schemas/game_snapshot.schema.json:57` 的 `minimum: 0`，而契约 `:74` 规定无效消息 **fail-closed**；同时契约 `:77` 又要求投影**必须直投**权威血量 ⇒ 二者不可同时满足。**治疗组 vs 对照组实证**：S6 施加 `DAMAGE ALL_ENEMY_MINIONS 5` 后 schema **2 errors**（−2 / −4），S7 同工作台不施加效果 **0 errors**；JSON 由仓库自身 `RuntimeWireSerializer` 生成。**只在 v1.31 成立**（v1.30 的 schema 无 health 约束）。**与 F25 硬耦合**：F25 的"用 schema 校验生产快照"这条测试**今天实现就会红** |
+| 29 | **正向 + P3（报表/复现）** | **（§13.25 追加）** **owner 四条破城/下载轴决定在 C# 侧逐层落地**（① 持有者防守方被动胜、② 无 blanket 硬编码、③ `PULL_TOTAL_GE` 在数据/schema/C#/Java/投影五层齐、④ 镜像破城方胜），由 **63/63** 定向用例守护（`EffectRuntimeTests` 5 条破城 + `ProductionFactionIntegrationTests.cs:226`）。**F7 可达性上修**（`flame_leader`×`machine_alpha` 镜像即可触发，Java 缺两格）；**F18 括注收紧**（"Java 亦正确"只在该场景成立）；**决策台账 4a 过时更正**（"叫出破城方自己首领"已被 2026-08-23 裁决取代为"叫出对方首领"）；**§0 数据基线漂移定位**：`sea.json` 记录的 `4C86A410D0BD` 不可复现，实际为 `0FA7E4E33425`（`8bc0515` 引入），根因是哈希快照取在 harness 逐文件改写的中间（`23:18:00`–`23:37:45`），**非笔误** |
 - 分支：`codex/p0-complete-match-loop-2026-09-06`（`main` 停 `6c9ef65`；全部未 push；F28 实证提交为 `ce04ccc`，**本报告最新提交号以文末签署行为准**）
 - .NET SDK：8.0.425
-- 数据快照：审计时刻 `machine.json` SHA256 前缀 `A7AD0E6F997E`、`wood.json` `240C42D6DAA1`、`sea.json` `4C86A410D0BD`、`flame.json` `2740725CA701`、`neutral.json` `CAE381377FBD`
+- 数据快照：审计时刻 `machine.json` SHA256 前缀 `A7AD0E6F997E`、`wood.json` `240C42D6DAA1`、`sea.json` **`0FA7E4E33425`**（**2026-09-11 01:5x 更正**：原记 `4C86A410D0BD` 属于写入方改写过程中的中间态、**不可复现**；现值为 `HEAD` blob = 工作树，`git status/diff -- data/` 均为空，根因见 §13.25.6）、`flame.json` `2740725CA701`、`neutral.json` `CAE381377FBD`（其余四项经 `git cat-file blob HEAD:…` 重算 **= `HEAD` = 工作树**，仍有效）
 
 > ⚠️ 并发写入：本仓库当前**有另一个写入者在活动**（owner 说明为 harness 上的 DeepSeek 卡牌设计线）。审计期间观测到 `data/cards/*.json` 于 23:10:40–23:11:15 与 23:18:00 被写入。审计结论绑定上述哈希。
 
@@ -1449,15 +1450,73 @@ owner 提问：「Codex 本周额度已到，为何看起来还活着/还在写�
 
 **本节不可外推**：① `threads.updated_at_ms` 是桌面端投影表，理论上可能滞后；判据是"5 小时静默 + rollout 文件 mtime 一致"两路互证，而非单一字段；② 我**未**读取 harness 会话内容，因此"写入者是 harness"是**排除法 + 产物形态**推断，**不是**逐条工具调用级证据；③ 进程快照是 01:4x 的单点观测，只能说明"此刻"谁在运行。
 
+### 13.25 owner 破城/下载轴四条规则的落地核查 + §0 数据基线漂移定位（2026-09-11 01:5x）
+
+owner 本轮给出的四条决定：**① 随从型首领自带"王城被破坏"胜利条件；② 不内置写死，各首领各写各的；③ `alpha` 已改为上传/下载轴 ⇒ 不需要破城；④ 镜像局「当然 A」＝主动破城方胜**（"不然大家都不打王城了"）。以下逐条只读核查，**未修改任何被审文件**，用例与哈希全部实测。
+
+#### 13.25.1 逐条落地（`data/` → C# → Java → schema/契约 → 用例）
+
+| owner 决定 | 现状证据 | 判定 |
+|---|---|---|
+| ① 随从型首领自带"王城被破坏"条件 | `data/cards/flame.json:18`（**全卡池唯一**持有 `ROYAL_CASTLE_BREAK` 者）；C# `EffectRuntime.State.cs:212-224`（持有者一键被动胜，`:209-211` 注释明确"隐藏首领不得从卡组/手牌/墓地胜"）；用例 `EffectRuntimeTests.cs:645`（防守方持有 ⇒ **防守方**胜）、`:678`（隐藏持有者被忽略） | ✅ C# 落地 |
+| ② 不内置写死、各写各的 | 卡池中仅烈焰声明破城条件、`machine_alpha` 声明下载轴、`shadow` 为 `NONE`（owner："命运之影先不管"）⇒ 引擎内**无** blanket 硬编码（`HasCastleBreakWinCondition` 是读卡判定，不是常量开关） | ✅ 与实现一致；**规范文本**待 PL 定稿（Q1） |
+| ③ `alpha` 走上传/下载轴 | 数据 `machine.json:14`（地标 `machine_leader`，`isLandmark:true`，第 2 层召唤 `machine_alpha`）与 `:65`（`machine_alpha`：MINION、atk 10 / hp 12、圣盾+扰魔）**均**为 `PULL_TOTAL_GE` / `winParam 6` / "己方累计完成6次下载"；schema `data/schema/cards.schema.json:48`（enum 收 `PULL_TOTAL_GE`）；`src/Data/CardCatalog.cs:19` 白名单；C# `EffectRuntime.EndPhase.cs:167-168` + 计数 `EffectRuntime.Mechanical.cs:207`；Java `Game.java:1211` + `PlayerState.java:54`；投影 `Adapters/ContractDtos.cs:44`、`EngineProjectionAdapter.cs:97`；规范 `RULES.md:274`（注明 2026-08-15 人类裁决替换 `OPP_PUNISH_DRAW_TURN_GE`）；用例 `ProductionFactionIntegrationTests.cs:226`（断言 `:321` 卡值 / `:380` `win.pull_total_ge` / `:407` 快照 `PullCount=6`） | ✅ **五层齐**，与"不需要破城"一致 |
+| ④ 镜像局破城方胜 | 规范 `RULES.md:138`；C# `EffectRuntime.State.cs:200-207`（`IsMinion && IsMinion` ⇒ `win.castle_break_minion`，且**早于** `:212-224` 的持有者被动胜）；用例 `EffectRuntimeTests.cs:605` | ✅ **C# 落地**；Java **缺这一格**（13.25.3） |
+
+防误读补充：`IsMinion` = `type == "MINION"`（`src/Data/CardCatalog.cs:182`）⇒ `flame_leader`、`machine_alpha` **是**随从型；`machine_leader`（SPELL + `isLandmark`）是**耐久型**，`RULES.md:96` 已规则化"耐久归零则败北"⇒ 与决定①（只有随从型首领会有"被击败"）不冲突。
+
+#### 13.25.2 定向实证（C#，2 分钟内可重跑）
+
+```
+dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBuildEnableWorkloadResolver=false --filter "FullyQualifiedName~EffectRuntimeTests|FullyQualifiedName~ProductionFactionIntegrationTests|FullyQualifiedName~PullActionHandlerTests" --nologo
+```
+
+结果：**63 passed / 0 failed**（约 1 s）。守护上述四条的用例：`BreakingCastleAppliesCountdownForcesLeaderAndChecksCastleVictory`(:551)、`BreakingCastleWithActiveMinionLeadersGivesBreakerPriority`(:605)、`BreakingCastleRoyalConditionCanAwardActiveDefender`(:645)、`BreakingCastleIgnoresHiddenRoyalLeader`(:678)、`BreakingCastleDoesNotLowerCountOrRepeatBreakResolution`(:718)、`ProductionMachineDeckCompletesCommitPushPullLandmarkAndAlphaVictory`(:226)。⇒ 决定 ①③④ 在 C# 侧**都有回归网**；这也收紧了 F18 的性质：那一格是**唯一没有用例覆盖**的破城分支。
+
+#### 13.25.3 F7 可达性上修（Java 缺两格，不再只是潜伏）
+
+Java `Game.java:583-609`（`breakRoyalCastle`）**只判破城方**，且用 `findLeaderAnywhere`（隐藏首领也能替其所有者胜）；`:1200-1213` 的 `checkSpecialWins` `switch` **没有 `ROYAL_CASTLE_BREAK` 分支**（`default: break`）⇒ Java 同时缺 **① 的防守方被动胜** 与 **④ 的镜像优先级**两格。
+
+**可达性上修**：此前认为镜像场景需要"两张 `flame_leader`"，实际只需**双方统领都是随从** —— `flame_leader`（MINION）× `machine_alpha`（MINION，可由 `machine_leader` 地标第 2 层召唤入场，见 `ProductionFactionIntegrationTests.cs:226`）。该摆盘下 **C# 判破城方胜（`win.castle_break_minion`）、Java 判无人获胜** ⇒ F7 从"语义相反但难触发"变为**跨阵营正常对局即可出现的引擎分歧**，优先级不变（P1）但**不该再被当作潜伏问题延后**。
+
+#### 13.25.4 F18 括注收紧（防"Java 是参考实现"的误读）
+
+F18 场景（双方均持有 ⇒ 破城方胜）Java **结果恰好一致**，原因是它只判破城方 —— **不可**据此认为 Java 正确或可作为参考实现：Java 在镜像摆盘（13.25.3）与防守方被动胜（决定①）上**都缺格**。本报告 F18 行原括注"（Java 亦正确）"已按此收紧。
+
+#### 13.25.5 决策台账更正（⚠️ 过时陷阱）
+
+本会话 SQL `owner_decisions` 的 **4a 行**（记于 2026-08-14："破城时叫出**破城方自己**的首领"）**已被 2026-08-23 的人类裁决取代**，现行为"**叫出对方首领**"。证据：`docs/PL_REPORT_2026-08-23.md:266`、`docs/AI_MAILBOX_ARCHIVE.md:1220`，以及 `git show 2508140` 对 `RULES.md:136` 的改写（`- 并叫出破城方自己的统领` → `+ 并叫出对方首领（经普通抽牌方式强制入场…）`）。现状三方一致：`RULES.md:136` + C# `EffectRuntime.State.cs:194`（`ForceLeaderOut(defender)`）+ Java `Game.java:592`（`forceLeaderOut(victim)`）⇒ **不是缺陷，不要"照台账修错"**；台账已就地标注。
+
+#### 13.25.6 §0 数据基线漂移定位（`sea.json`）——不是笔误，是与写入方并发
+
+| 项 | 值 |
+|---|---|
+| 当前磁盘 = `HEAD` blob = `8bc0515` 版本 | `sea.json` **`0FA7E4E33425`**（9 446 B） |
+| `8bc0515~1`（改写前） | `D324A02DDCBF`（7 156 B） |
+| 本报告 §0 记录的 | `4C86A410D0BD` —— **两者都不是** ⇒ 不可复现 |
+
+根因链（三条证据）：
+① 引入该字符串的提交就是 `8bc0515`（`git log -S` 命中；`--diff-filter=A` 双证该提交**创建**了本报告的前 348 行）⇒ 哈希快照由 harness 会话写入；
+② 五个卡文件 mtime 依次为 `machine 23:11:02`、`flame/neutral 23:11:15`、`wood 23:18:00`、**`sea 23:37:45`** ⇒ 快照取在 **`23:18:00`–`23:37:45` 之间**（逐文件改写过程中），此时四个文件已等于最终内容、`sea.json` 仍在中间态；
+③ `sea.json` 于 `23:37:45` 再写一次（`8bc0515` 对该文件 `+119/−18`）并在 `23:41:38` 提交 ⇒ **快照值属于一个从未提交、现已不可恢复的中间状态**（与 §0:50 的并发写入警告同源）。
+
+更正与影响：§0:48 的 `sea.json` 项已改为实测可复现值并加注；其余四项（`machine`/`wood`/`flame`/`neutral`）**已逐一复核 = `HEAD` = 工作树**，仍有效。`8bc0515` 同时改写了全部五个卡文件（`machine +143/−25`、`sea +119/−18`、`wood +115/−13`、`neutral +8/−4`、`flame +7/−5`）⇒ **任何在 `23:37:45` 之前记录的深海（及机械/古木）读数都绑定旧数据**；本报告的阵营读数（F10/F13/F15/F21/F22）时间戳都在其后，绑定当前快照。反之，harness 线在 `23:37` 前落盘的 `docs/PL_*` 数值须按此界线核对。
+
+#### 13.25.7 本节不可外推的部分
+
+① 我**未**在 Java 侧构造 `flame_leader`×`machine_alpha` 镜像摆盘实跑，F7 的上修依据是**源码路径 + C# 用例**，不是跨引擎对局；② `IsMinion` / `isLandmark` 判定基于 `CardCatalog.cs:182` 与卡面字段，**未**在 Unity 运行时验证；③ `machine_alpha` 的"地标第 2 层召唤"入场依据是 `ProductionFactionIntegrationTests.cs:226` 的断言，未做逐帧观测；④ 决定②的**规范文本**（`RULES.md:105/:137/:138`）尚未改写 ⇒ 本节只证明"实现层没有 blanket 硬编码"，**不**证明"规范已表述正确"。
+
+**Q1（交 PL，一句话）**：决定②落地后 `RULES.md:105/:137` 的字面文本（"破城即由某方获胜"）应改写为"**由各随从型统领自己声明的胜利条件决定**；未声明者按 `:105` 通用规则"，并在 `:138` 保留镜像破城方优先。请 PL 给出定稿句式，我再据文本改写后的版本复验一次。
+
 ---
 
 ## 14. 本轮新增发现汇总与建议动作
 
-> ⚠️ **F17 行已作废，以 §13.17 为准**（F17 撤回为"非引擎缺陷"；剩余工作是改 `RULES.md` 文本 + 修 F18 + 补一格覆盖用例）。**F18 / F19 / F20 行维持有效**，其中 F19 的性质由"需定稿裁决"变为"**需文本改写（owner 意图已明确）**"。新增 **F21**（`docs/BALANCE.md` 陈旧基线，见下与 §13.18）与 **F22**（**`HEAD` ≠ 工作树**：1 402 行未提交代码是唯一的"合并候选"风险，见 §13.19）。**本段再追加 F23**（PL 报告的 §3/§4/§5 **五处取值与表述问题**，**均不改变其结论方向**；并附 QA 独立追加的 **B 模式消融证据**，见 §13.20）。**再追加 F24–F27**（PL 代码审核清单的逐条复核裁决与四项新发现，见 §13.21）。**最后追加 F28**：P0-3 残留形态探针（`%TEMP%\qa-p03p04\`，仓库外只读）证明批内延迟死亡机制**成立但当前不可达**，并由同一探针端到端证实 **canonical v1.31 生产者在溢出击杀后发布负 `currentHealth`**（违反自身 schema、fail-closed 契约）——见 §13.23；**F28 与 F25 硬耦合（先定 F28 再做 F25）**。**另追加 §13.24**：写入者归因复核（今晚的仓库写入**不是 Codex**——Codex 桌面端自 `20:52` 起零线程活动，实际写入方是 harness 的 `dsh web`；并复核 1 402 行 WIP 已冻结、快照 SHA256 未变）。
+> ⚠️ **F17 行已作废，以 §13.17 为准**（F17 撤回为"非引擎缺陷"；剩余工作是改 `RULES.md` 文本 + 修 F18 + 补一格覆盖用例）。**F18 / F19 / F20 行维持有效**，其中 F19 的性质由"需定稿裁决"变为"**需文本改写（owner 意图已明确）**"。新增 **F21**（`docs/BALANCE.md` 陈旧基线，见下与 §13.18）与 **F22**（**`HEAD` ≠ 工作树**：1 402 行未提交代码是唯一的"合并候选"风险，见 §13.19）。**本段再追加 F23**（PL 报告的 §3/§4/§5 **五处取值与表述问题**，**均不改变其结论方向**；并附 QA 独立追加的 **B 模式消融证据**，见 §13.20）。**再追加 F24–F27**（PL 代码审核清单的逐条复核裁决与四项新发现，见 §13.21）。**最后追加 F28**：P0-3 残留形态探针（`%TEMP%\qa-p03p04\`，仓库外只读）证明批内延迟死亡机制**成立但当前不可达**，并由同一探针端到端证实 **canonical v1.31 生产者在溢出击杀后发布负 `currentHealth`**（违反自身 schema、fail-closed 契约）——见 §13.23；**F28 与 F25 硬耦合（先定 F28 再做 F25）**。**另追加 §13.24**：写入者归因复核（今晚的仓库写入**不是 Codex**——Codex 桌面端自 `20:52` 起零线程活动，实际写入方是 harness 的 `dsh web`；并复核 1 402 行 WIP 已冻结、快照 SHA256 未变）。**再追加 §13.25**：owner 四条破城/下载轴决定的逐层落地核查（C# 侧 **63/63** 定向用例守护）、**F7 可达性上修**（镜像摆盘 `flame_leader`×`machine_alpha` 即触发）、F18 括注收紧、决策台账 4a 过时更正、**§0 数据基线漂移定位**（`sea.json` 哈希不可复现的根因 = 与 harness 写入并发，非笔误）。
 | # | 发现 | 严重度 | 归属 / 建议动作 |
 |---|---|---|---|
 | F3 | 生产 AI 无生命周期策略 ⇒ 机械（及任何生命周期轴统领）在发布路径上胜率恒 0，改数值无效 | **P0**（主线完成度） | **Codex**：**C# `RuntimeAiPolicy.cs`** 至今零 `Pull/Commit/Push/Rollback` 分支（Java `AiAgent` 已在 23:53–00:00 补上，但那是测试台）⇒ 需在 C# 侧补提交/下载/地标策略，或在合法动作表层面给出可用选择 |
-| F7 | **规则分歧**：`ROYAL_CASTLE_BREAK` 在 C#（合规）与 Java（缺防守方分支）语义相反；Java 亦未见 `castle_break_minion` 分支 | **P1** | **Codex**：按 `docs/RULES.md:105/137/138` 对齐 Java `Game.java:593-604` |
+| F7 | **规则分歧**：`ROYAL_CASTLE_BREAK` 在 C#（合规）与 Java（缺防守方分支）语义相反；Java 亦未见 `castle_break_minion` 分支。**⚠️ 可达性已上修（§13.25.3）**：镜像摆盘**不需要两张 `flame_leader`** —— 只要双方统领都是随从（`flame_leader` × `machine_alpha`，后者可由 `machine_leader` 地标第 2 层召唤入场）即触发 ⇒ 这是**正常对局可达**的引擎分歧，不宜再按潜伏问题延后 | **P1** | **Codex**：按 `docs/RULES.md:105/137/138` 对齐 Java `Game.java:593-604`（补防守方被动胜 + 镜像优先级两格） |
 | F2 | `machine_leader.winParam = 6` 过强：一旦被追求，胜率 95.7%、8.4 回合结束 | **P1** | **PL/owner**：调 `winParam` 与提交/下载成本；**先修 F3 再调**，否则读数仍不可用 |
 | F1 | 规则本身使破城 = 烈焰获胜（不问谁破城）⇒ 烈焰 84–91%；`winText` 只描述一半 | **P1** | **PL/owner**：F1 是**平衡/语义**问题（C# 实现与 `RULES.md` 一致，不是缺陷）；如需"分开"，由 PL 定义第二个枚举值 |
 | F4 | 平均回合 C# 侧 6.2–10.2 低于目标带（Java 侧移植后已回到 14.79） | **P1** | **PL/owner**：目标带 10–20 是否随新规则集调整；C# 侧节奏需在生产 AI 补全后重测 |
@@ -1473,7 +1532,7 @@ owner 提问：「Codex 本周额度已到，为何看起来还活着/还在写�
 | F15 | **`punishActivatable` 占比是当前最强的单一解释变量**：深海 60% vs 古木 10%（我独立按 `data/decks` 加权复核，与 PL 完全一致）；PL 消融显示清掉该标志可移动 8–62 点 | **P1** | **PL/owner**：这是"惩罚响应经济"的核心货币，应在设计层决策（PL 的 T1/惩罚链预算）；**先不要用数值微调去抵消它** |
 | F16 | PL 报告 §4 的 `BUFF-bearing cards` 列有 2 处数据错误：机械 **0 应为 24**、深海 **6 应为 9**（烈焰 3、古木 24 正确） | P3（报表） | **PL**：更正 `docs/PL_BALANCE_MEASUREMENT_2026-09-11.md`；不影响 `punishActivatable` 载荷结论（详见 §13.12.5-(b)） |
 | ~~F17（原文，已撤回）~~ | 见**本表末尾**同号修订行与 §13.17 —— **破城胜利在"双随从 + 仅防守方持有"时归属冲突**：`EffectRuntime.State.cs:200-207` 的 `IsMinion && IsMinion` 预判**只要求"双方统领都是随从"、不要求任何一方持有 `ROYAL_CASTLE_BREAK`**，因此在"仅防守方持有"时**抢走防守方（烈焰）的被动胜利**。**⚠️ 定性：C# 忠实实现了 `:138` 的*字面*文本 —— 根因是 `:138`（字面）与 `:105/:137`（不问谁破城）矛盾（= F19），不是 C# 代码错。定稿前不要动 C#。** 已实证可达（变体 B：`win.castle_break_minion`×9，前提是机械方晋升 `machine_alpha`），3 000 局内未造成可观测偏差；`BreakingCastle` 5 条用例当前 **5/5 全绿** | **P1（规范冲突）** | **PL/owner 定稿 → 再由 Codex 落地**<br>见 §13.14-⑤：**两种读法各有一个修复方案**；(a) 收窄 ⇒ 删预判（含行为变更），(b) 保留字面 ⇒ C# 基本正确、仅需修 F18 + 给 `:137` 补例外条款。**两案都必须改 `EffectRuntimeTests.cs:604-642` 并新增那一格用例**（测试代码属 Codex） |
-| ~~F18（原文）~~ | 见**本表末尾**同号修订行与 §13.17 —— **同一函数的相反方向的过窄**：`EffectRuntime.State.cs:214-217` 在"双方均持有 `ROYAL_CASTLE_BREAK`"时 `return`（无人获胜），而 `RULES.md:138` **在此场景没有歧义**地要求**破城方胜**（Java 亦正确）⇒ **可无条件判定为缺陷、可立刻修，不需要等定稿**。今天不可达（仅 `flame_leader` 持有），但**下一个持有该条件的统领一落地即暴露** | **P2（潜伏，可立刻修）** | **Codex**<br>改为 `if (!breakerHolds && !defenderHolds) return;` 再 `DeclareWinner(breakerHolds ? breaker : defender, "win.royal_castle_break")`。与 F17 方向相反 ⇒ C#/Java 在第 4/5 行场景上**恰好互换** |
+| ~~F18（原文）~~ | 见**本表末尾**同号修订行与 §13.17 —— **同一函数的相反方向的过窄**：`EffectRuntime.State.cs:214-217` 在"双方均持有 `ROYAL_CASTLE_BREAK`"时 `return`（无人获胜），而 `RULES.md:138` **在此场景没有歧义**地要求**破城方胜**（Java 在**本场景**结果恰好一致——它只判破城方；**不可**据此认为 Java 是参考实现，见 §13.25.3/§13.25.4）⇒ **可无条件判定为缺陷、可立刻修，不需要等定稿**。今天不可达（仅 `flame_leader` 持有），但**下一个持有该条件的统领一落地即暴露** | **P2（潜伏，可立刻修）** | **Codex**<br>改为 `if (!breakerHolds && !defenderHolds) return;` 再 `DeclareWinner(breakerHolds ? breaker : defender, "win.royal_castle_break")`。与 F17 方向相反 ⇒ C#/Java 在第 4/5 行场景上**恰好互换** |
 | F19 | **`RULES.md:138` 规范文本自相矛盾**：触发条件写作"双方统领均为随从型"，理由写作"以避免**双方条件同时满足**时产生平局"。**owner 意图已由 §13.17 定稿**（主动破城须受奖 ⇒ 第 3/4 行破城方胜），故 F19 不再是"待裁决"而是**纯文本改写**：触发条件宽于其自述理由，且与 `:105/:137`「被动，不问谁破城」矛盾 | **P1（规范）** | **PL/owner**：改 `:105/:137/:138` 文本（理由与触发条件对齐 + `:137` 补例外指针 + `:105` 改为"其他随从型统领若声明了自己的胜利条件则以自己声明的为准"）；**不再需要裁决第 3/4 行**（详见 §13.17 / §13.18 / 邮箱 🟢 条目） |
 | F20 | **`SimMain` 读数强烈依赖 `N`，低 N 不可与 N=300 混用**：同一确定性构建下机械在 N=20 读 **19.2%**、N=300 读 **13.2%**（+6 pts）；因 `seed = a*1000+b*100+k` 使样本**嵌套**，低 N 是**偏置的早期分块**而非随机子样本。另：因 `k` 步长上限 100，**N>100 时种子范围跨对局重叠**（N=300 时 1 200/2 200 个 seed 被 ≥2 个对局共享） | **P2（测试台）** | **Codex**：`SimMain.java:39` 改 `seed = (a*decks.size()+b)*N + k`；摘要打印 N。**PL/owner**：勿引用 `SimMain < 200` 的阵营胜率（平均回合对 N 不敏感，可继续引用）（详见 §13.15） |
 | F21 | **`docs/BALANCE.md` 的平衡基线与复现命令早已失效**：① `:3-10` 标"**最新**模拟数据"却与 `:18` 给出的命令（`SimMain **8**`，96 局）**逐项不符**（表里机械 52.1% / 深海 41.7%，今天 N=8 实测 **18.8% / 79.2%**，差 33.3 / 37.5 pts）⇒ 表不是该命令的产物；② `:13`「所有阵营胜率落在 40%–60% 带内」**不再成立**（今天机械 18.8% 与深海 79.2% 都在带外，古木 56.3% 与烈焰 45.8% 仍在带内）；③ `:18` 用 `SimMain 8` 而 `:46` 要求「`SimMain 30` 以上」⇒ **同文档自相矛盾，且两者都不够**（按 F20，`N=30` 仍是嵌套偏置样本）；④ `:21` 把**系统性偏置**说成"可加大以降低方差"；⑤ `:73`「规则测试 **35/35**」现为 **38/38（提交态）/ 59/59（工作树）**。同一失效命令复制到 `docs/DESIGN.md:91`；`:54` 的基线无日期/引擎/N | **P2（文档权威性）** | **PL/owner**：改 `BALANCE.md §1`（带 N/日期/构建）与 `§4` 第 2 条（"阵营胜率 `N ≥ 200`"），更正 `DESIGN.md:91`；**Codex**：与 F20 的种子修复一并做（详见 §13.18） |
@@ -1485,10 +1544,10 @@ owner 提问：「Codex 本周额度已到，为何看起来还活着/还在写�
 | **F27** | **（澄清，防重写）** `RuntimeEventCursor` 的校验质量高于清单假设：已实现乱序 / 缺号 / 重复 / 父缺失 / 相位 / 版本 / 终局载荷（`GAME_OVER` 必须恰好两字段且 `reasonKey` 齐备，`:95-115`）等拒绝原因 ⇒ 清单把 P2-8 描述为"白名单缺失"**低估了已有实现**，真正的缺口是 F26 的"没有生产者" | 澄清 | 记录在案，供 Codex **复用而非重写**；**详见 §13.21.5** |
 | **F28** | **canonical v1.31 的投影会发布违反自身 schema 的负 `currentHealth`（溢出击杀 ⇒ 投影与契约不可能同时满足）**：`EffectRuntime.Combat.cs:333`（`DamageCard`）**不夹零**（对照：`:112` 与 `Runtime.State.cs:182` 都夹零；Java `Game.java:1112` 状态不夹零但 `:1113` 日志夹零），而 canonical 的**唯一生产者** `Adapters/RuntimeContractV131Snapshot.cs:160`（`CurrentHealth = card.Health`）**原样搬运** ⇒ 任意伤害超过剩余血量时，墓场卡 `currentHealth` 为负，违反 `contracts/schemas/game_snapshot.schema.json:57` 的 `minimum: 0`，而契约 `:74` 要求无效消息 **fail-closed**；同时契约 `:77` 又要求投影**必须直投权威 `CardInstance.Health`** ⇒ **同时满足不可能**。**实证**（JSON 由仓库自身 `RuntimeWireSerializer` 生成）：S6 施加 `DAMAGE ALL_ENEMY_MINIONS 5` ⇒ `graveyard = [0, −2, −4]`、schema **2 errors**（`players/1/graveyard/1`、`/2` 的 `currentHealth`）；S7 同工作台不施加效果 ⇒ **0 errors**；两臂 `jsonBytes` 只差 2 ⇒ **违规被隔离到负血量这一个值**。**影响**：合规客户端必须拒绝一份合法对局快照；Unity 检视视图经 `RuntimeCardDisplayModel.cs:106` 会显示 −2（主战面板墓场只显示数量）。**只在 v1.31 成立**（v1.30 的 schema 无 health 约束） | **P1（契约）** | **PL/owner 定稿契约文本 → 再由 Codex 落地**。**PL 裁决四选一**：① 投影层夹零 `Math.Max(0, …)`（**零规则影响**，与 Java 日志约定一致，需在 `:77` 加一句"权威不夹零、展示夹零"豁免）＝**推荐**；② `Health ≤ 0` 时省略 `currentHealth`（schema 已允许，**零 schema 改动**）；③ 引擎层 `DamageCard` 夹零 —— **不是无害重构**：按 S3，3 血单位受 5 伤夹零 → 0，再受同批 `HEAL 2` → **2 存活**，**改的是规则结果**，需 owner 批准（该场景当前无卡可达）；④ 放宽 schema＝最差。**Codex**：**必须先定 F28 再做 `codex-f25-snapshot-contract-test`** —— 该测试今天实现即红（任意溢出击杀）。**探针/复现**：见 §13.23.1（三条命令，仓库外，只读仓库） |
 | F17 | ~~"双随从 + 仅防守方持有 ⇒ C# 抢走防守方被动胜"~~ **⚠️ 本节结论已由 §13.17 整体撤回**：按 owner 2026-09-11 的定稿（「不然大家都不打王城了」+「alpha……所以不需要破城」），第 4 行的**应然结果就是破城方胜**，C# `:200-207` **结果正确**、`EffectRuntimeTests.cs:604-642` **编码的正是定稿规则应保留**；§13.14-⑤ 的**方案 (a) 作废**。剩余工作＝改 `RULES.md:105/:137/:138` 文本（PL/owner）+ 修 F18 + 补一格覆盖用例（Codex） | **~~P1~~ 撤回** | **PL/owner**（文本）+ **Codex**（F18 + Java 对齐 + 补用例）。**详见 §13.17** |
-| F18 | **F17 撤回后，本地唯一的真缺陷**：`EffectRuntime.State.cs:214-217` 在"双方均持有 `ROYAL_CASTLE_BREAK`"时 `return`（无人获胜），而 `RULES.md:138` 与 owner 的"打破平局"意图都要求**破城方胜**（Java 亦正确）⇒ **可无条件判定为缺陷、可立刻修，不需要等定稿**。今天不可达（仅 `flame_leader` 持有），且在第 3/4 行被 `:200-207` 抢先 `return` 掩盖；只在"双方均持有 **且** 至少一方非随从"时暴露 | **P2（潜伏，可立刻修）** | **Codex**：改为 `if (!breakerHolds && !defenderHolds) return;` 再 `DeclareWinner(breakerHolds ? breaker : defender, "win.royal_castle_break")`。**C# 的 `:200-207` 不要动**（见 §13.17） |
+| F18 | **F17 撤回后，本地唯一的真缺陷**：`EffectRuntime.State.cs:214-217` 在"双方均持有 `ROYAL_CASTLE_BREAK`"时 `return`（无人获胜），而 `RULES.md:138` 与 owner 的"打破平局"意图都要求**破城方胜**（Java 在本场景结果恰好一致——它只判破城方；**不可**据此认为 Java 是参考实现，见 §13.25.3/§13.25.4）⇒ **可无条件判定为缺陷、可立刻修，不需要等定稿**。今天不可达（仅 `flame_leader` 持有），且在第 3/4 行被 `:200-207` 抢先 `return` 掩盖；只在"双方均持有 **且** 至少一方非随从"时暴露 | **P2（潜伏，可立刻修）** | **Codex**：改为 `if (!breakerHolds && !defenderHolds) return;` 再 `DeclareWinner(breakerHolds ? breaker : defender, "win.royal_castle_break")`。**C# 的 `:200-207` 不要动**（见 §13.17） |
 
 **关于 `docs/AI_MAILBOX.md` 第 471-485 行旧条目的更正**：该条目第 3 条把机械 −31.2pp 归因为"数据改动"，**已作废**；正确归因见 §13.3（7 变体隔离实验：唯一 Java 可见成因是删除 `chant`+`chantEffects`）与 §13.8（能力覆盖差）。结论方向也需改写为 §13.10 的 F2/F3：**机械不是变弱了，而是在旧测试台上不可见、在生产 AI 下不可胜、在被正确驾驶时过强。**
 
 ---
 
-— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19 / 破城胜利分歧与采样缺陷追加 2026-09-11 00:26 / **定稿复核：F17 撤回、F18 维持（§13.17）、`BALANCE.md` 陈旧基线 F21（§13.18）追加 2026-09-11 00:34** / **读数复现校验 + F21 范围更正（"部分失效"）+ F19 转纯文本改写 2026-09-11 00:36** / **提交态 vs 工作树独立重建对比、新增 F22（1 402 行未提交代码）2026-09-11 00:44** / **独立复现 PL 的 10 080 局 C# 权威实测（14/14 配置、逐字段 0 差异）+ 新增 F23（§13.20）2026-09-11 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27（§13.21）2026-09-11 01:0x** / **F24 行为级实证：改该文件对 C# 输出零影响、改一张卡即变（四臂对照含阳性对照，§13.22）2026-09-11 01:2x** / **P0-3 残留探针（仓库外 S1–S7：批内延迟死亡机制成立但当前不可达）+ 新发现 F28（canonical v1.31 投影发布负 `currentHealth`、违反自身 schema）§13.23 2026-09-11 01:2x** / **写入者归因复核：本次写入归因 harness（`dsh web`）而非 Codex；并列证 1 402 行 WIP 已冻结（快照 SHA256 未变，§13.24）2026-09-11 01:3x**
+— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19 / 破城胜利分歧与采样缺陷追加 2026-09-11 00:26 / **定稿复核：F17 撤回、F18 维持（§13.17）、`BALANCE.md` 陈旧基线 F21（§13.18）追加 2026-09-11 00:34** / **读数复现校验 + F21 范围更正（"部分失效"）+ F19 转纯文本改写 2026-09-11 00:36** / **提交态 vs 工作树独立重建对比、新增 F22（1 402 行未提交代码）2026-09-11 00:44** / **独立复现 PL 的 10 080 局 C# 权威实测（14/14 配置、逐字段 0 差异）+ 新增 F23（§13.20）2026-09-11 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27（§13.21）2026-09-11 01:0x** / **F24 行为级实证：改该文件对 C# 输出零影响、改一张卡即变（四臂对照含阳性对照，§13.22）2026-09-11 01:2x** / **P0-3 残留探针（仓库外 S1–S7：批内延迟死亡机制成立但当前不可达）+ 新发现 F28（canonical v1.31 投影发布负 `currentHealth`、违反自身 schema）§13.23 2026-09-11 01:2x** / **写入者归因复核：本次写入归因 harness（`dsh web`）而非 Codex；并列证 1 402 行 WIP 已冻结（快照 SHA256 未变，§13.24）2026-09-11 01:3x** / **owner 四条破城/下载轴决定落地核查（C# 侧 63/63 定向用例守护、F7 可达性上修、F18 括注收紧、决策台账 4a 过时更正）+ §0 `sea.json` 基线漂移定位（§13.25）2026-09-11 01:5x**
