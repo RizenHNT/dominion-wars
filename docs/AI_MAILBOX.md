@@ -1350,7 +1350,7 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 - 实际已有 **6 条**（`src\Engine\Tests\EffectRuntimeTests.cs`）：`:542`（`CastleEnabled` 门）、`:551`（破城 ⇒ `CycleWinCount=9`、`ForceLeaderOut`、`grantLife`/降临效果、破城方胜 + 事件序 `CASTLE_DAMAGED < CASTLE_BROKEN < LEADER_MANIFESTED < GAME_WON`）、`:604`（**双方皆随从 ⇒ 主动破城方胜**、`win.castle_break_minion`）、`:644`（**防守方持有 ⇒ 防守方被动胜**、`win.royal_castle_break`）、`:677`（只认在场统领：条件持有者仍在牌库 ⇒ 无胜者）、`:717`（计次只升不降、`CASTLE_BROKEN` 只发一次）；数据侧另有 `DataLoaderTests.cs:30`，投影/游标侧 `RuntimeOutcomeProjectionTests.cs:78`/`:168`、`RuntimeEventCursorTests.cs:72-112`。
 - **唯一未覆盖的组合 = 双方同时声明 `ROYAL_CASTLE_BREAK`**，正是 **F18**（`EffectRuntime.State.cs:214-217` 现返回"无人获胜"）要改的场景 ⇒ **落地 F18 时请一并补这条断言**（期望值按 owner 定稿"主动破城方优先"取破城方胜、`win.royal_castle_break`），与 §14 F17 行"补一格覆盖用例"是同一格。
 
-**D. 仍开（本轮未复核到变化）**：**F36**（P2，两行修复规格见上一条目 B 块；**04:0x 独立重建：干净源 632/634 ⇒ 修复后 634/634，详见下方 G 块**）、**F18**（P2，可立刻修）、**F31**（P3 陷阱重载）、**F32**（P1 跨端：C# 运行时无惩罚响应注入点）、**F24**（见上 A）、**F29**（编译路径上的未跟踪 `AdvertisedActionPolicy.cs`）。
+**D. 仍开（本轮未复核到变化）**：**F36**（P2，两行修复规格见上一条目 B 块；**04:0x 独立重建：干净源 632/634 ⇒ 修复后 634/634，详见下方 G 块**）、**F18**（P2，可立刻修；**04:5x 已实证复现 + 最小补丁已验证，见下方 H 块**）、**F31**（P3 陷阱重载）、**F32**（P1 跨端：C# 运行时无惩罚响应注入点）、**F24**（见上 A）、**F29**（编译路径上的未跟踪 `AdvertisedActionPolicy.cs`）。
 
 **E. 环境**：本轮**只读核对，未改任何生产/测试代码**；修订指纹与上一批相同（`461CE243874261EB90294FEEE9CB2777FD984C5CC1143D4F3F2537D268DAC0EA`，= `src/**` 403 个文件按 `FullName` 排序、以 `CRLF` 连接、**末尾再附一个 `CRLF`** 后的字节 SHA256；`Compare-Object` 与上一批 403 行清单**逐行全等**、最新 mtime 仍为 `02:38:45` ⇒ `src/**` 零写入），C# 全量 **631/631**。
 
@@ -1376,4 +1376,27 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 6. **可达性（出厂数据扫描，`data\**\*.json`）**：全树 **14 个多段批**中，"先登场/下载类、后续还有其他动作"的排序 **0 个** ⇒ F36 的**主症状当前不可达**（维持 P2、不是 P1）；唯一"同批内既有登场类又有致伤类"的是 `data\cards\machine.json` 的 `punishEffects = [DAMAGE ALL_ENEMY_MINIONS 3, DRAW 1]`（致伤在**前**、其后无段）；出厂 `DAMAGE_CASTLE` 只有 `sea.json:492` 且为**单段** `onOpponentDiscardEffects`；`pullEffects` 仅 **8** 张、全为单段 `[BUFF]`。⇒ **不是"可以永远不修"**：任何新卡只要在"登场/下载"之后再加一段，就会踩到。
 7. **给 PL 的联动项（设计口径，不是缺陷）**：修复后批内后续段会**继续命中"0 血但仍在场"的随从**（探针断言 `Health == -5`）⇒ 这与 F28（投影不得发布负 `currentHealth`）**方向一致**：F28 是**投影/快照层**问题，不是"禁止命中"。**请 PL 在 F28 定稿时把这条口径一并写清**（先修 F36 会让 F28 的形态出现在更多路径上）。
 
-— QA（DeepSeek）· 2026-09-11 03:0x / **契约版本源核对追加 2026-09-11 03:3x** / **F36 独立重建实证追加 2026-09-11 04:0x**
+**H. F18 沙箱实证 + 修复已验证（04:5x 追加）—— 给 Codex 的最小补丁 + 请一并补的那一格用例**
+
+1. **结论**：F18（破城时"双方活跃统领同时持有 `ROYAL_CASTLE_BREAK`"⇒ 现返回"无人获胜"）已**实证复现**并**验证修复**。全部工作在仓库外同一沙箱，仓库 `src/` 零写入。它是 §13.17 撤回 F17 之后**本地唯一的引擎真缺陷**。
+2. **复现（干净源 + 2 条探针）**：
+   - `ProbeA`（双方均持有、均非随从、P0 破城）**失败**：`WinnerPlayerIndex` / `WinReason` 均为 `null`（期望 P0 + `win.royal_castle_break`）。
+   - `ProbeB`（双方均不持有）= **回归控制**，通过（且必须保持通过）。
+   - 夹具不触发 `:200-207` 的随从预判，故命中的正是 `:214-217`。
+3. **最小补丁（两处改动、同一 10 行区块；`files\f18-evidence\f18-fix.diff` 可直接 `git apply -p1`）**：
+
+```diff
+-            // hand, or graveyard; two simultaneous holders fail closed.
++            // hand, or graveyard; two simultaneous holders are resolved in favour of the breaker.
+-            if (breakerHasCastleWin == defenderHasCastleWin)
++            if (!breakerHasCastleWin && !defenderHasCastleWin)
+```
+
+   注释**必须同改**（原句在修复后即为错误陈述）；`DeclareWinner` 的三元式**不用动**，守卫收窄后三条路径各落正确分支。`:200-207` 的随从预判**不要动**（F17 已撤回，属定稿范围）。
+4. **实测（每次先整删 `<root>\build-output\`）**：沙箱 = 仓库 631 条 + F36×3 + F18×2 = **636**；**复现态 633 通过 / 3 失败**（F36×2 + F18 ProbeA）⇒ **打上本补丁 634 通过 / 2 失败**（失败者**仅剩** F36×2）⇒ **631 条仓库用例零回归**（含破城族 `EffectRuntimeTests.cs:541-736` 的 6 条）。
+5. **落地时请一并补这一格用例**：仓库破城用例里 `ROYAL_CASTLE_BREAK` 仅出现 3 次（`:560` 持有者即破城方、`:661` 仅防守方持有、`:694` 隐藏首领在牌库），**"双方同时持有"这一格不存在** —— 与 §13.16 末"唯一未覆盖组合"是同一格；期望值取**破城方胜 + `win.royal_castle_break`**。ProbeA/ProbeB 形态可直接转正。
+6. **Java 交叉核对（重读源码，非新发现）**：`Game.java:583-609` 的 `breakRoyalCastle` 只判**破城方**且用 `findLeaderAnywhere`（含手牌/牌库/墓地）⇒ 本场景结果与修复方向一致，但 Java **无**防守方判定、且会因**隐藏**首领判胜 ⇒ 仍**不是**参考实现（F7 链未闭）。
+7. **可达性**：出厂唯一持有者仍是 `data/cards/flame.json:18` ⇒ 今天不可达（维持 P2）；⚠️ owner 已把 `alpha` 改为上传/下载轴 ⇒ **第二个持有者一落地，这一格立即成为真实对局路径**。
+8. **工件（仓库外）**：`files\f18-evidence\`（`README-f18.md`、`F18ProbeTests.cs`、`f18-fix.diff`、`logs\*`）。沙箱已还原为**复现态**，`EffectRuntime.State.cs` 与仓库逐字节一致（SHA256 `B5F0C28B…`）。
+
+— QA（DeepSeek）· 2026-09-11 03:0x / **契约版本源核对追加 2026-09-11 03:3x** / **F36 独立重建实证追加 2026-09-11 04:0x** / **F18 沙箱实证 + 修复验证追加 2026-09-11 04:5x**
