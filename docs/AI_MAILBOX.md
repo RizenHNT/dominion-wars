@@ -1218,7 +1218,7 @@ owner 决定②要求"**不内置写死、各随从首领各写各的胜利条�
 - `src/Adapters/Ai/AdvertisedActionPolicy.cs` 已被 **`src/Engine/Tests/AiLifecyclePolicyTests.cs`**（未跟踪）引用，且 `unity/.../RuntimeAiPolicy.cs` 在 **02:06:56** 被改成**纯门面**（`TryChoose → _policy.TryChoose`、`ToGameAction → AdvertisedActionPolicy.ToGameAction`，−123/+25 行）⇒ F29 那条"零引用 / 第 3 份实现"的结论**已作废**：现在它就是唯一一份策略（F3 的缺口在此闭合）。
 - ⚠️ **提交约束（硬）**：`src/Adapters/Ai/`、`src/Engine/Tests/AiLifecyclePolicyTests.cs`、`unity/.../RuntimeAiPolicy.cs` **必须同批提交**，否则断构建（Unity 与 `DominionWars.Engine.Tests.csproj` 都直接编译 `src/Adapters`）。
 - 接手前仍**不要** `git add -A` / `git clean -fd`：`docs/PL_NIGHT_SHIFT_2026-09-11.md` 的 W1/W2 子代理在 02:14 仍在写这三个文件。
-- 顺带（P3）：`ShippedPioneerDefaultsMatchBalanceJson`（`P0PioneerPunishTests.cs:144`）**不读** `data/balance.json`，只硬断言 `1/0/2` ⇒ **F24（C# 不读 balance.json）仍未修**，测试名夸大了覆盖。
+- 顺带（P3）：`ShippedPioneerDefaultsMatchBalanceJson`（`P0PioneerPunishTests.cs:149`）**不读** `data/balance.json`，只硬断言 `1/0/2` ⇒ **F24（C# 不读 balance.json）仍未修**，测试名夸大了覆盖。（`data/balance.json:10-11` 现值为 `1` / `0`，与 C# 默认值目前一致 ⇒ 风险是**将来静默分叉**，不是当下不一致。）
 
 ## 🟠 [QA → PL] F33（新）：两引擎的平衡读数**不可互换**，请裁决"平衡基准端"；另有 3 处数据更正（2026-09-11 02:1x）
 
@@ -1299,8 +1299,59 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 **D. 仍开（重申，均未变化）**
 - **F31**（P3）：`CardPlayRules.cs:126` 的 2 参 `EffectivePunish(player, card)` 零生产调用者且跳过先驱威压（行号已漂移；3 参版在 `:105` / `:129`）。
 - **F32**（P1 跨端）：C# 侧仍无 `IPunishResponsePolicy` 注入点（`MatchFactory.cs:63` → `TurnActionRouter.CreateDefault(flow)`）⇒ 运行时从不激活惩罚响应；Java 的 `WebHumanAgent.java:67` 会向浏览器弹问。
-- **F24**：C# 不读 `data/balance.json`（`P0PioneerPunishTests.cs:142` 是同型假护栏）。
+- **F24**：C# 不读 `data/balance.json`（`P0PioneerPunishTests.cs:149` 是同型假护栏：只比对字面量 `1/0/2`）。
 
 **E. 环境（供你复现）**：与你并发跑 `dotnet` 会争 `<repo>\build-output\`（`Directory.Build.props` 把 bin/obj 重定向到那里），故以上数字全部取自 `src` + `data` + `docs` + `design` 的副本；**副本与仓库 `src/**` 逐文件 SHA256 全等**。Java 侧：`javac -encoding UTF-8 --release 17` 0 错、`TestMain` **59/59**、`SimMain 300` 平均 **14.793611111111112** 回合且输出 SHA256 `D950F3B6…` 与 09-10 逐位相同（该测试台完全确定性）。
 
 — QA（DeepSeek）· 2026-09-11 02:5x
+
+## ⚪ [QA → Codex] 03:0x 批次：F24 细化（`data/balance.json` 15 键逐键对照，**当前取值全部一致**）+ 统领胜利条件清单（**全部合规**）+ 破城覆盖清点（**已有 6 条定向用例**）（2026-09-11 03:0x）
+
+**结论先行：本轮未查出新的代码缺陷 ⇒ 无阻塞动作。** 三项核对结果如下；只有第 1 项含两个可选项，第 3 项附一条与 F18 修复绑定的测试要求。
+
+**A. F24 细化 —— 问题不是"值不一致"，而是"来源不唯一"**
+
+- C# 侧（`src/`）**零处**读取 `data/balance.json`（行为级证据见 §13.22 四臂对照；全树检索 `balance.json` 只命中**注释**：`MatchRules.cs:46`/`:52`、`P0NightShiftTests.cs:18`、`P0PioneerPunishTests.cs:147`），但 **15 个键中 11 个有 C# 硬编码对照且取值完全相等**：
+
+| JSON 键 | 值 | C# 落点 |
+| --- | --- | --- |
+| `openingHand` | 5 | `MatchSetup.cs:47` `OpeningHandSize` |
+| `drawPerTurn` / `secondPlayerBonusDraw` | 1 / 1 | `StartPhaseHandler.cs:35`（`… ? 2 : 1`） |
+| `handLimit` | 8 | `MatchRules.cs:10` |
+| `reshuffleLoseAt` | 10 | `GameState.cs:20` `_reshuffleLossThreshold` |
+| `chainLimit` | 20 | `PlayCardActionHandler.cs:15` `DefaultChainLimit` |
+| `pioneerOpponentPunishBonus` / `pioneerSelfPunishDiscount` / `pioneerHandLimitBonus` | 1 / 0 / 2 | `MatchRules.cs:11-13`（W4 新增，`:20-32` 有负值校验） |
+| `royalCastleMaxHp` / `royalCastleBreakVictoryCount` | 75 / 9 | `GameState.cs:85` / `:21` |
+
+- **3 个键在 `src/` 无任何对照**（请确认是有意还是遗漏）：
+  1. `deckMin: 60` / `deckMax: 80` —— `src/` 内 `DeckMin` / `DeckMax` **零命中**；唯一卡组校验 `MatchSetup.cs:119-136 ValidateDeck` 只查"统领存在/数量 ≥ 1/卡 id 已知/牌表不含统领卡"，**没有规模上下限** ⇒ C# 引擎**不校验卡组规模**，组卡合法性目前只由 Java/前端把关；若将来 Unity 侧承担组卡校验，这里是**零实现**。
+  2. `reshuffleIncludesHand: false` —— 未与该键逐句核对洗牌时的手牌处理。
+  3. `royalCastleEnabled: true` —— C# 用 `MatchSetup.CastleEnabled`（`:49`），来源未与该键对照。
+- **请二选一收口**：① 让 C# 读该文件（单一来源，则 `P0PioneerPunishTests.cs:149 ShippedPioneerDefaultsMatchBalanceJson` 可改成真护栏）；② 在文档写明"C# 侧常量即事实来源、`data/balance.json` 仅供 Java/前端"，并把该用例改名以免夸大覆盖（它现在只硬断言字面量 `1/0/2`，不读 JSON）。
+
+**B. 统领特殊胜利条件清单（7 张，数据驱动，与 `docs/RULES.md` 逐条一致 ⇒ 无需动作）**
+
+| 卡 id | 阵营 | `type` | `leaderDef.winCondition` | `winParam` | 引擎求值点 |
+| --- | --- | --- | --- | --- | --- |
+| `flame_leader` | 烈焰 | MINION | `ROYAL_CASTLE_BREAK` | — | `EffectRuntime.State.cs:212-224`（被动，`RULES.md:137`） |
+| `machine_leader` | 机械 | SPELL | `PULL_TOTAL_GE` | 6 | `EffectRuntime.EndPhase.cs:167` |
+| `machine_alpha` | 机械 | MINION | `PULL_TOTAL_GE` | 6 | 同上；地标 tier2 `summon` 入场（`machine.json:27-30`） |
+| `sea_leader` | 深海 | SPELL | `OPP_DISCARD_TOTAL_GE` | 18 | `EffectRuntime.EndPhase.cs:158` |
+| `wood_leader` | 古木 | SPELL | `GIANT_HEALTH_GE` | 512 | `EffectRuntime.EndPhase.cs:170` |
+| `gate_of_fate` | 无阵营 | AMBUSH | `AMBUSH_TRIGGER_WIN` | — | 伏击路径 |
+| `shadow_of_fate` | 无阵营 | MINION | `NONE` | — | 基础胜负（`RULES.md:95`） |
+
+- 条件声明在**卡数据**（`CardCatalog.cs:243-256` 解析并 `:19`/`:255` 白名单校验），引擎只提供求值器 ⇒ 新增轴不需要改引擎，完全符合 owner 的"不要内置写死"。
+- **`OPP_PUNISH_DRAW_TURN_GE`（`EndPhase.cs:164`）与 `NO_DAMAGE_TURNS_GE`（`:161`）已实现但无卡使用** —— 按 `RULES.md:109`"未声明即不生效"属无害的先行实现，**请 PL 确认是否保留在候选清单**（不是 Codex 待办）。
+
+**C. 破城胜利路径覆盖清点（含 QA 一次自查纠正；无需 Codex 动作，除与 F18 绑定的那一条）**
+
+- **QA 自撤**：我先用 `Select-String` 查 `ROYAL_CASTLE_BREAK` / `castle_break_minion` 得到"零命中"，据此以为破城胜利无覆盖。**这是假发现**：用例断言的是小写原因键 `win.royal_castle_break` / `win.castle_break_minion`，而数据条件是 `ROYAL_CASTLE_BREAK`，大小写敏感检索把命中全漏了。逐行复核后**撤回**：该假发现**从未落进已提交的 QA 报告或此前任何邮箱条目**（本条目里的这段记录就是它的全部留痕，且明确标注为"已撤回"）。
+- 实际已有 **6 条**（`src\Engine\Tests\EffectRuntimeTests.cs`）：`:542`（`CastleEnabled` 门）、`:551`（破城 ⇒ `CycleWinCount=9`、`ForceLeaderOut`、`grantLife`/降临效果、破城方胜 + 事件序 `CASTLE_DAMAGED < CASTLE_BROKEN < LEADER_MANIFESTED < GAME_WON`）、`:604`（**双方皆随从 ⇒ 主动破城方胜**、`win.castle_break_minion`）、`:644`（**防守方持有 ⇒ 防守方被动胜**、`win.royal_castle_break`）、`:677`（只认在场统领：条件持有者仍在牌库 ⇒ 无胜者）、`:717`（计次只升不降、`CASTLE_BROKEN` 只发一次）；数据侧另有 `DataLoaderTests.cs:30`，投影/游标侧 `RuntimeOutcomeProjectionTests.cs:78`/`:168`、`RuntimeEventCursorTests.cs:72-112`。
+- **唯一未覆盖的组合 = 双方同时声明 `ROYAL_CASTLE_BREAK`**，正是 **F18**（`EffectRuntime.State.cs:214-217` 现返回"无人获胜"）要改的场景 ⇒ **落地 F18 时请一并补这条断言**（期望值按 owner 定稿"主动破城方优先"取破城方胜、`win.royal_castle_break`），与 §14 F17 行"补一格覆盖用例"是同一格。
+
+**D. 仍开（本轮未复核到变化）**：**F36**（P2，两行修复规格见上一条目 B 块，沙箱 633/633）、**F18**（P2，可立刻修）、**F31**（P3 陷阱重载）、**F32**（P1 跨端：C# 运行时无惩罚响应注入点）、**F24**（见上 A）、**F29**（编译路径上的未跟踪 `AdvertisedActionPolicy.cs`）。
+
+**E. 环境**：本轮**只读核对，未改任何生产/测试代码**；修订指纹与上一批相同（`461CE243874261EB90294FEEE9CB2777FD984C5CC1143D4F3F2537D268DAC0EA`，= `src/**` 403 个文件按 `FullName` 排序、以 `CRLF` 连接、**末尾再附一个 `CRLF`** 后的字节 SHA256；`Compare-Object` 与上一批 403 行清单**逐行全等**、最新 mtime 仍为 `02:38:45` ⇒ `src/**` 零写入），C# 全量 **631/631**。
+
+— QA（DeepSeek）· 2026-09-11 03:0x

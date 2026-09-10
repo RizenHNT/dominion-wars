@@ -48,6 +48,7 @@
 | 31 | **正向（计数更正）** | **（§13.28 追加）** **工作树清点计数更正 17 → 19**：首版 §13.28 漏掉两份**已跟踪但已修改**的 PL 文档编辑（`M docs\effects.contract.md` +3/−2、`M docs\DESIGN_SEA_PUNISH_MATH_2026-09-09.md` +3/−1，mtime `09-10 23:41/23:42`），故 `git status --porcelain` 实为 **11 已修改 + 8 未跟踪 = 19**（§13.27 事实 1 已同步更正）。**对这两份文档已做只读核验**：`effects.contract.md` 声称 `ADD_ROOT` 因 10 张古木卡引用而由"预留"移入"已用"—— 实测 `data\cards\wood.json` 中 `ADD_ROOT` **10** 次（`data\cards` 全树唯一命中文件）、`git status --porcelain -- data/` **为空**（已提交且干净）⇒ **数据前提属实、描述的是已落地状态**；`DESIGN_SEA_PUNISH_MATH…` 声称的三场景"全绿"来自 `.gitignore` 内的 `build-output/pl-verify/` ⇒ 记 **PL 自报、QA 未复现**（无版本化证据、无对应用例进 `TestMain`） |
 | 32 | **P1×3 + P2/P3（新增发现）+ 正向（W2）** | **（§13.29 追加）** **夜班写入者归因收口**：owner 问的"Codex 诈尸"**不是 Codex** —— 意图文件 `docs/PL_NIGHT_SHIFT_2026-09-11.md`（未跟踪，01:56:53）的 W1/W2 子代理（`8110f90c` / `5b385a2e`）由 harness（`dsh web`：`node 21148` ← `pnpm dsh web` 15728，经沙箱 runner `--mode workspace-write`）驱动；`codex.exe 29668` 仅 `codex app-server` 常驻、**零回合子进程**；relay `latestRun` 为空、`goalLedger` 末条 `2026-09-09 FAILED`。**独立验收**（隔离副本法，`src/**/*.cs` + `src/**/*.csproj` 清单 SHA256 `214fd0a4…`；副本与仓库内结果逐项一致）：C# **615/617**（基线 603/603 ⇒ 净增 **14** 条），**2 条失败全在 W1 新测试里且属测试作者错误**（P0-1 实现无缺陷，`+1` 与折扣两个分支都已被**通过**的断言覆盖）、**W2 的 6 条全绿**。**新增 F31**（2 参 `EffectivePunish` 陷阱重载，P3）、**F32**（C# 运行时**从不激活惩罚响应**，而 Java 的 `WebHumanAgent.java:67` 会向浏览器弹问 ⇒ 跨端行为差，P1）、**F33**（两引擎平衡读数不可互换、"平衡基准端"未定义，P1）、**F34**（W1 两条验收测试自相矛盾致套件由绿转红，P1 门禁／P3 根因）。**⇒ 在 F34 修复前，本轮工作树不得当作"可合并候选"**（**已于 02:4x 复验为 631/631，本限制解除；见 row 33 与 §13.30**） |
 | 33 | **正向（门禁转绿）+ P2/P3（新增发现）** | **（§13.30 追加）** **夜班 W4 批次复验（修订指纹 `461CE243…`，与仓库当前 `src/**` 逐文件 SHA256 全等）**：C# 全量 **通过 631 / 失败 0 / 总计 631**（基线 603 ⇒ 净增 28）⇒ **F34 已闭**（写入方自行修好两条自相矛盾用例）；Java 侧 `javac` 0 错、`TestMain` **59/59**、`SimMain 300` 均值 **14.793611111111112** 回合且输出 SHA256 与 09-10 两次逐位相同（测试台完全确定性）。**新增 F36**（P2：批内死亡延迟漏掉**新建 `EffectContext`** 的嵌套批 —— `EffectRuntime.Mechanical.cs:193` 与 `EffectRuntime.Cards.cs:418`；两条探针在修复前使全量变成 **631+2 失败**（`DAMAGE_DEALT` 期望 4 实测 2、`EFFECT_SKIPPED(DAMAGE)` 期望 0 实测 1），**沙箱两行修复后 633/633 零回归**，修复规格见 §13.30.E 与邮箱 🟠 条目；生产卡池暂无可复现路径）。**F35 当轮自撤回**（§13.30.F 更正：声明值 = 广告值 = 实抽值，三者一致；夜班 `P0NightShiftTests.cs:160` 亦锁定该行为）。**F31 / F32 / F24 仍开** |
+| 34 | **正向（规则落地核对）** | **（§13.31 追加）** **`data/balance.json` × C# × `RULES.md` 三层核对**：15 个平衡键中 **11 个**有 C# 硬编码对照且**逐键取值完全相等**（含 W4 新增的 `PioneerOpponentPunishBonus = 1` / `PioneerSelfPunishDiscount = 0`），**3 个在 `src/` 无对照**（`deckMin`/`deckMax` 卡组规模、`reshuffleIncludesHand`、`royalCastleEnabled` 来源）⇒ **F24 定性为"改参数静默无效/将来分叉"而非"当下取值错误"**（值今天恰好相等，故门禁不可见）。**7 张统领卡的特殊胜利条件全部数据驱动、与 `RULES.md §7/§9/§9.1` 一致**：`ROYAL_CASTLE_BREAK`（`flame_leader`）、`PULL_TOTAL_GE(6)`（`machine_leader`/`machine_alpha`）、`OPP_DISCARD_TOTAL_GE(18)`（`sea_leader`）、`GIANT_HEALTH_GE(512)`（`wood_leader`）、`AMBUSH_TRIGGER_WIN`（`gate_of_fate`）、`NONE`（`shadow_of_fate`）⇒ **未发现实现缺陷**，owner 本轮定稿的"随从型首领以王城被破被动获胜"「双方皆随从时主动破城方优先」**均已按文档落地**。**并记录一次自查纠正**：本节初稿据**大小写敏感**的 `ROYAL_CASTLE_BREAK` 检索得出"破城胜利零覆盖"的**假发现**（拟编号 F37），逐行复核 `EffectRuntimeTests.cs:541-736` 后撤回 —— 实为 **6 条**破城定向用例（含 `win.castle_break_minion` 与两种 `win.royal_castle_break` 归属），**该假发现未随本报告落盘、未投递邮箱**（`EffectRuntimeTests.cs:583/:590/:604/:638/:644/:673/:677/:717`） |
 
 - 分支：`codex/p0-complete-match-loop-2026-09-06`（`main` 停 `6c9ef65`，自身**领先 `origin/main` 0f9868a 共 48 个提交**；`main` 领先 19 个；全部未 push；F28 实证提交为 `ce04ccc`，**本报告最新提交号以文末签署行为准**）
 - .NET SDK：8.0.425
@@ -1705,7 +1706,74 @@ F18 场景（双方均持有 ⇒ 破城方胜）Java **结果恰好一致**，�
 **G. 存量未闭项复核（02:4x）**
 - **F31 仍存在**：`CardPlayRules.cs:126` 的 2 参 `EffectivePunish(player, card)` 依然**零生产调用者**、依然跳过先驱威压（11 处生产调用点全走 `:105` 的 3 参版或 `:129` 的 3 参重载）。行号相对 §13.29.F 已漂移（文件被夜班改过），编号仍有效。
 - **F32 仍存在**：生产侧仍无 `IPunishResponsePolicy` 注入点（`MatchFactory.cs:63` → `TurnActionRouter.CreateDefault(flow)`；全仓唯一 `FixedPunishPolicy` 在测试 `PlayCardActionHandlerTests.cs:523`）⇒ C# 运行时从不激活惩罚响应。
-- **F34 已闭**（见 B）；**F24 仍存在**（C# 不读 `data/balance.json`；`P0PioneerPunishTests.cs:142` 是新的同型假护栏）。
+- **F34 已闭**（见 B）；**F24 仍存在**（C# 不读 `data/balance.json`；`P0PioneerPunishTests.cs:149 ShippedPioneerDefaultsMatchBalanceJson` 是新的同型假护栏（只硬断言 `1/0/2`，不读 JSON））。
+
+### 13.31 规则参数与胜利条件落地核对（`data/balance.json` ↔ C# ↔ `RULES.md`）：F24 细化 + 破城覆盖复核（含一次自查纠正）（2026-09-11 03:0x）
+
+**核对方式**：只读。逐键比对 `data/balance.json`（15 键）与 C# 硬编码常量/守卫；逐卡比对 `data/cards/*.json` 的 `leaderDef` 与引擎求值分支；再以 `docs/RULES.md` 的玩家可见规则收口。**未改任何生产码**。
+
+**A. `data/balance.json` ↔ C# 逐键对照（15 键：11 键取值相等 / 3 键无对照 / 1 键来源待确认）**
+
+| JSON 键 | JSON 值 | C# 落点 | C# 值 | 判定 |
+| --- | --- | --- | --- | --- |
+| `openingHand` | 5 | `MatchSetup.cs:47` `OpeningHandSize` | 5 | ✓ |
+| `drawPerTurn` | 1 | `StartPhaseHandler.cs:35`（`… ? 2 : 1` 的 `1` 分支） | 1 | ✓ |
+| `secondPlayerBonusDraw` | 1 | `StartPhaseHandler.cs:35`（`PlayerIndex == 1 && Turn.Number == 2` 时取 `2`） | 1 | ✓ |
+| `handLimit` | 8 | `MatchRules.cs:10` | 8 | ✓ |
+| `reshuffleLoseAt` | 10 | `GameState.cs:20` `_reshuffleLossThreshold` | 10 | ✓ |
+| `chainLimit` | 20 | `PlayCardActionHandler.cs:15` `DefaultChainLimit` | 20 | ✓ |
+| `pioneerOpponentPunishBonus` | 1 | `MatchRules.cs:12`（W4 新增） | 1 | ✓ |
+| `pioneerSelfPunishDiscount` | 0 | `MatchRules.cs:13`（W4 新增） | 0 | ✓ |
+| `pioneerHandLimitBonus` | 2 | `MatchRules.cs:11` | 2 | ✓ |
+| `royalCastleMaxHp` | 75 | `GameState.cs:85` `_castleHealth` | 75 | ✓ |
+| `royalCastleBreakVictoryCount` | 9 | `GameState.cs:21` `_castleBreakVictoryCount` | 9 | ✓ |
+| `deckMin` / `deckMax` | 60 / 80 | **无对照**（`src/` 内 `DeckMin` / `DeckMax` 零命中；`MatchSetup.cs:119-136 ValidateDeck` 只校验统领存在/数量为正/卡 id 已知/牌表里无统领卡，**不含规模上下限**） | — | ✗ |
+| `reshuffleIncludesHand` | false | **无对照**（未与 `Reshuffle` 的手牌处理逐句核对） | — | 未核 |
+| `royalCastleEnabled` | true | `MatchSetup.CastleEnabled`（来源未与该键对照） | 未核 | 未核 |
+
+- **结论**：**F24 在今天不是"取值不一致"，而是"来源不唯一"** —— C# 侧**零处**读取 `data/balance.json`（全树检索 `balance.json` 只命中**注释**：`MatchRules.cs:46`/`:52`、`P0NightShiftTests.cs:18`、`P0PioneerPunishTests.cs:147`），**改该文件对 C# 运行时完全无效**（行为级四臂对照已在 §13.22 实证）；同时 11/11 可对照项**取值恰好相等** ⇒ 分叉在门禁上不可见，属**将来**风险。严重度维持既有判定（流程/单一来源），**但须明确"不是当下行为错误"**。
+- **`deckMin`/`deckMax` 是新增的实质缺口**：C# 引擎确有一处卡组校验（`MatchSetup.cs:119-136 ValidateDeck`），但**只**检查"统领存在且来自 `leaderId`、每项数量 ≥ 1、卡 id 已知、牌表里不得塞统领卡"——**没有 60/80 的规模上下限** ⇒ 组卡合法性目前只由 Java/前端把关；若将来 Unity 侧承担组卡校验，此处为零实现。
+- **`P0PioneerPunishTests.cs:149 ShippedPioneerDefaultsMatchBalanceJson` 仍是假护栏**（不读 JSON，只硬断言 `1/0/2`；当前值与文件一致 —— QA 已单独核对，见上表前两行 pioneer 项）。
+
+**B. 统领特殊胜利条件清单（数据驱动，7 张全部与文档一致）**
+
+| 卡 id | 阵营 | `type` | `leaderDef.winCondition` | `winParam` | 引擎求值点 |
+| --- | --- | --- | --- | --- | --- |
+| `flame_leader` | 烈焰 | MINION | `ROYAL_CASTLE_BREAK` | — | `EffectRuntime.State.cs:212-224`（**被动**：王城被破坏即胜，`RULES.md:137`） |
+| `machine_leader` | 机械 | SPELL | `PULL_TOTAL_GE` | 6 | `EffectRuntime.EndPhase.cs:167`（`player.PullCount`） |
+| `machine_alpha` | 机械 | MINION | `PULL_TOTAL_GE` | 6 | 同上；由地标 tier2 `summon` 入场（`machine.json:27-30`，`:65` 声明条件） |
+| `sea_leader` | 深海 | SPELL | `OPP_DISCARD_TOTAL_GE` | 18 | `EffectRuntime.EndPhase.cs:158` |
+| `wood_leader` | 古木 | SPELL | `GIANT_HEALTH_GE` | 512 | `EffectRuntime.EndPhase.cs:170` |
+| `gate_of_fate` | 无阵营 | AMBUSH | `AMBUSH_TRIGGER_WIN` | — | 伏击路径（见 §13.21 的 P0-2 复核） |
+| `shadow_of_fate` | 无阵营 | MINION | `NONE` | — | 基础胜负（"击败对方统领即获胜"，`RULES.md:95`） |
+
+- **完全符合 owner 的"不要内置写死、各随从首领各有获胜方式"**：条件声明在**卡数据**（`CardCatalog.cs:243-256` 解析 `leaderDef.winCondition`，`:19` 白名单 8 条、`:255` 加载时校验），引擎只提供条件求值器；新增轴不需要改引擎（`EvaluateLeaderWinConditions` 只遍历已声明者，`LeaderWinParam <= 0` 跳过）。
+- **白名单超前实现（非缺陷）**：`OPP_PUNISH_DRAW_TURN_GE`（`EndPhase.cs:164`）与 `NO_DAMAGE_TURNS_GE`（`EndPhase.cs:161`）已实现但**无任何卡使用**；按 `RULES.md:109`"未声明即不生效"属无害的候选机制，请 PL 确认是否保留在候选清单（§12）。
+- **逐条对照 owner 本轮定稿**：① "击破王城 = 破城 9 次循环 + 叫出**对方**首领" ↔ `EffectRuntime.State.cs:186-194`（`CycleWinCount = max(…, 9)` + `ForceLeaderOut(defender)`）与 `GameState.cs:20/:21` ✓；② "随从型首领自带胜利条件：王城被破坏" ↔ `flame_leader` 的 `ROYAL_CASTLE_BREAK` + `RULES.md:137` ✓；③ "双方皆随从 ⇒ 主动破城方获胜（不然大家都不打王城）" ↔ `:196-207` + `RULES.md:138` ✓；④ "alpha 改成上传下载、不需要破城" ↔ `machine_leader`/`machine_alpha` 均为 `PULL_TOTAL_GE(6)`、**均无** `ROYAL_CASTLE_BREAK` ✓（数据侧已完成）；⑤ "命运之影先不管" ↔ `shadow_of_fate` = `NONE`，未被改动 ✓。
+
+**C. 破城胜利路径的覆盖清单（并记录一次自查纠正）**
+
+- **自查纠正（本节初稿的假发现）**：初稿据 `Select-String` 在 `src\Engine\Tests` 下对 `ROYAL_CASTLE_BREAK` / `castle_break_minion` 的**零命中**判定"破城两条胜利路径零覆盖"（拟编号 **F37**）。**该判定不成立**：断言里的原因键与条件值大小写不同（用例断言小写 `win.royal_castle_break` / `win.castle_break_minion`，数据值是 `ROYAL_CASTLE_BREAK`），大小写敏感检索漏掉全部命中。逐行复核 `EffectRuntimeTests.cs:541-736` 后确认**破城区域已有 6 条定向用例** ⇒ **F37 撤回，未随本报告落盘、未投递邮箱**（本次仅留纠正记录）。
+- 实际覆盖（`src\Engine\Tests\EffectRuntimeTests.cs`）：
+
+| 用例 | 行 | 覆盖的规则 |
+| --- | --- | --- |
+| `DamageCastleOnlyWorksWhenEnabled` | `:542` | `CastleEnabled` 门：开启时 7 点伤害 ⇒ `CastleHealth 68` |
+| `BreakingCastleAppliesCountdownForcesLeaderAndChecksCastleVictory` | `:551` | 破城 ⇒ 破城方 `CycleWinCount == 9`（:583）、对方 `DamagedThisCycle`、`ForceLeaderOut`（:586-587）、`grantLife` + `LeaderEnterEffects`（Life 12）、持有 `ROYAL_CASTLE_BREAK` 的**破城方胜**（:589-590）、事件序 `CASTLE_DAMAGED < CASTLE_BROKEN < LEADER_MANIFESTED < GAME_WON`（:591-600） |
+| `BreakingCastleWithActiveMinionLeadersGivesBreakerPriority` | `:604` | **双方皆随从型 ⇒ 主动破城方胜**、`reason = win.castle_break_minion`（owner"不然大家都不打王城了"，`RULES.md:138`） |
+| `BreakingCastleRoyalConditionCanAwardActiveDefender` | `:644` | **防守方**持有该条件 ⇒ 防守方被动胜、`reason = win.royal_castle_break`（`RULES.md:137`） |
+| `BreakingCastleIgnoresHiddenRoyalLeader` | `:677` | 只认在场统领：条件持有者仍在牌库 ⇒ 无胜者（:710-711 双 `Null`） |
+| `BreakingCastleDoesNotLowerCountOrRepeatBreakResolution` | `:717` | 计次只升不降（`CycleWinCount` 12 保持）且 `CASTLE_BROKEN` 只发一次 |
+
+- 数据侧另有锁：`DataLoaderTests.cs:30` 断言 `flame_leader.LeaderWinCondition == "ROYAL_CASTLE_BREAK"`、`machine_alpha.LeaderWinCondition == "PULL_TOTAL_GE"` / `LeaderWinParam == 6`、地标 tier2 `SummonCardId == "machine_alpha"`；投影与游标侧 `RuntimeOutcomeProjectionTests.cs:78/:168`、`RuntimeEventCursorTests.cs:72-112` 覆盖 `reasonKey` 透出（共 8 处引用）。
+- **唯一未覆盖的组合**：**双方同时声明 `ROYAL_CASTLE_BREAK`** ⇒ 恰是 **F18**（`State.cs:214-217` 现返回"无人获胜"）要改的场景；Codex 落地 F18 时**必须**同时补这条用例（与 §14 的 F17 行"补一格覆盖用例"是同一格），期望裁决请以 owner 定稿的"主动破城方优先"为准。
+
+**D. 结论**
+
+- **未发现实现缺陷**：`data/balance.json` 取值无冲突、统领胜利条件与 `RULES.md` 逐条一致、破城结算（9 次循环 + 10 次判负 + 叫出对方首领 + 主动破城优先）全部落地且**各有定向用例**（§13.31.C）。**本轮无新增缺陷编号**；F24 细化（3 个无对照键）与统领清单随本轮邮箱投递给 Codex。
+- 唯一待补的覆盖格（双方同时声明 `ROYAL_CASTLE_BREAK` 的裁决）随 **F18** 的修复一并落地，期望方向已按上节写明。
+
+---
 ---
 
-— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19 / 破城胜利分歧与采样缺陷追加 2026-09-11 00:26 / **定稿复核：F17 撤回、F18 维持（§13.17）、`BALANCE.md` 陈旧基线 F21（§13.18）追加 2026-09-11 00:34** / **读数复现校验 + F21 范围更正（"部分失效"）+ F19 转纯文本改写 2026-09-11 00:36** / **提交态 vs 工作树独立重建对比、新增 F22（1 402 行未提交代码）2026-09-11 00:44** / **独立复现 PL 的 10 080 局 C# 权威实测（14/14 配置、逐字段 0 差异）+ 新增 F23（§13.20）2026-09-11 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27（§13.21）2026-09-11 01:0x** / **F24 行为级实证：改该文件对 C# 输出零影响、改一张卡即变（四臂对照含阳性对照，§13.22）2026-09-11 01:2x** / **P0-3 残留探针（仓库外 S1–S7：批内延迟死亡机制成立但当前不可达）+ 新发现 F28（canonical v1.31 投影发布负 `currentHealth`、违反自身 schema）§13.23 2026-09-11 01:2x** / **写入者归因复核：本次写入归因 harness（`dsh web`）而非 Codex；并列证 1 402 行 WIP 已冻结（快照 SHA256 未变，§13.24）2026-09-11 01:3x** / **owner 四条破城/下载轴决定落地核查（C# 侧 63/63 定向用例守护、F7 可达性上修、F18 括注收紧、决策台账 4a 过时更正）+ §0 `sea.json` 基线漂移定位（§13.25）2026-09-11 01:5x** / **F7 与 `RULES.md` 文本提案投递邮箱（提交 `1024a5f`）2026-09-11 01:5x** / **合并候选独立再验证（Java 59/59 + `SimMain 300` 两次运行 SHA256 一致 = 完全确定性；C# 603/603）+ 新增 F29（编译路径上的未跟踪 C# AI 策略）/F30（§13.26–§13.28）2026-09-11 01:5x** / **F29 投递邮箱（提交 `3d83fe5`）+ 工作树清点计数更正 17→19 并只读核验 PL 两份未提交文档的数据前提（`wood.json` 10 处 `ADD_ROOT`、`data/` 干净）2026-09-11 02:0x** / **夜班波次归因收口（"Codex 诈尸"= harness `dsh web` 夜班子代理在执行 PL 的 `PL_NIGHT_SHIFT_2026-09-11.md` W1/W2）+ W1/W2 独立验收（隔离副本法）：C# **615/617**，**2 条失败全在 W1 新测试且属测试作者错误**（P0-1 实现无缺陷）+ W2 的 6 条全绿；新增 F31/F32/F33/F34（§13.29）2026-09-11 02:2x** / **夜班 W4 批次复验（静默确认 02:41:58；修订指纹 `461CE243…`，与仓库 `src/**` 逐文件 SHA256 全等）：C# 全量 **631/631** ⇒ **F34 已闭**；Java `TestMain` 59/59 + `SimMain 300` 逐位确定性（`D950F3B6…`）、`javac` 0 错；新增 **F36**（P2，两条探针 + 沙箱两行修复后 **633/633 零回归**）（§13.30）；**F35 当轮自撤回**（广告值 = 声明值 = 实抽值，夜班 `P0NightShiftTests.cs:160` 已锁定，§13.30.F）2026-09-11 02:5x**
+— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19 / 破城胜利分歧与采样缺陷追加 2026-09-11 00:26 / **定稿复核：F17 撤回、F18 维持（§13.17）、`BALANCE.md` 陈旧基线 F21（§13.18）追加 2026-09-11 00:34** / **读数复现校验 + F21 范围更正（"部分失效"）+ F19 转纯文本改写 2026-09-11 00:36** / **提交态 vs 工作树独立重建对比、新增 F22（1 402 行未提交代码）2026-09-11 00:44** / **独立复现 PL 的 10 080 局 C# 权威实测（14/14 配置、逐字段 0 差异）+ 新增 F23（§13.20）2026-09-11 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27（§13.21）2026-09-11 01:0x** / **F24 行为级实证：改该文件对 C# 输出零影响、改一张卡即变（四臂对照含阳性对照，§13.22）2026-09-11 01:2x** / **P0-3 残留探针（仓库外 S1–S7：批内延迟死亡机制成立但当前不可达）+ 新发现 F28（canonical v1.31 投影发布负 `currentHealth`、违反自身 schema）§13.23 2026-09-11 01:2x** / **写入者归因复核：本次写入归因 harness（`dsh web`）而非 Codex；并列证 1 402 行 WIP 已冻结（快照 SHA256 未变，§13.24）2026-09-11 01:3x** / **owner 四条破城/下载轴决定落地核查（C# 侧 63/63 定向用例守护、F7 可达性上修、F18 括注收紧、决策台账 4a 过时更正）+ §0 `sea.json` 基线漂移定位（§13.25）2026-09-11 01:5x** / **F7 与 `RULES.md` 文本提案投递邮箱（提交 `1024a5f`）2026-09-11 01:5x** / **合并候选独立再验证（Java 59/59 + `SimMain 300` 两次运行 SHA256 一致 = 完全确定性；C# 603/603）+ 新增 F29（编译路径上的未跟踪 C# AI 策略）/F30（§13.26–§13.28）2026-09-11 01:5x** / **F29 投递邮箱（提交 `3d83fe5`）+ 工作树清点计数更正 17→19 并只读核验 PL 两份未提交文档的数据前提（`wood.json` 10 处 `ADD_ROOT`、`data/` 干净）2026-09-11 02:0x** / **夜班波次归因收口（"Codex 诈尸"= harness `dsh web` 夜班子代理在执行 PL 的 `PL_NIGHT_SHIFT_2026-09-11.md` W1/W2）+ W1/W2 独立验收（隔离副本法）：C# **615/617**，**2 条失败全在 W1 新测试且属测试作者错误**（P0-1 实现无缺陷）+ W2 的 6 条全绿；新增 F31/F32/F33/F34（§13.29）2026-09-11 02:2x** / **夜班 W4 批次复验（静默确认 02:41:58；修订指纹 `461CE243…`，与仓库 `src/**` 逐文件 SHA256 全等）：C# 全量 **631/631** ⇒ **F34 已闭**；Java `TestMain` 59/59 + `SimMain 300` 逐位确定性（`D950F3B6…`）、`javac` 0 错；新增 **F36**（P2，两条探针 + 沙箱两行修复后 **633/633 零回归**）（§13.30）；**F35 当轮自撤回**（广告值 = 声明值 = 实抽值，夜班 `P0NightShiftTests.cs:160` 已锁定，§13.30.F）2026-09-11 02:5x** / **规则参数与胜利条件落地核对：`data/balance.json` 15 键中 11 键有 C# 对照且逐键取值相等、3 键无对照（F24 细化为"静默分叉风险"）；7 张统领卡特殊胜利条件全部数据驱动且与 `RULES.md` 逐条一致；**并自查撤回一次假发现**（据大小写敏感检索误判"破城胜利零覆盖"，实为 `EffectRuntimeTests.cs:541-736` 的 6 条定向用例，未落盘、未投递）2026-09-11 03:0x（§13.31）**
