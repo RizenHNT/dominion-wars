@@ -1354,4 +1354,13 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 
 **E. 环境**：本轮**只读核对，未改任何生产/测试代码**；修订指纹与上一批相同（`461CE243874261EB90294FEEE9CB2777FD984C5CC1143D4F3F2537D268DAC0EA`，= `src/**` 403 个文件按 `FullName` 排序、以 `CRLF` 连接、**末尾再附一个 `CRLF`** 后的字节 SHA256；`Compare-Object` 与上一批 403 行清单**逐行全等**、最新 mtime 仍为 `02:38:45` ⇒ `src/**` 零写入），C# 全量 **631/631**。
 
-— QA（DeepSeek）· 2026-09-11 03:0x
+**F. 契约版本源核对（03:3x 追加）—— 一条对 Codex 的**修复硬约束**、一条 P3 文档项、一条请 PL 转达前端的提示**
+
+1. **⚠️ F32 修复的硬约束（请先读这条）**：修"注入惩罚响应策略"时**不得新增 `ACTIVATE_PUNISH` 动作类型**。运行时**刻意**把 `CHOOSE_TARGET` / `ACTIVATE_PUNISH` / `USE_LEADER_ABILITY` 排除在动作词表外，并由 `ContractBoundaryTests.cs:72` 的 `Is.EquivalentTo` **全等断言**锁死（词表定义 `:56-76`，共 8 项）；**惩罚激活的既有 canonical 通道是 `PLAY_CARD` + `payload["punish"]`**——`LegalActionGeneratorTests.cs:174 PunishCardUsesCanonicalPlayActionInsteadOfUnsupportedTransportType`（`:184` 断言动作列表无 `ACTIVATE_PUNISH`、`:185` 断言 `.Payload["punish"] == 2`），另有 `:190 LeaderAbilityIsNotAdvertisedInMvp`。⇒ 策略注入只应改变"**是否激活 / 激活哪个载荷**"，**不应改词表**。若确实需要新动作类型，属**契约变更** ⇒ 须 owner/PL 决定，并同步 v1.31 契约 + `ContractBoundaryTests.cs:58-68` 期望表（跨端：Java/Web 共用同一词表）。
+2. **F38（P3，新增，文档/真源，不需改行为）**：
+   - `docs/DESIGN.md` 全文**零** `runtime-kit` 字样、只描述 Java/Swing（无 Unity、无适配层、无 v1.31 契约），却是流程里指定的"**已实现架构**"真源 ⇒ 建议纯文档更新（补版本引用 + Unity/适配层一节），**不得据此改任何行为**。
+   - 3 个脚本仍引用**已冻结**的 v1.30 目录：`scripts/sanity_check_v2.py:205`/`:219`、`scripts/audit-workflow-state.ps1:9`、`scripts/validate-design-manifest.ps1:6`。其中 `sanity_check_v2.py:205-222` 对 v1.30 **只 `os.listdir` + 数 P0–P3 行数、完全不解析 schema** ⇒ 属**陈旧引用、不产生假绿**（优先级低，下次触碰时顺带更正即可）。
+   - 参照事实（**非缺陷、不是待办**）：`design/runtime-kit-v1.31/contracts/README_FIRST.md:14` 明示 v1.31 = canonical-current、`design/runtime-kit-v1.30/` = 历史基线；`RUNTIME_CONTRACT_1.31.md:26` 规定 1.30 schema **冻结不改**。实测两版动作词表差 3 名：v1.30 = 7 项（含 `CHOOSE_TARGET`）、v1.31 = 8 项（含 `COMMIT`/`PULL`）⇒ **是设计结果**，不要"同步"两版枚举。
+3. **请 PL 转达 owner / GPT Web（P3，前端提示，不是 Codex 待办）**：前端若按 **v1.30** 的 `game_action.schema.json` 枚举实现交互，会做出**永不触发**的 `CHOOSE_TARGET`，并**漏掉 `COMMIT`/`PULL`** —— `PULL` 正是 owner 本轮定的"上传/下载"轴 ⇒ **请以 v1.31 为准**。附带信息：`src/Engine/Localization/Resources.cs:26` 的 `action.activate_punish`（及同类 `action.use_leader_ability`）**无运行时动作对应**（MVP 排除/保留键）；`web/app.js` 自带内联文案表、**未**引用这两个键（全仓 `activate_punish` 仅命中 `Resources.cs:26` 与上面两条测试断言）⇒ **当前无死按钮**。
+
+— QA（DeepSeek）· 2026-09-11 03:0x / **契约版本源核对追加 2026-09-11 03:3x**
