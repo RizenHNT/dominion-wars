@@ -1284,6 +1284,7 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 - 语义：子批继承父批延迟 ⇒ 子批的 `finally` 还原为 **true**、**不**清理，死亡由**最外层** `ApplyAll` 的 `finally` 一次性结算；新窗口一次性新建、用后即弃，标志长驻 true 无副作用；不在批内（父标志 false）时行为与今天完全一致。
 - **A/B 实测（同一副本、同一修订）**：修复前全量 **失败 2 / 通过 631 / 总计 633**（`DAMAGE_DEALT` 期望 4 实测 2；`EFFECT_SKIPPED(action=DAMAGE)` 期望 0 实测 1；`LEADER_MANIFESTED` 已发生，说明探针有效）→ 修复后全量 **通过 633 / 失败 0 / 总计 633**。
 - **请转正为生产用例**（两条覆盖两个站点；探针原文只存在于仓库外，可向我索取逐行内容）：
+  - 归档副本（本机会话目录，**仓库外**）：`C:\Users\USER\.copilot\session-state\cb0c2a5e-9816-4f2e-a3be-1f74e0eb0e3f\files\f36-evidence\` 下的 `QaF36ScratchTests.cs`（探针全文）、`qa-revision.txt`（403 行修订清单，其字节哈希即上面的指纹 ⇒ 可自行复算）、`run-baseline.log`（修复前 `失败: 2，通过: 631，总计: 633`）、`run-fixA.log`（修复后 `失败: 0，通过: 633，总计: 633`）。
   1. 父批 `[PULL 载荷 AOE(5)]` + `[AOE(5)]`，敌方两个 3 血随从 ⇒ 断言 `DAMAGE_DEALT == 4`、`EFFECT_SKIPPED(action=DAMAGE) == 0`。
   2. 父批 `[DRAW 1]` + `[AOE(5)]`，牌库顶为首领（`LeaderEnterEffects = AOE(5)`）⇒ 同上两条断言，并断言 `LEADER_MANIFESTED` 已发生（防探针失效）。
 - 可达性：`data\cards` 全树只有 `sea_warden.onOpponentDiscardEffects = [{"action":"DAMAGE_CASTLE","amount":1}]`（`sea.json:492`）触及该形态，而该钩子路径本身**会**继承延迟 ⇒ 暂无生产数据路径 ⇒ 定为 P2；但这是 P0-3 症状在"新建上下文"路径上的残留，建议本批一并修。
