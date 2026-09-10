@@ -73,6 +73,21 @@ public sealed class RuntimeCardSnapshot
     /// </summary>
     [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
     public int? CurrentHealth { get; set; }
+
+    /// <summary>
+    /// Remaining end phases for an active chant. It is optional so old
+    /// snapshots and cards without an active chant remain wire-compatible;
+    /// null means that no active countdown was projected, not zero.
+    /// </summary>
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public int? ChantRemaining { get; set; }
+
+    /// <summary>
+    /// Authoritative public pull progress for a landmark. It is optional so
+    /// ordinary cards do not acquire a meaningless progress field.
+    /// </summary>
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public int? LandmarkPullCount { get; set; }
 }
 
 public sealed class RuntimeCastleSnapshot

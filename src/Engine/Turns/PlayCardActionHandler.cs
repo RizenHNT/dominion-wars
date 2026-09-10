@@ -205,6 +205,14 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
                 "player", player.PlayerIndex,
                 "count", preparation.Discards.Count,
                 "reasonKey", "rule.punish_converted"));
+            new EffectRuntime(state).TriggerOpponentDiscardEffects(
+                player.PlayerIndex,
+                preparation.Discards.Count,
+                new EffectContext(player.PlayerIndex, rootEventId));
+            if (state.WinnerPlayerIndex.HasValue)
+            {
+                return;
+            }
         }
         else if (preparation.Fizzle)
         {
@@ -334,6 +342,32 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// Reuses the normal punish-draw response chain for a mechanical
+    /// lifecycle action. COMMIT and PULL are not card plays, but their
+    /// lifecycle punishment still uses the same authoritative draw/response
+    /// semantics and chain limit.
+    /// </summary>
+    internal bool ResolveLifecyclePunish(
+        GameState state,
+        int actorPlayerIndex,
+        int amount,
+        long rootEventId)
+    {
+        if (amount <= 0)
+        {
+            return !state.WinnerPlayerIndex.HasValue;
+        }
+
+        var opponent = state.GetOpponent(actorPlayerIndex);
+        var drawn = new EffectRuntime(state).DrawForPunish(
+            opponent.PlayerIndex,
+            amount,
+            rootEventId);
+        ResolvePunishResponses(state, drawn, rootEventId, 1);
+        return !state.WinnerPlayerIndex.HasValue;
     }
 
     private static CardInstance? FindInHand(PlayerState player, long instanceId)

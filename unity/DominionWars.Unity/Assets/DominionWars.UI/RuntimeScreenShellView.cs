@@ -44,6 +44,7 @@ public sealed class RuntimeScreenShellView
     public UnityEngine.UI.Button MainMenuBackButton { get; private set; }
     public UnityEngine.UI.Button MatchSetupStartButton { get; private set; }
     public UnityEngine.UI.Button MatchSetupBackButton { get; private set; }
+    public UnityEngine.UI.Toggle MatchSetupCpuToggle { get; private set; }
     public UnityEngine.UI.Button BattleLoadingBackButton { get; private set; }
     public UnityEngine.UI.Button ResultRestartButton { get; private set; }
     public UnityEngine.UI.Button ResultReturnToMenuButton { get; private set; }
@@ -104,11 +105,16 @@ public sealed class RuntimeScreenShellView
         var player1Heading = CreateText(view.MatchSetupRoot, "MatchSetupPlayer1Heading", "PLAYER 2 DECK", 16, new Color(0.98f, 0.70f, 0.33f));
         SetCenteredRect(player1Heading.rectTransform, new Vector2(480f, 101f), new Vector2(740f, 28f));
         player1Heading.fontStyle = FontStyle.Bold;
+        view.MatchSetupCpuToggle = view.CreateToggle(
+            view.MatchSetupRoot,
+            "MatchSetupCpuToggle",
+            "PLAYER 2: CPU",
+            new Vector2(0f, -198f));
         view.MatchSetupErrorText = CreateText(view.MatchSetupRoot, "MatchSetupError", string.Empty, 14, new Color(1f, 0.48f, 0.43f));
-        SetCenteredRect(view.MatchSetupErrorText.rectTransform, new Vector2(0f, -222f), new Vector2(1320f, 28f));
+        SetCenteredRect(view.MatchSetupErrorText.rectTransform, new Vector2(0f, -244f), new Vector2(1320f, 28f));
 
-        view.MatchSetupStartButton = view.CreateButton(view.MatchSetupRoot, "MatchSetupStartButton", "START MATCH", -285f);
-        view.MatchSetupBackButton = view.CreateButton(view.MatchSetupRoot, "MatchSetupBackButton", "BACK", -370f);
+        view.MatchSetupStartButton = view.CreateButton(view.MatchSetupRoot, "MatchSetupStartButton", "START MATCH", -304f);
+        view.MatchSetupBackButton = view.CreateButton(view.MatchSetupRoot, "MatchSetupBackButton", "BACK", -389f);
 
         view.ResultWinnerText = CreateText(view.ResultRoot, "ResultWinnerPlayerIndex", string.Empty, 20, Color.white);
         SetCenteredRect(view.ResultWinnerText.rectTransform, new Vector2(0f, 92f), new Vector2(820f, 40f));
@@ -211,18 +217,34 @@ public sealed class RuntimeScreenShellView
             MatchSetupErrorText.text = string.IsNullOrWhiteSpace(message) ? string.Empty : message;
     }
 
+    public void SetMatchSetupCpuOpponent(bool enabled)
+    {
+        if (MatchSetupCpuToggle != null && MatchSetupCpuToggle.isOn != enabled)
+            MatchSetupCpuToggle.SetIsOnWithoutNotify(enabled);
+    }
+
     /// <summary>
     /// Displays the authoritative terminal fields without localizing,
     /// interpreting, or deriving an outcome in the shell.
     /// </summary>
     public void SetResultOutcome(int winnerPlayerIndex, string reasonKey)
     {
+        SetResultOutcome(winnerPlayerIndex, reasonKey, "MATCH COMPLETE");
+    }
+
+    public void SetResultOutcome(
+        int winnerPlayerIndex,
+        string reasonKey,
+        string reasonText)
+    {
         if (ResultWinnerText != null)
             ResultWinnerText.text = winnerPlayerIndex is 0 or 1
                 ? "PLAYER " + (winnerPlayerIndex + 1).ToString(CultureInfo.InvariantCulture) + " WINS"
                 : "MATCH COMPLETE";
         if (ResultReasonText != null)
-            ResultReasonText.text = "MATCH COMPLETE";
+            ResultReasonText.text = string.IsNullOrWhiteSpace(reasonText)
+                ? "MATCH COMPLETE"
+                : reasonText;
         DebugResultOutcome = winnerPlayerIndex.ToString(CultureInfo.InvariantCulture) +
             " | " + (reasonKey ?? string.Empty);
     }
@@ -324,6 +346,51 @@ public sealed class RuntimeScreenShellView
         return button;
     }
 
+    private UnityEngine.UI.Toggle CreateToggle(
+        RectTransform parent,
+        string objectName,
+        string label,
+        Vector2 position)
+    {
+        var toggleObject = new GameObject(
+            objectName,
+            typeof(RectTransform),
+            typeof(UnityEngine.UI.Image),
+            typeof(UnityEngine.UI.Toggle));
+        toggleObject.transform.SetParent(parent, false);
+        var rect = toggleObject.GetComponent<RectTransform>();
+        SetCenteredRect(rect, position, new Vector2(360f, 42f));
+
+        var background = toggleObject.GetComponent<UnityEngine.UI.Image>();
+        background.color = new Color(0.16f, 0.18f, 0.20f, 1f);
+        background.raycastTarget = true;
+
+        var checkmarkObject = new GameObject("Checkmark", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        checkmarkObject.transform.SetParent(toggleObject.transform, false);
+        var checkmarkRect = checkmarkObject.GetComponent<RectTransform>();
+        checkmarkRect.anchorMin = new Vector2(0f, 0.5f);
+        checkmarkRect.anchorMax = new Vector2(0f, 0.5f);
+        checkmarkRect.pivot = new Vector2(0f, 0.5f);
+        checkmarkRect.anchoredPosition = new Vector2(12f, 0f);
+        checkmarkRect.sizeDelta = new Vector2(20f, 20f);
+        var checkmark = checkmarkObject.GetComponent<UnityEngine.UI.Image>();
+        checkmark.color = new Color(0.45f, 0.86f, 0.92f, 1f);
+        checkmark.raycastTarget = false;
+
+        var text = CreateText(rect, "Label", label, 16, Color.white);
+        text.alignment = TextAnchor.MiddleLeft;
+        text.rectTransform.anchorMin = new Vector2(0f, 0f);
+        text.rectTransform.anchorMax = new Vector2(1f, 1f);
+        text.rectTransform.offsetMin = new Vector2(44f, 0f);
+        text.rectTransform.offsetMax = new Vector2(-12f, 0f);
+
+        var toggle = toggleObject.GetComponent<UnityEngine.UI.Toggle>();
+        toggle.targetGraphic = background;
+        toggle.graphic = checkmark;
+        toggle.isOn = false;
+        return toggle;
+    }
+
     private void UpdateDeckOptionLabels(
         IReadOnlyList<RuntimeDeckOption> options,
         string selectedPlayer0DeckId,
@@ -354,8 +421,13 @@ public sealed class RuntimeScreenShellView
         var label = button.GetComponentInChildren<UnityEngine.UI.Text>(true);
         if (label == null) return;
         label.fontSize = 14;
-        label.text = (selected ? "✓ " : "  ") + option.DisplayName +
+        var text = (selected ? "✓ " : "  ") + option.DisplayName +
             "\n" + option.Faction;
+        if (!string.IsNullOrWhiteSpace(option.LeaderDisplayName))
+            text += "\n统领 " + option.LeaderDisplayName;
+        if (!string.IsNullOrWhiteSpace(option.LeaderWinText))
+            text += "\n目标 " + option.LeaderWinText;
+        label.text = text;
     }
 
     private void ClearGeneratedDeckOptions()
@@ -383,7 +455,9 @@ public sealed class RuntimeScreenShellView
         {
             var option = options[index];
             if (option == null) continue;
-            signature += option.Id + "|" + option.DisplayName + "|" + option.Faction + "|" + option.Leader + ";";
+            signature += option.Id + "|" + option.DisplayName + "|" + option.Faction +
+                "|" + option.Leader + "|" + option.LeaderDisplayName +
+                "|" + option.LeaderWinText + ";";
         }
 
         return signature;

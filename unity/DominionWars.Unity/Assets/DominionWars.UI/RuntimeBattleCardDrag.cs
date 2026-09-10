@@ -41,6 +41,7 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
     private bool _dropAccepted;
     private bool _retired;
     private bool _diagnosticDragLogged;
+    private RuntimeAttackDragArrow? _attackDragArrow;
 
     // Opt-in diagnostics for foreground input investigations. The flag is
     // false by default so ordinary editor sessions and development players do
@@ -87,6 +88,7 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         var canvasGroup = EnsureCanvasGroup();
         canvasGroup.alpha = 1f;
         canvasGroup.blocksRaycasts = true;
+        EnsureAttackDragArrow().Configure(canvas);
     }
 
     public bool HasInteractableAction()
@@ -95,6 +97,25 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         for (var index = 0; index < _actions.Count; index++)
         {
             if (RuntimeBattlePanelActionModel.Evaluate(_actions[index]).Interactable) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true only when the current advertisement contains an
+    /// interactable, targeted ATTACK. The arrow is presentation-only and is
+    /// never shown for an unadvertised or no-target action.
+    /// </summary>
+    internal bool HasTargetedAttackAction()
+    {
+        if (_retired) return false;
+        for (var index = 0; index < _actions.Count; index++)
+        {
+            var action = _actions[index];
+            if (action == null || action.TargetId == null ||
+                !string.Equals(action.Type, "ATTACK", StringComparison.Ordinal))
+                continue;
+            if (RuntimeBattlePanelActionModel.Evaluate(action).Interactable) return true;
         }
         return false;
     }
@@ -211,6 +232,7 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         _originalLocalPosition = transform.localPosition;
         _originalLocalRotation = transform.localRotation;
         _originalScale = transform.localScale;
+        EnsureAttackDragArrow().Begin(eventData);
         if (_canvas != null) transform.SetParent(_canvas.transform, true);
 
         _useCanvasCoordinates = TryGetCanvasPointerLocal(eventData, out var pointerLocal);
@@ -259,11 +281,13 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
             var localPosition = pointerLocal + _pointerOffset + Vector2.up * DragLift;
             var currentLocal = transform.localPosition;
             transform.localPosition = new Vector3(localPosition.x, localPosition.y, currentLocal.z);
+            UpdateAttackDragArrow(eventData);
             return;
         }
 
         var screenPosition = eventData.position + _screenPointerOffset + Vector2.up * DragLift;
         transform.position = new Vector3(screenPosition.x, screenPosition.y, transform.position.z);
+        UpdateAttackDragArrow(eventData);
     }
 
     public void OnEndDrag(PointerEventData eventData)
@@ -295,56 +319,11 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
 
     private void TrySubmitForReleasePosition(PointerEventData eventData)
     {
-        if (eventData == null) return;
-
-        // A normal player release has an active EventSystem, but edit-mode
-        // fixtures and a few host hand-offs can reach EndDrag with only the
-        // PointerEventData instance available. Keep the raycast pass optional;
-        // the registered-zone geometry pass below is the authoritative
-        // recovery path and must not be skipped merely because the global
-        // EventSystem.current reference is temporarily null.
-        if (EventSystem.current != null)
-        {
-            var raycastResults = new List<RaycastResult>();
-            EventSystem.current.RaycastAll(eventData, raycastResults);
-            RuntimeBattleCardDrag.DragDiagnostic(
-                "Release raycast object=" + gameObject.name +
-                " pointer=" + eventData.position +
-                " results=" + raycastResults.Count);
-            for (var resultIndex = 0; resultIndex < raycastResults.Count; resultIndex++)
-            {
-                var resultObject = raycastResults[resultIndex].gameObject;
-                if (resultObject == null) continue;
-
-                DragDiagnostic("Release hit=" + resultObject.name);
-
-                var zones = resultObject.GetComponentsInParent<RuntimeBattleDropZone>(true);
-                for (var zoneIndex = 0; zoneIndex < zones.Length; zoneIndex++)
-                {
-                    var zone = zones[zoneIndex];
-                    if (zone == null || !zone.CanReceiveRelease(this)) continue;
-                    DragDiagnostic(
-                        "Release zone=" + zone.gameObject.name +
-                        " target=" + RuntimeBattlePanelActionModel.FormatWireValue(zone.TargetId) +
-                        " action=" + zone.ActionId +
-                        " type=" + zone.ActionType);
-                    if (TrySubmitForTarget(zone.TargetId, zone.ActionId, zone.ActionType)) return;
-                }
-            }
-        }
-
-        // A dragged card can be reparented to the top-level Canvas and have
-        // its CanvasGroup raycast state changed between the pointer module's
-        // release and EndDrag callback. In that frame Unity's GraphicRaycaster
-        // may return no result even though the pointer is inside a visible
-        // semantic target. Check only registered, active drop zones and keep
-        // the same exact wire identity checks used by OnDrop.
-        RuntimeBattleDropZone.TrySubmitAtScreenPosition(this, eventData);
-        DragDiagnostic(
-            "Release geometry fallback completed object=" + gameObject.name +
-            " pointer=" + eventData.position +
-            " dragging=" + _dragging +
-            " retired=" + _retired);
+        // The EventSystem writes the release hit to PointerEventData before it
+        // dispatches IDropHandler and IEndDragHandler. Keep that canonical hit
+        // first: a fresh raycast during EndDrag can differ after the drag source
+        // has been reparented and its CanvasGroup has stopped raycasting.
+        RuntimeBattleDropZone.TrySubmitForRelease(this, eventData);
     }
 
     internal void RejectDrop()
@@ -362,6 +341,7 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
             " source=" + action.SourceId +
             " target=" + RuntimeBattlePanelActionModel.FormatWireValue(action.TargetId));
         _dropAccepted = true;
+        EnsureAttackDragArrow().End();
         if (_dragging) RuntimeBattleDropZone.NotifyDragEnded(this);
         _dragging = false;
         RestoreButtonsAfterDrag();
@@ -385,6 +365,7 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         // Keep the fallback suppressed for this frame so releasing a drag
         // cannot also click the card's ordinary action.
         _suppressClickUntilFrame = Time.frameCount;
+        EnsureAttackDragArrow().End();
         RuntimeBattleDropZone.NotifyDragEnded(this);
         if (!_dropAccepted) RestoreOriginalTransform();
         RestoreButtonsAfterDrag();
@@ -545,6 +526,26 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         if (_canvasGroup == null) _canvasGroup = gameObject.AddComponent<CanvasGroup>();
         return _canvasGroup;
     }
+
+    private RuntimeAttackDragArrow EnsureAttackDragArrow()
+    {
+        if (_attackDragArrow == null)
+        {
+            _attackDragArrow = GetComponent<RuntimeAttackDragArrow>();
+            if (_attackDragArrow == null)
+                _attackDragArrow = gameObject.AddComponent<RuntimeAttackDragArrow>();
+            _attackDragArrow.Bind(this);
+        }
+        return _attackDragArrow;
+    }
+
+    private void UpdateAttackDragArrow(PointerEventData eventData)
+    {
+        if (_attackDragArrow == null || !_attackDragArrow.IsVisible) return;
+        _attackDragArrow.UpdatePointer(
+            eventData,
+            RuntimeBattleDropZone.IsLegalTargetAt(this, eventData));
+    }
 }
 
 /// <summary>
@@ -642,8 +643,7 @@ public sealed class RuntimeBattleDropZone : MonoBehaviour, IDropHandler, IPointe
             " canReceive=" + (drag != null && CanReceiveRelease(drag)) +
             " target=" + RuntimeBattlePanelActionModel.FormatWireValue(_targetId) +
             " action=" + _actionId);
-        if (drag == null || !CanReceiveRelease(drag) || !drag.IsDragging ||
-            !drag.TrySubmitForTarget(_targetId, _actionId, _actionType))
+        if (drag == null || !TrySubmitForZone(this, drag))
             drag?.RejectDrop();
         SetHighlighted(false);
     }
@@ -678,7 +678,132 @@ public sealed class RuntimeBattleDropZone : MonoBehaviour, IDropHandler, IPointe
         }
     }
 
-    internal static bool TrySubmitAtScreenPosition(
+    /// <summary>
+    /// Tests the current pointer location against registered zones without
+    /// submitting anything. This is used only to tint the attack arrow; the
+    /// release path below performs the same exact advertised-action checks
+    /// before it can submit.
+    /// </summary>
+    internal static bool IsLegalTargetAt(
+        RuntimeBattleCardDrag drag,
+        PointerEventData eventData)
+    {
+        if (drag == null || eventData == null || !drag.IsDragging) return false;
+
+        var visitedHits = new HashSet<int>();
+        if (IsLegalHit(drag, eventData.pointerCurrentRaycast.gameObject, visitedHits)) return true;
+        if (IsLegalHit(drag, eventData.pointerEnter, visitedHits)) return true;
+
+        if (EventSystem.current != null)
+        {
+            var raycastResults = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(eventData, raycastResults);
+            for (var resultIndex = 0; resultIndex < raycastResults.Count; resultIndex++)
+            {
+                if (IsLegalHit(drag, raycastResults[resultIndex].gameObject, visitedHits))
+                    return true;
+            }
+        }
+
+        var eventCamera = eventData.pressEventCamera ?? eventData.enterEventCamera;
+        for (var index = ActiveZones.Count - 1; index >= 0; index--)
+        {
+            var zone = ActiveZones[index];
+            if (zone == null)
+            {
+                ActiveZones.RemoveAt(index);
+                continue;
+            }
+            var rectTransform = zone.transform as RectTransform;
+            if (rectTransform == null || !zone.CanReceiveRelease(drag) ||
+                !RectTransformUtility.RectangleContainsScreenPoint(
+                    rectTransform,
+                    eventData.position,
+                    eventCamera))
+                continue;
+            if (drag.CanAccept(zone.TargetId, zone.ActionId, zone.ActionType)) return true;
+        }
+        return false;
+    }
+
+    private static bool IsLegalHit(
+        RuntimeBattleCardDrag drag,
+        GameObject hitObject,
+        HashSet<int> visitedHits)
+    {
+        if (hitObject == null || !visitedHits.Add(hitObject.GetInstanceID())) return false;
+        var zones = hitObject.GetComponentsInParent<RuntimeBattleDropZone>(true);
+        for (var zoneIndex = 0; zoneIndex < zones.Length; zoneIndex++)
+        {
+            var zone = zones[zoneIndex];
+            if (zone == null || !zone.CanReceiveRelease(drag)) continue;
+            if (drag.CanAccept(zone.TargetId, zone.ActionId, zone.ActionType)) return true;
+        }
+        return false;
+    }
+
+    internal static bool TrySubmitForRelease(
+        RuntimeBattleCardDrag drag,
+        PointerEventData eventData)
+    {
+        if (drag == null || eventData == null) return false;
+
+        var visitedHits = new HashSet<int>();
+        var currentHit = eventData.pointerCurrentRaycast.gameObject;
+        if (TrySubmitForHit(drag, currentHit, visitedHits)) return true;
+        if (TrySubmitForHit(drag, eventData.pointerEnter, visitedHits)) return true;
+
+        // A normal player release has an active EventSystem, but a host handoff
+        // can reach EndDrag with only PointerEventData available. The canonical
+        // hit above is authoritative; this fresh pass only fills a missing hit.
+        if (EventSystem.current != null)
+        {
+            var raycastResults = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(eventData, raycastResults);
+            for (var resultIndex = 0; resultIndex < raycastResults.Count; resultIndex++)
+            {
+                if (TrySubmitForHit(
+                    drag,
+                    raycastResults[resultIndex].gameObject,
+                    visitedHits))
+                    return true;
+            }
+        }
+
+        // A dragged card can be reparented to the top-level Canvas and have
+        // its CanvasGroup raycast state changed between release and EndDrag.
+        // Check only registered active zones and retain the exact wire identity
+        // checks used by OnDrop.
+        return TrySubmitAtScreenPosition(drag, eventData);
+    }
+
+    private static bool TrySubmitForHit(
+        RuntimeBattleCardDrag drag,
+        GameObject hitObject,
+        HashSet<int> visitedHits)
+    {
+        if (hitObject == null || !visitedHits.Add(hitObject.GetInstanceID())) return false;
+
+        var zones = hitObject.GetComponentsInParent<RuntimeBattleDropZone>(true);
+        for (var zoneIndex = 0; zoneIndex < zones.Length; zoneIndex++)
+        {
+            var zone = zones[zoneIndex];
+            if (zone == null) continue;
+            if (TrySubmitForZone(zone, drag)) return true;
+        }
+        return false;
+    }
+
+    private static bool TrySubmitForZone(
+        RuntimeBattleDropZone zone,
+        RuntimeBattleCardDrag drag)
+    {
+        return zone != null && drag != null && zone.CanReceiveRelease(drag) &&
+            drag.IsDragging &&
+            drag.TrySubmitForTarget(zone.TargetId, zone.ActionId, zone.ActionType);
+    }
+
+    private static bool TrySubmitAtScreenPosition(
         RuntimeBattleCardDrag drag,
         PointerEventData eventData)
     {
@@ -708,21 +833,23 @@ public sealed class RuntimeBattleDropZone : MonoBehaviour, IDropHandler, IPointe
                 " pointer=" + eventData.position +
                 " target=" + RuntimeBattlePanelActionModel.FormatWireValue(zone.TargetId) +
                 " action=" + zone.ActionId);
-            if (drag.TrySubmitForTarget(zone.TargetId, zone.ActionId, zone.ActionType))
-                return true;
+            if (TrySubmitForZone(zone, drag)) return true;
         }
         return false;
     }
 
     internal bool CanReceiveRelease(RuntimeBattleCardDrag drag)
     {
-        if (drag == null || !isActiveAndEnabled) return false;
+        if (drag == null || !isActiveAndEnabled)
+            return false;
         // A release fallback is only allowed to cross the same Canvas the
         // drag source was configured for. Without this guard a hidden
         // overlay or a second UI surface in a different display/camera
         // could steal a release merely because its rectangle overlaps the
         // pointer position.
-        if (!drag.IsOnCanvas(GetComponentInParent<Canvas>())) return false;
+        var zoneCanvas = GetComponentInParent<Canvas>();
+        if (!drag.IsOnCanvas(zoneCanvas))
+            return false;
 
         // CanvasGroup is the uGUI visibility/raycast contract for an entire
         // panel. Respect every ancestor so a stale zone under a hidden panel

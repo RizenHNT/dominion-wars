@@ -345,7 +345,7 @@ public sealed class RuntimeBattleBoardEditModeTests
             var view = RuntimeBattlePanelView.Build(root);
 
             Assert.That(view.OwnHandRoot.anchorMin.y, Is.EqualTo(0.02f).Within(0.0001f));
-            Assert.That(view.OwnHandRoot.anchorMax.y, Is.EqualTo(0.58f).Within(0.0001f));
+            Assert.That(view.OwnHandRoot.anchorMax.y, Is.EqualTo(0.76f).Within(0.0001f));
 
             CreateOwnHandCards(view.OwnHandRoot, cardCount, "ReadabilityCard_");
             ResolveTabletopLayout(root, view);

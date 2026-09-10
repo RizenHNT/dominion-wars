@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DominionWars.Adapters;
 using DominionWars.Engine;
+using DominionWars.Engine.Effects;
 using DominionWars.Engine.Model;
 using DominionWars.Engine.Turns;
 using NUnit.Framework;
@@ -109,6 +110,58 @@ public sealed class RuntimeSnapshotProjectionTests
             Assert.That(snapshot.Players[0].Hand.Single().CurrentAttack, Is.EqualTo(definition.Attack));
             Assert.That(snapshot.Players[0].Hand.Single().CurrentHealth, Is.EqualTo(definition.Health));
             Assert.That(snapshot.Players[1].Hand, Is.Empty);
+        });
+    }
+
+    [Test]
+    public void ChantAndLandmarkProgressProjectOnlyForPublicVisibleCards()
+    {
+        var state = new GameState(new PlayerState(0, 20), new PlayerState(1, 20));
+        var factoryDefinition = new CardDefinition(
+            "machine_factory",
+            "量产协议",
+            faction: "机械遗迹",
+            type: "SPELL",
+            chant: 2);
+        var factory = new CardInstance(15, 0, factoryDefinition)
+        {
+            ChantRemaining = 1,
+        };
+        var landmarkDefinition = new CardDefinition(
+            "machine_leader",
+            "机械地标",
+            faction: "机械遗迹",
+            type: "SPELL",
+            isLeader: true,
+            isLandmark: true);
+        var landmark = new CardInstance(16, 0, landmarkDefinition)
+        {
+            IsLeaderEntity = true,
+            LandmarkPullCount = 2,
+        };
+        var hiddenOpponentChant = new CardInstance(17, 1, factoryDefinition)
+        {
+            ChantRemaining = 1,
+        };
+
+        state.GetPlayer(0).Field.Add(factory);
+        state.GetPlayer(0).LeaderZone.Add(landmark);
+        state.GetPlayer(1).Hand.Add(hiddenOpponentChant);
+
+        var snapshot = RuntimeSnapshotProjection.ToSnapshot(
+            state,
+            "match_chant_projection",
+            15,
+            0,
+            TurnFlow.CreateDefault());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(snapshot.Players[0].Field.Single().ChantRemaining, Is.EqualTo(1));
+            Assert.That(snapshot.Players[0].LeaderZone.Single().LandmarkPullCount, Is.EqualTo(2));
+            Assert.That(snapshot.Players[0].Field.Single().LandmarkPullCount, Is.Null);
+            Assert.That(snapshot.Players[1].Hand, Is.Empty,
+                "active chant state in a hidden opponent hand must not be exposed");
         });
     }
 
@@ -243,6 +296,76 @@ public sealed class RuntimeSnapshotProjectionTests
             Assert.That(projected.TargetId, Is.EqualTo(123L));
             Assert.That(projected.TargetId, Is.EqualTo(snapshot.Players[1].Field.Single().EntityId));
         });
+    }
+
+    [Test]
+    public void ProjectedPullActionsExcludeMinionLeaderButKeepOrdinaryMinion()
+    {
+        var state = new GameState(new PlayerState(0, 20), new PlayerState(1, 20));
+        var carrier = new CardInstance(
+            80,
+            0,
+            new CardDefinition(
+                "machine_carrier",
+                "Machine Carrier",
+                attack: 1,
+                health: 3,
+                isMinion: true,
+                faction: "机械遗迹",
+                tags: new[] { "机械" }));
+        var ordinary = new CardInstance(
+            81,
+            0,
+            new CardDefinition("ordinary", "Ordinary", isMinion: true, health: 4));
+        var machineAlpha = new CardInstance(
+            82,
+            0,
+            new CardDefinition(
+                "machine_alpha",
+                "Machine Alpha",
+                attack: 8,
+                health: 10,
+                isMinion: true,
+                isLeader: true,
+                faction: "机械遗迹"))
+        {
+            IsLeaderEntity = true,
+        };
+        state.GetPlayer(0).Field.Add(carrier);
+        state.GetPlayer(0).Field.Add(ordinary);
+        // LeaderZoneFor places minion leaders in Field, so this is the
+        // production-shaped location that previously leaked into candidates.
+        state.GetPlayer(0).Field.Add(machineAlpha);
+        state.GetPlayer(0).CloudStack.Add(new CardInstance(
+            83,
+            0,
+            new CardDefinition(
+                "targeted_pull",
+                "Targeted Pull",
+                pullEffects: new[]
+                {
+                    new EffectSpec(EffectNames.Buff, "FRIENDLY_MINION", 1, "both"),
+                })));
+
+        var flow = TurnFlow.CreateDefault();
+        flow.JumpTo(state, 0, TurnPhase.Action);
+        var snapshot = RuntimeSnapshotProjection.ToSnapshot(
+            state,
+            "match_projection",
+            80,
+            0,
+            flow);
+        var pullActions = snapshot.LegalActions
+            .Where(action => action.Type == LegalActionGenerator.Pull)
+            .ToArray();
+
+        Assert.That(pullActions, Is.Not.Empty);
+        var selectedIds = pullActions
+            .SelectMany(action => (IEnumerable<long>)action.Payload["selectedEntityIds"]!)
+            .Distinct()
+            .ToArray();
+        Assert.That(selectedIds, Is.EquivalentTo(new[] { carrier.InstanceId, ordinary.InstanceId }));
+        Assert.That(selectedIds, Does.Not.Contain(machineAlpha.InstanceId));
     }
 
     [Test]

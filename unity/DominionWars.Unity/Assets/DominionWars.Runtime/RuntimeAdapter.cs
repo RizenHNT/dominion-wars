@@ -32,20 +32,32 @@ public sealed class RuntimeAdapter : IDisposable
     public RuntimeSnapshotEnvelope RefreshSnapshot(int viewerPlayerIndex)
     {
         EnsureOpen();
-        if (viewerPlayerIndex is < 0 or > 1)
-            throw new ArgumentOutOfRangeException(nameof(viewerPlayerIndex));
+        var snapshot = GetSnapshotForViewer(viewerPlayerIndex);
+        AcceptSnapshot(snapshot);
+        return snapshot;
+    }
+
+    /// <summary>
+    /// Reads one viewer-safe snapshot without replacing the presentation
+    /// snapshot. This is the actor/viewer seam used by the local CPU driver:
+    /// the AI may validate against its own redacted view while the human UI
+    /// remains bound to player 0.
+    /// </summary>
+    public RuntimeSnapshotEnvelope GetSnapshotForViewer(int viewerPlayerIndex)
+    {
+        EnsureOpen();
+        ValidatePlayerIndex(viewerPlayerIndex, nameof(viewerPlayerIndex));
 
         var snapshot = _session.GetSnapshot(viewerPlayerIndex);
         var expectedViewerPlayerId = "player_" + viewerPlayerIndex;
         if (snapshot is null ||
             !string.Equals(snapshot.ViewerPlayerId, expectedViewerPlayerId, StringComparison.Ordinal))
         {
-            // Validate the session response before AcceptSnapshot can clear a
-            // delta or replace the current presentation state.
             throw new InvalidOperationException(
                 "Snapshot viewer identity does not match the requested player.");
         }
-        AcceptSnapshot(snapshot);
+
+        RuntimeSnapshotProjection.Validate(snapshot);
         return snapshot;
     }
 
@@ -82,18 +94,25 @@ public sealed class RuntimeAdapter : IDisposable
         if (Presentation.Snapshot is null) throw new InvalidOperationException("A snapshot is required before submitting actions.");
         var validation = RuntimeActionBoundary.Validate(action, Presentation.Snapshot);
         if (!validation.Accepted) throw new InvalidOperationException(validation.ReasonKey);
-        var submission = _session.Submit(action);
-        ValidateSubmission(action, submission);
-        var eventDelta = RuntimeEventProjection.ToDelta(
-            submission.Events,
-            submission.Snapshot.Turn,
-            submission.Snapshot.Phase,
-            submission.Result.ResultingSnapshotRevision);
-        // Project the event delta before publishing the resulting snapshot so
-        // a malformed session response cannot partially update presentation.
-        AcceptSnapshot(submission.Snapshot);
-        Presentation.AddEvents(eventDelta);
-        return submission;
+        return SubmitAndPresent(action, action.Actor);
+    }
+
+    /// <summary>
+    /// Submits an action using the actor's authoritative viewer snapshot, then
+    /// keeps presentation bound to a separate viewer. This prevents an AI
+    /// action from exposing the AI hand through the human panel.
+    /// </summary>
+    public RuntimeActionSubmission SubmitForViewer(
+        RuntimeGameAction action,
+        int presentationViewerIndex)
+    {
+        EnsureOpen();
+        if (action is null) throw new ArgumentNullException(nameof(action));
+        ValidatePlayerIndex(presentationViewerIndex, nameof(presentationViewerIndex));
+        var actorSnapshot = GetSnapshotForViewer(action.Actor);
+        var validation = RuntimeActionBoundary.Validate(action, actorSnapshot);
+        if (!validation.Accepted) throw new InvalidOperationException(validation.ReasonKey);
+        return SubmitAndPresent(action, presentationViewerIndex);
     }
 
     public void AcceptEventDelta(
@@ -162,6 +181,36 @@ public sealed class RuntimeAdapter : IDisposable
     private void EnsureOpen()
     {
         if (_closed) throw new ObjectDisposedException(nameof(RuntimeAdapter));
+    }
+
+    private RuntimeActionSubmission SubmitAndPresent(
+        RuntimeGameAction action,
+        int presentationViewerIndex)
+    {
+        var submission = _session.Submit(action);
+        ValidateSubmission(action, submission);
+        var eventDelta = RuntimeEventProjection.ToDelta(
+            submission.Events,
+            submission.Snapshot.Turn,
+            submission.Snapshot.Phase,
+            submission.Result.ResultingSnapshotRevision);
+        // Keep the actor snapshot out of presentation when a separate viewer
+        // owns the UI. The fresh viewer snapshot is read-only until this
+        // method has validated the complete transport response.
+        var presentationSnapshot = presentationViewerIndex == action.Actor
+            ? submission.Snapshot
+            : GetSnapshotForViewer(presentationViewerIndex);
+        if (presentationSnapshot.SnapshotRevision != submission.Snapshot.SnapshotRevision)
+            throw new InvalidOperationException("The presentation snapshot revision does not match the action result.");
+        AcceptSnapshot(presentationSnapshot);
+        Presentation.AddEvents(eventDelta);
+        return submission;
+    }
+
+    private static void ValidatePlayerIndex(int playerIndex, string parameterName)
+    {
+        if (playerIndex is < 0 or > 1)
+            throw new ArgumentOutOfRangeException(parameterName);
     }
 
     private static void ValidateSubmission(

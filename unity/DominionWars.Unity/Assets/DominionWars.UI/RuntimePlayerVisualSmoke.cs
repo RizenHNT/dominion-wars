@@ -16,7 +16,7 @@ namespace DominionWars.Unity.UI
 public sealed class RuntimeVisualSmokeOptions
 {
     public RuntimeVisualSmokeOptions(string outputPath, bool quitAfterCapture)
-        : this(outputPath, quitAfterCapture, false)
+        : this(outputPath, quitAfterCapture, false, false, false)
     {
     }
 
@@ -24,15 +24,29 @@ public sealed class RuntimeVisualSmokeOptions
         string outputPath,
         bool quitAfterCapture,
         bool captureBattle)
+        : this(outputPath, quitAfterCapture, captureBattle, false, false)
+    {
+    }
+
+    public RuntimeVisualSmokeOptions(
+        string outputPath,
+        bool quitAfterCapture,
+        bool captureBattle,
+        bool captureSetup,
+        bool captureResult)
     {
         OutputPath = outputPath;
         QuitAfterCapture = quitAfterCapture;
         CaptureBattle = captureBattle;
+        CaptureSetup = captureSetup;
+        CaptureResult = captureResult;
     }
 
     public string OutputPath { get; }
     public bool QuitAfterCapture { get; }
     public bool CaptureBattle { get; }
+    public bool CaptureSetup { get; }
+    public bool CaptureResult { get; }
 }
 
 [DisallowMultipleComponent]
@@ -41,6 +55,8 @@ public sealed class RuntimePlayerVisualSmoke : MonoBehaviour
     public const string PathArgument = "-dwVisualSmokePath";
     public const string QuitArgument = "-dwVisualSmokeQuit";
     public const string BattleArgument = "-dwVisualSmokeBattle";
+    public const string SetupArgument = "-dwVisualSmokeSetup";
+    public const string ResultArgument = "-dwVisualSmokeResult";
     public const string DefaultObjectName = "DominionWarsRuntimeVisualSmoke";
     public const string StartedLogPrefix = "Dominion Wars visual smoke requested: ";
     public const string CapturedLogPrefix = "Dominion Wars visual smoke captured: ";
@@ -69,6 +85,8 @@ public sealed class RuntimePlayerVisualSmoke : MonoBehaviour
         var pathArgumentIndex = -1;
         var quitAfterCapture = false;
         var captureBattle = false;
+        var captureSetup = false;
+        var captureResult = false;
         for (var index = 0; index < arguments.Count; index++)
         {
             var argument = arguments[index];
@@ -90,11 +108,28 @@ public sealed class RuntimePlayerVisualSmoke : MonoBehaviour
             {
                 captureBattle = true;
             }
+            else if (string.Equals(argument, SetupArgument, StringComparison.Ordinal))
+            {
+                captureSetup = true;
+            }
+            else if (string.Equals(argument, ResultArgument, StringComparison.Ordinal))
+            {
+                captureResult = true;
+            }
         }
 
         // The hook is deliberately opt-in. No path flag means no object,
         // no coroutine, no screenshot, and no change to normal Player flow.
         if (pathArgumentIndex < 0) return false;
+        var captureStageCount =
+            (captureBattle ? 1 : 0) +
+            (captureSetup ? 1 : 0) +
+            (captureResult ? 1 : 0);
+        if (captureStageCount > 1)
+        {
+            failureReason = "only one visual smoke screen stage may be requested";
+            return false;
+        }
         if (pathArgumentIndex == arguments.Count - 1)
         {
             failureReason = PathArgument + " requires an absolute PNG output path";
@@ -150,7 +185,12 @@ public sealed class RuntimePlayerVisualSmoke : MonoBehaviour
             return false;
         }
 
-        options = new RuntimeVisualSmokeOptions(outputPath, quitAfterCapture, captureBattle);
+        options = new RuntimeVisualSmokeOptions(
+            outputPath,
+            quitAfterCapture,
+            captureBattle,
+            captureSetup,
+            captureResult);
         return true;
     }
 
@@ -282,7 +322,36 @@ public sealed class RuntimePlayerVisualSmoke : MonoBehaviour
             yield break;
         }
 
-        if (_options.CaptureBattle)
+        if (_options.CaptureSetup)
+        {
+            flow.Navigate(RuntimeScreenId.MatchSetup);
+            yield return null;
+            if (flow.CurrentScreen != RuntimeScreenId.MatchSetup ||
+                flow.View == null ||
+                flow.View.MatchSetupRoot == null ||
+                !flow.View.MatchSetupRoot.gameObject.activeSelf)
+            {
+                Fail("MATCH SETUP screen was not ready within the visual smoke frame.");
+                yield break;
+            }
+        }
+        else if (_options.CaptureResult)
+        {
+            // This is an explicit shell/layout capture only. It does not
+            // invent a terminal engine outcome; authoritative result text is
+            // populated only by RuntimeScreenFlow's OVER snapshot path.
+            flow.ShowResult();
+            yield return null;
+            if (flow.CurrentScreen != RuntimeScreenId.Result ||
+                flow.View == null ||
+                flow.View.ResultRoot == null ||
+                !flow.View.ResultRoot.gameObject.activeSelf)
+            {
+                Fail("RESULT screen was not ready within the visual smoke frame.");
+                yield break;
+            }
+        }
+        else if (_options.CaptureBattle)
         {
             flow.Navigate(RuntimeScreenId.MatchSetup);
             flow.RequestStartMatch();

@@ -132,6 +132,24 @@ public sealed class RuntimeBattleActionsEditModeTests
     }
 
     [Test]
+    public void ContextPlacementKeepsActionPhaseEndTurnPrimaryAndNeverCreatesLegality()
+    {
+        var skip = Action("skip_ambush_0", "SKIP_AMBUSH", null, null);
+        var actionEnd = Action("end_action", "END_TURN", null, null);
+        var discard = Action("discard_7", "DISCARD", 7L, null, "discard_card");
+
+        Assert.That(RuntimeBattlePanelActionModel.IsPhaseContextAction(skip, "AMBUSH"), Is.True);
+        Assert.That(RuntimeBattlePanelActionModel.IsPhaseContextAction(actionEnd, "ACTION"), Is.False);
+        Assert.That(RuntimeBattlePanelActionModel.IsPhaseContextAction(actionEnd, "DISCARD"), Is.True);
+        Assert.That(RuntimeBattlePanelActionModel.IsDiscardContextAction(discard), Is.True);
+
+        // Placement helpers only classify an already advertised action; they
+        // do not turn an absent action into a legal option.
+        Assert.That(RuntimeBattlePanelActionModel.IsPhaseContextAction(null!, "AMBUSH"), Is.False);
+        Assert.That(RuntimeBattlePanelActionModel.IsDiscardContextAction(null!), Is.False);
+    }
+
+    [Test]
     public void CardSelectionSwitchesActionRailAndSuccessfulClickClearsSelection()
     {
         GameObject panelObject = null!;

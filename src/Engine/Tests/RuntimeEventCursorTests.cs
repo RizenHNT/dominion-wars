@@ -49,6 +49,78 @@ public sealed class RuntimeEventCursorTests
         Assert.That(cursor.Accept(self).ReasonKey, Is.EqualTo("event.parent_missing"));
     }
 
+    [Test]
+    public void RejectsUnknownSchemaDataField()
+    {
+        var envelope = Event(1, null, "DAMAGE_APPLIED");
+        envelope.Data = new Dictionary<string, object?>
+        {
+            ["source"] = 7L,
+        };
+
+        var result = new RuntimeEventCursor().Accept(envelope);
+
+        Assert.That(result.Accepted, Is.False);
+        Assert.That(result.ReasonKey, Is.EqualTo("event.data_field_unknown"));
+    }
+
+    [Test]
+    public void AcceptsGameOverOnlyWithMatchingTerminalOutcome()
+    {
+        var envelope = Event(1, null, "GAME_OVER");
+        envelope.Phase = "OVER";
+        envelope.ReasonKey = "win.royal_castle_break";
+        envelope.Data = new Dictionary<string, object?>
+        {
+            ["winnerPlayerIndex"] = 0,
+            ["reasonKey"] = "win.royal_castle_break",
+        };
+
+        var result = new RuntimeEventCursor().Accept(envelope);
+
+        Assert.That(result.Accepted, Is.True);
+    }
+
+    [Test]
+    public void RejectsInvalidGameOverBeforeAdvancingCursor()
+    {
+        var envelope = Event(1, null, "GAME_OVER");
+        envelope.Phase = "ACTION";
+        envelope.ReasonKey = "win.royal_castle_break";
+        envelope.Data = new Dictionary<string, object?>
+        {
+            ["winnerPlayerIndex"] = 0,
+            ["reasonKey"] = "win.royal_castle_break",
+        };
+
+        var cursor = new RuntimeEventCursor();
+        var rejected = cursor.Accept(envelope);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(rejected.Accepted, Is.False);
+            Assert.That(rejected.ReasonKey, Is.EqualTo("event.game_over_phase_invalid"));
+            Assert.That(cursor.LastEventId, Is.Null);
+        });
+    }
+
+    [Test]
+    public void RejectsGameOverWhenRootReasonDiffersFromDataReason()
+    {
+        var envelope = Event(1, null, "GAME_OVER");
+        envelope.Phase = "OVER";
+        envelope.ReasonKey = "win.royal_castle_break";
+        envelope.Data = new Dictionary<string, object?>
+        {
+            ["winnerPlayerIndex"] = 0,
+            ["reasonKey"] = "win.deck_cycles",
+        };
+
+        var result = new RuntimeEventCursor().Accept(envelope);
+
+        Assert.That(result.ReasonKey, Is.EqualTo("event.game_over_reason_mismatch"));
+    }
+
     private static RuntimeEventEnvelope Event(long number, string? parent, string type)
     {
         return new RuntimeEventEnvelope

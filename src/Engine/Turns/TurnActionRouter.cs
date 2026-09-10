@@ -40,8 +40,8 @@ public sealed class TurnActionRouter
         {
             new AmbushActionHandler(),
             new PlayCardActionHandler(targetPolicy, punishResponses),
-            new CommitActionHandler(),
-            new PullActionHandler(),
+            new CommitActionHandler(punishResponses),
+            new PullActionHandler(punishResponses),
             new AttackActionHandler(),
             new DiscardPhaseHandler(),
         });
@@ -61,8 +61,8 @@ public sealed class TurnActionRouter
         {
             new AmbushActionHandler(),
             new PlayCardActionHandler(targetPolicy, punishResponses, PlayCardActionHandler.DefaultChainLimit, costModel),
-            new CommitActionHandler(),
-            new PullActionHandler(),
+            new CommitActionHandler(punishResponses),
+            new PullActionHandler(punishResponses),
             new AttackActionHandler(),
             new DiscardPhaseHandler(),
         });

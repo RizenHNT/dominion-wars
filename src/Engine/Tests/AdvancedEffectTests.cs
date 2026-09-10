@@ -318,6 +318,36 @@ public sealed class AdvancedEffectTests
     }
 
     [Test]
+    public void PushUsesExplicitUploadPunishWithoutAddingASecondDefaultPunish()
+    {
+        var state = new GameState(new PlayerState(0), new PlayerState(1));
+        var defaultCard = new CardInstance(314, 0, new CardDefinition(
+            "default_upload", "Default Upload", faction: "机械遗迹"));
+        var explicitCard = new CardInstance(315, 0, new CardDefinition(
+            "explicit_upload", "Explicit Upload", faction: "机械遗迹", uploadCost: 1));
+        state.Players[0].CommitQueue.Add(defaultCard);
+        state.Players[0].CommitQueue.Add(explicitCard);
+        state.Players[1].Deck.Add(new CardInstance(
+            316,
+            1,
+            new CardDefinition("punished_upload", "Punished Upload")));
+        var root = state.Events.Append("END_PHASE");
+
+        new EffectRuntime(state).Push(
+            new EffectSpec(EffectNames.Push),
+            new EffectContext(0, root.EventId));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.Players[0].CommitQueue, Is.Empty);
+            Assert.That(state.Players[0].CloudStack, Is.EquivalentTo(new[] { defaultCard, explicitCard }));
+            Assert.That(state.Players[1].Hand, Has.Count.EqualTo(1));
+            Assert.That(state.Players[1].PunishDrawnThisTurn, Is.EqualTo(1));
+            Assert.That(state.Events.Items.Count(item => item.EventType == "PUNISH_DRAW"), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
     public void NewKeywordValuesAreAcceptedAsMarkers()
     {
         var game = new EffectTestFixture();

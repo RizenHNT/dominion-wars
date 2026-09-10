@@ -24,6 +24,7 @@ namespace DominionWars.Engine.Tests
                 Assert.That(action.AllowedValues, Does.Contain("DAMAGE"));
                 Assert.That(registry.TryGetDefinitionField("EffectSpec", "target", out var target), Is.True);
                 Assert.That(target!.DefinitionName, Is.EqualTo("EffectTarget"));
+                Assert.That(target.AllowedValues, Does.Contain("FRIENDLY_MINION"));
                 Assert.That(registry.TryGetDefinitionField("EffectSpec", "amount", out var amount), Is.True);
                 Assert.That(amount!.Minimum, Is.EqualTo(-99));
                 Assert.That(amount.Maximum, Is.EqualTo(99));

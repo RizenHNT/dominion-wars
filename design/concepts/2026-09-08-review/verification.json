@@ -1,0 +1,31 @@
+{
+  "scope": "Local visual prototype only, not Unity/engine verification",
+  "errors": [],
+  "checks": [
+    "real card text binding",
+    "detail open/back",
+    "zone drawer open/Escape",
+    "reduced motion toggle",
+    "deck filter"
+  ],
+  "geometry": [
+    {
+      "theme": "theme-a",
+      "stageBottom": 960,
+      "handBottom": 900,
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "theme-b",
+      "stageBottom": 960,
+      "handBottom": 899,
+      "horizontalOverflow": false
+    },
+    {
+      "theme": "theme-c",
+      "stageBottom": 960,
+      "handBottom": 876,
+      "horizontalOverflow": false
+    }
+  ]
+}

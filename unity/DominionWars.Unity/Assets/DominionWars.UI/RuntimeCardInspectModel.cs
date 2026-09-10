@@ -31,6 +31,9 @@ public sealed class RuntimeCardInspectModel
         DiagnosticPunishAndCostLine = card.LegacyPunishAndCostLine;
         DiagnosticMechanicalFeesLine = card.DiagnosticMechanicalFeesLine;
         RulesText = card.RulesText;
+        LeaderWinText = card.LeaderWinText;
+        ChantLine = card.ChantLine;
+        LandmarkProgressLine = card.LandmarkProgressLine;
         KeywordsLine = card.KeywordsLine;
         TagsLine = card.TagsLine;
         DataNotice = card.HasMissingData
@@ -53,6 +56,9 @@ public sealed class RuntimeCardInspectModel
     public string DiagnosticPunishAndCostLine { get; }
     public string DiagnosticMechanicalFeesLine { get; }
     public string RulesText { get; }
+    public string LeaderWinText { get; }
+    public string ChantLine { get; }
+    public string LandmarkProgressLine { get; }
     public string KeywordsLine { get; }
     public string TagsLine { get; }
     public string DataNotice { get; }
@@ -99,6 +105,9 @@ public sealed class RuntimeCardInspectModel
         AppendIfPresent(builder, model.PrintedStatsLine);
         AppendIfPresent(builder, model.CurrentStatsLine);
         AppendIfPresent(builder, model.MechanicalFeesLine);
+        AppendIfPresent(builder, BuildLeaderGoalLine(model.LeaderWinText));
+        AppendIfPresent(builder, model.ChantLine);
+        AppendIfPresent(builder, model.LandmarkProgressLine);
         builder.Append("RULES ").Append(model.RulesText).Append('\n')
             .Append(model.KeywordsLine).Append('\n')
             .Append(model.TagsLine);
@@ -115,6 +124,9 @@ public sealed class RuntimeCardInspectModel
         AppendIfPresent(builder, model.PrintedStatsLine);
         AppendIfPresent(builder, model.CurrentStatsLine);
         builder.Append(model.DiagnosticMechanicalFeesLine).Append('\n')
+            .Append(BuildLeaderGoalLine(model.LeaderWinText)).Append('\n')
+            .Append(model.ChantLine).Append('\n')
+            .Append(model.LandmarkProgressLine).Append('\n')
             .Append("RULES ").Append(model.RulesText).Append('\n')
             .Append(model.KeywordsLine).Append('\n')
             .Append(model.TagsLine).Append('\n')
@@ -127,6 +139,13 @@ public sealed class RuntimeCardInspectModel
         if (string.IsNullOrWhiteSpace(value)) return;
         if (builder.Length > 0 && builder[builder.Length - 1] != '\n') builder.Append('\n');
         builder.Append(value).Append('\n');
+    }
+
+    private static string BuildLeaderGoalLine(string leaderWinText)
+    {
+        return string.IsNullOrWhiteSpace(leaderWinText)
+            ? string.Empty
+            : "目标 " + leaderWinText;
     }
 
     private static string Display(string value)

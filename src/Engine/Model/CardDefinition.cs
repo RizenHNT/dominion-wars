@@ -252,13 +252,13 @@ public sealed class CardDefinition
     public string? LeaderWinText { get; }
     public int LeaderDurability { get; }
     public int LeaderWinParam { get; }
-    /// <summary>Declared fee for moving a card into the public commit queue.</summary>
+    /// <summary>Declared punishment amount emitted when the card is COMMITTED.</summary>
     public int CommitCost { get; }
-    /// <summary>Declared fee for pushing a queued card into the cloud stack.</summary>
+    /// <summary>Declared explicit punishment amount emitted when the card is PUSHED.</summary>
     public int UploadCost { get; }
-    /// <summary>Declared fee for pulling this card from the cloud stack.</summary>
+    /// <summary>Declared punishment amount emitted when this card is PULLED.</summary>
     public int DownloadCost { get; }
-    /// <summary>Declarative landmark shape marker; it does not activate landmark rules.</summary>
+    /// <summary>Marks a leader as a mechanical landmark carrier.</summary>
     public bool IsLandmark { get; }
     /// <summary>Legacy card-level fallback. EffectSpec.KingSlayer takes precedence when present.</summary>
     public bool KingSlayer { get; }

@@ -108,11 +108,13 @@ public sealed partial class EffectRuntime
             "player", player.PlayerIndex,
             "count", discarded.Count,
             "reasonKey", "effect.discard"));
+        TriggerOpponentDiscardEffects(player.PlayerIndex, discarded.Count, context);
     }
 
     public void DiscardDrawn(EffectSpec spec, EffectContext context)
     {
         var discarded = 0;
+        var discardedByPlayer = new Dictionary<int, int>();
         Commit(_ =>
         {
             foreach (var card in context.DrawnCards)
@@ -126,11 +128,94 @@ public sealed partial class EffectRuntime
                 owner.Graveyard.Add(card);
                 owner.TotalDiscarded++;
                 discarded++;
+                discardedByPlayer[owner.PlayerIndex] = discardedByPlayer.TryGetValue(
+                    owner.PlayerIndex,
+                    out var ownerDiscarded)
+                    ? ownerDiscarded + 1
+                    : 1;
             }
         });
         Emit("CARDS_DISCARDED", context, Data(
             "count", discarded,
             "reasonKey", "effect.abyss_consume"));
+        foreach (var pair in discardedByPlayer)
+        {
+            TriggerOpponentDiscardEffects(pair.Key, pair.Value, context);
+        }
+    }
+
+    /// <summary>
+    /// Resolves one passive hook window for each card actually discarded by an
+    /// effect or converted punishment. Hand-limit discards never call this
+    /// method. Each discarded card opens its own window so an amount of N
+    /// produces N triggers rather than one batched trigger.
+    /// </summary>
+    internal void TriggerOpponentDiscardEffects(
+        int discardedPlayerIndex,
+        int count,
+        EffectContext parentContext)
+    {
+        if (parentContext is null)
+        {
+            throw new ArgumentNullException(nameof(parentContext));
+        }
+
+        if (discardedPlayerIndex is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(discardedPlayerIndex));
+        }
+
+        if (count <= 0 || IsGameOver)
+        {
+            return;
+        }
+
+        if (!State.Events.IsRootEvent(parentContext.RootEventId))
+        {
+            throw new InvalidOperationException(
+                "Opponent discard hooks need an existing root event.");
+        }
+
+        var owner = State.GetOpponent(discardedPlayerIndex);
+        if (owner.EffectsNegatedThisTurn)
+        {
+            return;
+        }
+
+        for (var discardIndex = 0; discardIndex < count && !IsGameOver; discardIndex++)
+        {
+            if (owner.EffectsNegatedThisTurn)
+            {
+                break;
+            }
+
+            foreach (var source in new List<CardInstance>(owner.Field))
+            {
+                if (IsGameOver)
+                {
+                    break;
+                }
+
+                if (source.Definition.OnOpponentDiscardEffects.Count == 0
+                    || !owner.Field.Contains(source)
+                    || (source.IsMinion && !source.IsAlive)
+                    || source.Sealed)
+                {
+                    continue;
+                }
+
+                var hookContext = new EffectContext(
+                    owner.PlayerIndex,
+                    parentContext.RootEventId,
+                    sourceCard: source);
+                // Passive hooks get a clean target/played-card window,
+                // while preserving the enclosing batch's death timing.
+                hookContext.DeferDeaths = parentContext.DeferDeaths;
+                EffectDispatcher.CreateDefault(this).ApplyAll(
+                    source.Definition.OnOpponentDiscardEffects,
+                    hookContext);
+            }
+        }
     }
 
     public void Summon(EffectSpec spec, EffectContext context)

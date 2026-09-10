@@ -11,6 +11,78 @@ namespace DominionWars.Engine.Turns
 /// <summary>Resolves the player-originated manual pull of the cloud-stack top.</summary>
 public sealed class PullActionHandler : ITurnActionHandler
 {
+    private readonly PlayCardActionHandler _punishResolver;
+
+    public PullActionHandler(IPunishResponsePolicy? punishResponses = null)
+    {
+        _punishResolver = new PlayCardActionHandler(punishResponses: punishResponses);
+    }
+
+    internal static string CreateActionId(
+        long carrierId,
+        long topCardId,
+        long? selectedTargetId = null)
+    {
+        return selectedTargetId.HasValue
+            ? $"pull_{carrierId}_{topCardId}_{selectedTargetId.Value}"
+            : $"pull_{carrierId}_{topCardId}";
+    }
+
+    internal static bool RequiresTargetSelection(IReadOnlyList<EffectSpec> effects)
+    {
+        if (effects is null)
+        {
+            throw new ArgumentNullException(nameof(effects));
+        }
+
+        foreach (var effect in effects)
+        {
+            if (effect is not null && effect.Target == "FRIENDLY_MINION")
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static IReadOnlyList<CardInstance> GetLegalTargets(
+        GameState state,
+        int playerIndex,
+        CardInstance card)
+    {
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
+
+        if (playerIndex is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(playerIndex));
+        }
+
+        if (card is null)
+        {
+            throw new ArgumentNullException(nameof(card));
+        }
+
+        if (!RequiresTargetSelection(card.Definition.PullEffects))
+        {
+            return Array.Empty<CardInstance>();
+        }
+
+        var result = new List<CardInstance>();
+        foreach (var candidate in state.GetPlayer(playerIndex).Field)
+        {
+            if (CardTargetValidator.IsOrdinaryAliveMinion(candidate))
+            {
+                result.Add(candidate);
+            }
+        }
+
+        return result.AsReadOnly();
+    }
+
     internal static bool HasSupportedPullEffects(GameState state, CardInstance card)
     {
         if (state is null)
@@ -81,16 +153,32 @@ public sealed class PullActionHandler : ITurnActionHandler
         }
 
         var top = owner.CloudStack[owner.CloudStack.Count - 1];
-        var expectedActionId = $"pull_{carrier.InstanceId}_{top.InstanceId}";
+        var requiresTarget = RequiresTargetSelection(top.Definition.PullEffects);
+        long? selectedTargetId = null;
+        if (requiresTarget)
+        {
+            if (request.SelectedEntityIds.Count != 1)
+            {
+                return GameActionResult.Reject("action.target_required");
+            }
+
+            selectedTargetId = request.SelectedEntityIds[0];
+            if (!GetLegalTargets(state, owner.PlayerIndex, top)
+                .Any(candidate => candidate.InstanceId == selectedTargetId.Value))
+            {
+                return GameActionResult.Reject("action.invalid_pull_effect_target");
+            }
+        }
+        else if (request.SelectedEntityIds.Count != 0)
+        {
+            return GameActionResult.Reject("action.invalid_pull_effect_target");
+        }
+
+        var expectedActionId = CreateActionId(carrier.InstanceId, top.InstanceId, selectedTargetId);
         if (request.ActionId is not null
             && !string.Equals(request.ActionId, expectedActionId, StringComparison.Ordinal))
         {
             return GameActionResult.Reject("action.id_mismatch");
-        }
-
-        if (top.Definition.DownloadCost > 0)
-        {
-            return GameActionResult.Reject("action.cost_system_unavailable");
         }
 
         var runtime = new EffectRuntime(state);
@@ -103,14 +191,24 @@ public sealed class PullActionHandler : ITurnActionHandler
         var root = state.Events.Append("PULL_DECLARED", null, Data(
             "player", owner.PlayerIndex,
             "source", carrier.InstanceId,
-            "target", top.InstanceId));
+            "target", top.InstanceId,
+            "punish", top.Definition.DownloadCost));
+        if (!_punishResolver.ResolveLifecyclePunish(
+                state,
+                owner.PlayerIndex,
+                top.Definition.DownloadCost,
+                root.EventId))
+        {
+            return GameActionResult.Accept();
+        }
+
         dispatcher.Apply(
             new EffectSpec(EffectNames.Pull),
             new EffectContext(
                 owner.PlayerIndex,
                 root.EventId,
                 sourceCard: carrier,
-                selectedTargetId: carrier.InstanceId));
+                selectedTargetId: selectedTargetId ?? carrier.InstanceId));
         return GameActionResult.Accept();
     }
 

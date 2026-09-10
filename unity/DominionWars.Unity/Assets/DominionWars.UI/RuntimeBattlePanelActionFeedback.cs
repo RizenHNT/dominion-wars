@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using DominionWars.Adapters;
+using DominionWars.Unity.Runtime;
 using UnityEngine;
 
 namespace DominionWars.Unity.UI
@@ -19,6 +20,7 @@ public enum RuntimeBattlePanelFeedbackKind
     None,
     CardPlayed,
     AttackDeclared,
+    DamageApplied,
     CardsDrawn,
     AmbushSet,
     AmbushTriggered,
@@ -29,6 +31,12 @@ public enum RuntimeBattlePanelFeedbackKind
     CastleDamaged,
     CastleBroken,
     PhaseChanged,
+    TurnStarted,
+    TurnEnded,
+    PlayerSwitched,
+    HealApplied,
+    Death,
+    GameOver,
 }
 
 /// <summary>
@@ -77,6 +85,7 @@ public static class RuntimeBattlePanelActionFeedbackModel
 {
     private static readonly Color CardPlayedAccent = Hex("63D7E5");
     private static readonly Color AttackAccent = Hex("E36D78");
+    private static readonly Color DamageAppliedAccent = Hex("F0A35B");
     private static readonly Color CardsDrawnAccent = Hex("E3B85A");
     private static readonly Color AmbushSetAccent = Hex("B18BE8");
     private static readonly Color AmbushTriggeredAccent = Hex("F05B9D");
@@ -87,6 +96,13 @@ public static class RuntimeBattlePanelActionFeedbackModel
     private static readonly Color CastleDamagedAccent = Hex("E8A15A");
     private static readonly Color CastleBrokenAccent = Hex("F05B68");
     private static readonly Color PhaseChangedAccent = Hex("67D39B");
+    private static readonly Color TurnAccent = Hex("67D39B");
+    private static readonly Color PlayerSwitchAccent = Hex("7FB3FF");
+    private static readonly Color HealAccent = Hex("6BE0A2");
+    private static readonly Color DeathAccent = Hex("D86678");
+    private static readonly Color GameOverAccent = Hex("F4D35E");
+    private static readonly RuntimeLocalizationResolver TargetLocalizationResolver =
+        new RuntimeLocalizationResolver();
 
     public static bool TryMap(
         RuntimeEventEnvelope eventEnvelope,
@@ -96,12 +112,12 @@ public static class RuntimeBattlePanelActionFeedbackModel
         if (eventEnvelope == null) return false;
 
         var eventType = NormalizeType(eventEnvelope.Type);
-        var kind = KindFor(eventType);
+        var kind = KindFor(eventEnvelope, eventType);
         if (kind == RuntimeBattlePanelFeedbackKind.None) return false;
 
         var targetCount = eventEnvelope.TargetIds == null ? 0 : eventEnvelope.TargetIds.Count;
         var missingRequiredTarget = RequiresTarget(kind) && targetCount == 0;
-        var message = MessageFor(kind, eventType, missingRequiredTarget);
+        var message = MessageFor(eventEnvelope, kind, eventType, missingRequiredTarget);
         cue = new RuntimeBattlePanelFeedbackCue(
             eventEnvelope.EventId,
             eventType,
@@ -141,35 +157,62 @@ public static class RuntimeBattlePanelActionFeedbackModel
         return builder.ToString();
     }
 
-    private static RuntimeBattlePanelFeedbackKind KindFor(string eventType)
+    private static RuntimeBattlePanelFeedbackKind KindFor(
+        RuntimeEventEnvelope eventEnvelope,
+        string eventType)
     {
         if (eventType == "CARD_PLAYED") return RuntimeBattlePanelFeedbackKind.CardPlayed;
         if (eventType == "ATTACK_DECLARED") return RuntimeBattlePanelFeedbackKind.AttackDeclared;
+        if (eventType == "DAMAGE_APPLIED") return RuntimeBattlePanelFeedbackKind.DamageApplied;
         if (eventType == "CARDS_DRAWN" || eventType == "CARD_DRAWN")
             return RuntimeBattlePanelFeedbackKind.CardsDrawn;
+        if (eventType == "TURN_STARTED") return RuntimeBattlePanelFeedbackKind.TurnStarted;
+        if (eventType == "TURN_ENDED") return RuntimeBattlePanelFeedbackKind.TurnEnded;
+        if (eventType == "TURN_CHANGED") return RuntimeBattlePanelFeedbackKind.PlayerSwitched;
         if (eventType == "AMBUSH_SET") return RuntimeBattlePanelFeedbackKind.AmbushSet;
         if (eventType == "AMBUSH_TRIGGERED") return RuntimeBattlePanelFeedbackKind.AmbushTriggered;
         if (eventType == "CARD_COMMITTED") return RuntimeBattlePanelFeedbackKind.Commit;
         if (eventType == "CARD_PUSHED") return RuntimeBattlePanelFeedbackKind.Push;
         if (eventType == "CARD_PULLED") return RuntimeBattlePanelFeedbackKind.Pull;
+        if (eventType == "HEAL_APPLIED") return RuntimeBattlePanelFeedbackKind.HealApplied;
+        if (eventType == "MINION_DESTROYED" || eventType == "MINION_DIED")
+            return RuntimeBattlePanelFeedbackKind.Death;
         if (eventType.StartsWith("PUNISH_", StringComparison.Ordinal))
             return RuntimeBattlePanelFeedbackKind.Punish;
         if (eventType == "CASTLE_DAMAGED") return RuntimeBattlePanelFeedbackKind.CastleDamaged;
         if (eventType == "CASTLE_BROKEN") return RuntimeBattlePanelFeedbackKind.CastleBroken;
-        if (eventType == "PHASE_CHANGED") return RuntimeBattlePanelFeedbackKind.PhaseChanged;
+        if (eventType == "GAME_OVER") return RuntimeBattlePanelFeedbackKind.GameOver;
+        if (eventType == "PHASE_CHANGED")
+        {
+            var phase = PhaseTokenFor(eventEnvelope);
+            if (phase == "START") return RuntimeBattlePanelFeedbackKind.TurnStarted;
+            if (phase == "END") return RuntimeBattlePanelFeedbackKind.TurnEnded;
+            return RuntimeBattlePanelFeedbackKind.PhaseChanged;
+        }
         return RuntimeBattlePanelFeedbackKind.None;
     }
 
     private static string MessageFor(
+        RuntimeEventEnvelope eventEnvelope,
         RuntimeBattlePanelFeedbackKind kind,
         string eventType,
         bool missingRequiredTarget)
     {
+        if (kind == RuntimeBattlePanelFeedbackKind.DamageApplied)
+            return DamageMessageFor(eventEnvelope);
+        if (kind == RuntimeBattlePanelFeedbackKind.CardsDrawn)
+            return CardsDrawnMessageFor(eventEnvelope);
+        if (kind == RuntimeBattlePanelFeedbackKind.HealApplied)
+            return HealMessageFor(eventEnvelope);
+        if (kind == RuntimeBattlePanelFeedbackKind.Death)
+            return DeathMessageFor(eventEnvelope);
+        if (kind == RuntimeBattlePanelFeedbackKind.PlayerSwitched)
+            return PlayerSwitchMessageFor(eventEnvelope);
+
         var message = kind switch
         {
             RuntimeBattlePanelFeedbackKind.CardPlayed => "CARD PLAYED",
             RuntimeBattlePanelFeedbackKind.AttackDeclared => "ATTACK DECLARED",
-            RuntimeBattlePanelFeedbackKind.CardsDrawn => "CARDS DRAWN",
             RuntimeBattlePanelFeedbackKind.AmbushSet => "AMBUSH SET",
             RuntimeBattlePanelFeedbackKind.AmbushTriggered => "AMBUSH TRIGGERED",
             RuntimeBattlePanelFeedbackKind.Commit => "CARD COMMITTED",
@@ -182,9 +225,124 @@ public static class RuntimeBattlePanelActionFeedbackModel
             RuntimeBattlePanelFeedbackKind.CastleDamaged => "CASTLE DAMAGED",
             RuntimeBattlePanelFeedbackKind.CastleBroken => "CASTLE BROKEN",
             RuntimeBattlePanelFeedbackKind.PhaseChanged => "PHASE CHANGED",
+            RuntimeBattlePanelFeedbackKind.TurnStarted => "TURN START",
+            RuntimeBattlePanelFeedbackKind.TurnEnded => "TURN END",
+            RuntimeBattlePanelFeedbackKind.GameOver => "GAME OVER",
             _ => "EVENT",
         };
         return missingRequiredTarget ? message + " · TARGET UNAVAILABLE" : message;
+    }
+
+    private static string CardsDrawnMessageFor(RuntimeEventEnvelope eventEnvelope)
+    {
+        if (!TryReadCount(eventEnvelope, out var count))
+            return "CARDS DRAWN";
+        if (count == 1) return "CARD DRAWN";
+        return string.Concat(
+            "CARDS DRAWN ",
+            count.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private static string HealMessageFor(RuntimeEventEnvelope eventEnvelope)
+    {
+        var hasAmount = TryReadAmount(eventEnvelope, out var amount);
+        var target = TargetLabelFor(eventEnvelope);
+        if (hasAmount && target.Length > 0)
+            return string.Concat("HEAL ", amount, " TO ", target);
+        if (hasAmount)
+            return string.Concat("HEAL ", amount);
+        if (target.Length > 0)
+            return string.Concat("HEAL TO ", target);
+        return "HEAL APPLIED";
+    }
+
+    private static string DeathMessageFor(RuntimeEventEnvelope eventEnvelope)
+    {
+        var target = TargetLabelFor(eventEnvelope);
+        return target.Length > 0
+            ? string.Concat("MINION DEFEATED · ", target)
+            : "MINION DEFEATED";
+    }
+
+    private static string PlayerSwitchMessageFor(RuntimeEventEnvelope eventEnvelope)
+    {
+        if (TryReadPlayerIndex(eventEnvelope, out var playerIndex))
+        {
+            return string.Concat(
+                "PLAYER ",
+                (playerIndex + 1).ToString(CultureInfo.InvariantCulture),
+                " TURN");
+        }
+
+        return "PLAYER SWITCHED";
+    }
+
+    private static string DamageMessageFor(RuntimeEventEnvelope eventEnvelope)
+    {
+        var hasAmount = TryReadAmount(eventEnvelope, out var amount);
+        var target = TargetLabelFor(eventEnvelope);
+
+        if (hasAmount && target.Length > 0)
+            return string.Concat("DAMAGE ", amount, " TO ", target);
+        if (hasAmount)
+            return string.Concat("DAMAGE ", amount);
+        if (target.Length > 0)
+            return string.Concat("DAMAGE TO ", target);
+
+        // A malformed or older event must not make the UI invent a value or
+        // target. The event type itself still gives the player a clear cue.
+        return "DAMAGE APPLIED";
+    }
+
+    private static bool TryReadAmount(
+        RuntimeEventEnvelope eventEnvelope,
+        out string amount)
+    {
+        amount = string.Empty;
+        if (eventEnvelope == null || eventEnvelope.Data == null ||
+            !eventEnvelope.Data.TryGetValue("amount", out var raw) || raw == null)
+            return false;
+
+        if (!(raw is byte || raw is sbyte || raw is short || raw is ushort ||
+              raw is int || raw is uint || raw is long || raw is ulong ||
+              raw is float || raw is double || raw is decimal))
+            return false;
+
+        if (raw is float floatValue && (float.IsNaN(floatValue) || float.IsInfinity(floatValue)))
+            return false;
+        if (raw is double doubleValue && (double.IsNaN(doubleValue) || double.IsInfinity(doubleValue)))
+            return false;
+
+        amount = Convert.ToString(raw, CultureInfo.InvariantCulture);
+        return !string.IsNullOrWhiteSpace(amount);
+    }
+
+    private static string TargetLabelFor(RuntimeEventEnvelope eventEnvelope)
+    {
+        var targets = eventEnvelope?.TargetIds;
+        if (targets == null || targets.Count == 0) return string.Empty;
+        if (targets.Count > 1)
+        {
+            return string.Concat(
+                targets.Count.ToString(CultureInfo.InvariantCulture),
+                " TARGETS");
+        }
+
+        var rawTarget = ConvertTarget(targets[0]);
+        var localized = TargetLocalizationResolver.ResolveSemantic(
+            RuntimeSemanticKind.Target,
+            rawTarget,
+            "en");
+        if (localized.IsKnownSemantic && !string.IsNullOrWhiteSpace(localized.Text))
+            return localized.Text.ToUpperInvariant();
+
+        var normalized = NormalizeType(rawTarget);
+        if (normalized.StartsWith("PLAYER_", StringComparison.Ordinal)) return "PLAYER";
+        if (normalized.StartsWith("LEADER_", StringComparison.Ordinal)) return "LEADER";
+
+        // Entity ids are not player-facing names. Keep the cue readable
+        // without leaking an internal identity that the event cannot label.
+        return "TARGET";
     }
 
     private static bool RequiresTarget(RuntimeBattlePanelFeedbackKind kind)
@@ -199,6 +357,7 @@ public static class RuntimeBattlePanelActionFeedbackModel
         {
             RuntimeBattlePanelFeedbackKind.CardPlayed => CardPlayedAccent,
             RuntimeBattlePanelFeedbackKind.AttackDeclared => AttackAccent,
+            RuntimeBattlePanelFeedbackKind.DamageApplied => DamageAppliedAccent,
             RuntimeBattlePanelFeedbackKind.CardsDrawn => CardsDrawnAccent,
             RuntimeBattlePanelFeedbackKind.AmbushSet => AmbushSetAccent,
             RuntimeBattlePanelFeedbackKind.AmbushTriggered => AmbushTriggeredAccent,
@@ -209,8 +368,68 @@ public static class RuntimeBattlePanelActionFeedbackModel
             RuntimeBattlePanelFeedbackKind.CastleDamaged => CastleDamagedAccent,
             RuntimeBattlePanelFeedbackKind.CastleBroken => CastleBrokenAccent,
             RuntimeBattlePanelFeedbackKind.PhaseChanged => PhaseChangedAccent,
+            RuntimeBattlePanelFeedbackKind.TurnStarted => TurnAccent,
+            RuntimeBattlePanelFeedbackKind.TurnEnded => TurnAccent,
+            RuntimeBattlePanelFeedbackKind.PlayerSwitched => PlayerSwitchAccent,
+            RuntimeBattlePanelFeedbackKind.HealApplied => HealAccent,
+            RuntimeBattlePanelFeedbackKind.Death => DeathAccent,
+            RuntimeBattlePanelFeedbackKind.GameOver => GameOverAccent,
             _ => Color.white,
         };
+    }
+
+    private static string PhaseTokenFor(RuntimeEventEnvelope eventEnvelope)
+    {
+        if (eventEnvelope?.Data != null &&
+            eventEnvelope.Data.TryGetValue("to", out var rawTo) && rawTo != null)
+        {
+            return NormalizeType(Convert.ToString(rawTo, CultureInfo.InvariantCulture));
+        }
+
+        return NormalizeType(eventEnvelope?.Phase);
+    }
+
+    private static bool TryReadCount(RuntimeEventEnvelope eventEnvelope, out long count)
+    {
+        return TryReadInteger(eventEnvelope, "count", out count);
+    }
+
+    private static bool TryReadPlayerIndex(RuntimeEventEnvelope eventEnvelope, out long playerIndex)
+    {
+        if (TryReadInteger(eventEnvelope, "currentPlayer", out playerIndex) ||
+            TryReadInteger(eventEnvelope, "player", out playerIndex) ||
+            TryReadInteger(eventEnvelope, "playerIndex", out playerIndex))
+        {
+            return playerIndex >= 0 && playerIndex <= 1;
+        }
+
+        playerIndex = -1;
+        return false;
+    }
+
+    private static bool TryReadInteger(
+        RuntimeEventEnvelope eventEnvelope,
+        string key,
+        out long value)
+    {
+        value = 0;
+        if (eventEnvelope?.Data == null ||
+            !eventEnvelope.Data.TryGetValue(key, out var raw) || raw == null)
+            return false;
+
+        if (!(raw is byte || raw is sbyte || raw is short || raw is ushort ||
+              raw is int || raw is uint || raw is long || raw is ulong))
+            return false;
+
+        try
+        {
+            value = Convert.ToInt64(raw, CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     private static string NormalizeType(string value)
@@ -264,6 +483,8 @@ public sealed class RuntimeBattlePanelActionFeedback
     private const float SettledAlpha = 0.34f;
 
     private readonly HashSet<string> _consumedEventKeys = new HashSet<string>(StringComparer.Ordinal);
+    private readonly Queue<RuntimeBattlePanelFeedbackCue> _pendingCues =
+        new Queue<RuntimeBattlePanelFeedbackCue>();
     private RuntimeBattlePanelView _view;
     private RuntimeBattlePanelFeedbackCue _currentCue;
     private float _elapsed;
@@ -280,6 +501,7 @@ public sealed class RuntimeBattlePanelActionFeedback
     public bool IsAnimating => !_reducedMotion && _currentCue != null && _elapsed < StandardDurationSeconds;
     public int ConsumedEventCount => _consumedEventKeys.Count;
     public int AppliedFeedbackCount { get; private set; }
+    public int PendingCueCount => _pendingCues.Count;
     public float AnimationRemainingSeconds =>
         IsAnimating ? Mathf.Max(0f, StandardDurationSeconds - _elapsed) : 0f;
 
@@ -310,7 +532,7 @@ public sealed class RuntimeBattlePanelActionFeedback
     {
         if (events == null) return;
 
-        RuntimeBattlePanelFeedbackCue preferredCue = null;
+        var incoming = new List<RuntimeBattlePanelFeedbackCue>();
         for (var index = 0; index < events.Count; index++)
         {
             var eventEnvelope = events[index];
@@ -320,17 +542,72 @@ public sealed class RuntimeBattlePanelActionFeedback
                 continue;
 
             AppliedFeedbackCount++;
-            if (preferredCue == null || Priority(cue) >= Priority(preferredCue))
-                preferredCue = cue;
+            incoming.Add(cue);
         }
 
-        if (preferredCue == null) return;
-        _currentCue = preferredCue;
-        ApplyCue(preferredCue);
+        if (incoming.Count == 0) return;
+
+        // Revision is authoritative ordering. A malformed caller may provide
+        // an older suffix after a newer event; stable insertion sorting keeps
+        // revisions monotonic without changing order among same-revision
+        // events. Ambush/castle/game-over are promoted only within the first
+        // revision so their existing presentation priority is retained.
+        StableSortByRevision(incoming);
+        PromoteFirstRevisionPriority(incoming);
+        for (var index = 0; index < incoming.Count; index++)
+            _pendingCues.Enqueue(incoming[index]);
+
+        if (_currentCue == null)
+            ActivateNextCue();
+        if (_reducedMotion)
+            DrainPendingCues();
     }
 
     private static int Priority(RuntimeBattlePanelFeedbackCue cue)
-        => cue != null && cue.Kind == RuntimeBattlePanelFeedbackKind.AmbushTriggered ? 100 : 0;
+    {
+        if (cue == null) return 0;
+        if (cue.Kind == RuntimeBattlePanelFeedbackKind.GameOver) return 120;
+        if (cue.Kind == RuntimeBattlePanelFeedbackKind.AmbushTriggered) return 110;
+        if (cue.Kind == RuntimeBattlePanelFeedbackKind.CastleBroken) return 100;
+        if (cue.Kind == RuntimeBattlePanelFeedbackKind.Death) return 80;
+        if (cue.Kind == RuntimeBattlePanelFeedbackKind.DamageApplied) return 50;
+        return 0;
+    }
+
+    private static void StableSortByRevision(List<RuntimeBattlePanelFeedbackCue> cues)
+    {
+        for (var index = 1; index < cues.Count; index++)
+        {
+            var candidate = cues[index];
+            var cursor = index - 1;
+            while (cursor >= 0 && cues[cursor].SnapshotRevision > candidate.SnapshotRevision)
+            {
+                cues[cursor + 1] = cues[cursor];
+                cursor--;
+            }
+
+            cues[cursor + 1] = candidate;
+        }
+    }
+
+    private static void PromoteFirstRevisionPriority(List<RuntimeBattlePanelFeedbackCue> cues)
+    {
+        if (cues.Count < 2) return;
+
+        var firstRevision = cues[0].SnapshotRevision;
+        var bestIndex = 0;
+        for (var index = 1; index < cues.Count; index++)
+        {
+            if (cues[index].SnapshotRevision != firstRevision) break;
+            if (Priority(cues[index]) > Priority(cues[bestIndex]))
+                bestIndex = index;
+        }
+
+        if (bestIndex == 0) return;
+        var preferred = cues[bestIndex];
+        cues.RemoveAt(bestIndex);
+        cues.Insert(0, preferred);
+    }
 
     /// <summary>
     /// Turns the accessibility path on/off. Enabling Reduced Motion settles
@@ -340,16 +617,25 @@ public sealed class RuntimeBattlePanelActionFeedback
     {
         if (_reducedMotion == enabled)
         {
-            if (enabled && _currentCue != null) ApplyStaticCue(_currentCue);
+            if (enabled)
+            {
+                if (_currentCue != null) ApplyStaticCue(_currentCue);
+                DrainPendingCues();
+            }
             return;
         }
 
         _reducedMotion = enabled;
-        if (_currentCue == null) return;
+        if (_currentCue == null)
+        {
+            if (enabled) DrainPendingCues();
+            return;
+        }
 
         // A settings change must not replay an already-consumed event. The
         // next genuinely new event will choose the currently active path.
         ApplyStaticCue(_currentCue);
+        if (enabled) DrainPendingCues();
     }
 
     /// <summary>
@@ -358,7 +644,7 @@ public sealed class RuntimeBattlePanelActionFeedback
     /// </summary>
     public void Tick(float unscaledDeltaSeconds)
     {
-        if (_reducedMotion || _currentCue == null || _view == null) return;
+        if (_reducedMotion || _currentCue == null) return;
         if (unscaledDeltaSeconds <= 0f) return;
 
         _elapsed = Mathf.Min(StandardDurationSeconds, _elapsed + unscaledDeltaSeconds);
@@ -366,7 +652,25 @@ public sealed class RuntimeBattlePanelActionFeedback
         var eased = 1f - Mathf.SmoothStep(0f, 1f, progress);
         ApplyAnimatedProgress(_currentCue, eased);
         if (_elapsed >= StandardDurationSeconds)
-            ResetAnimatedProperties(_currentCue);
+        {
+            if (!ActivateNextCue())
+                ResetAnimatedProperties(_currentCue);
+        }
+    }
+
+    /// <summary>
+    /// Skips only the presentation pulse. It never removes an event identity
+    /// or changes the adapter/event source, and it advances at most one cue.
+    /// </summary>
+    public bool SkipCurrentCue()
+    {
+        if (_currentCue == null) return false;
+        if (ActivateNextCue()) return true;
+
+        _currentCue = null;
+        _elapsed = 0f;
+        ResetVisuals();
+        return true;
     }
 
     /// <summary>
@@ -376,6 +680,7 @@ public sealed class RuntimeBattlePanelActionFeedback
     public void Clear()
     {
         _currentCue = null;
+        _pendingCues.Clear();
         _elapsed = 0f;
         ResetVisuals();
     }
@@ -393,13 +698,46 @@ public sealed class RuntimeBattlePanelActionFeedback
 
     private void ApplyCue(RuntimeBattlePanelFeedbackCue cue)
     {
-        if (_view == null) return;
         if (_reducedMotion) ApplyStaticCue(cue);
         else
         {
             _elapsed = 0f;
             ApplyAnimatedCue(cue);
         }
+    }
+
+    private bool ActivateNextCue()
+    {
+        if (_pendingCues.Count == 0) return false;
+
+        _currentCue = _pendingCues.Dequeue();
+        ApplyCue(_currentCue);
+        return true;
+    }
+
+    private void DrainPendingCues()
+    {
+        if (_pendingCues.Count == 0)
+        {
+            if (_currentCue != null) ApplyStaticCue(_currentCue);
+            return;
+        }
+
+        var selected = _currentCue;
+        while (_pendingCues.Count > 0)
+        {
+            var candidate = _pendingCues.Dequeue();
+            if (selected == null ||
+                Priority(candidate) > Priority(selected) ||
+                (Priority(candidate) == Priority(selected) &&
+                 candidate.SnapshotRevision >= selected.SnapshotRevision))
+            {
+                selected = candidate;
+            }
+        }
+
+        _currentCue = selected;
+        if (_currentCue != null) ApplyStaticCue(_currentCue);
     }
 
     private void ApplyStaticCue(RuntimeBattlePanelFeedbackCue cue)

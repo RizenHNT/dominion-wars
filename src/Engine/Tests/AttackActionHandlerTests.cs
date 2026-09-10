@@ -82,6 +82,27 @@ public sealed class AttackActionHandlerTests
     }
 
     [Test]
+    public void AcceptedEntityAttackEmitsDamageAndChangesTargetHealth()
+    {
+        var state = CreateActionState(out _, out var router);
+        var attacker = AddReadyMinion(state, 0, 21, "flame_attacker", 8, 10);
+        var defender = AddReadyMinion(state, 1, 22, "machine_wall", 0, 8);
+        var healthBefore = defender.Health;
+
+        var result = router.Execute(state, Attack(attacker.InstanceId, defender.InstanceId));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Accepted, Is.True);
+            Assert.That(defender.Health, Is.LessThan(healthBefore));
+            Assert.That(state.GetPlayer(1).Field.Contains(defender), Is.False);
+            Assert.That(
+                state.Events.Items.Any(item => item.EventType == "DAMAGE_DEALT"),
+                Is.True);
+        });
+    }
+
+    [Test]
     public void ShieldAbsorbsAttackButDefenderStillRetaliates()
     {
         var state = CreateActionState(out _, out var router);

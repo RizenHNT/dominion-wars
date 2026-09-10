@@ -68,6 +68,14 @@ public sealed class AmbushActionHandler : ITurnActionHandler
                 "player", player.PlayerIndex,
                 "count", discards.Count,
                 "reasonKey", "rule.punish_converted"));
+            new EffectRuntime(state).TriggerOpponentDiscardEffects(
+                player.PlayerIndex,
+                discards.Count,
+                new EffectContext(player.PlayerIndex, root.EventId));
+            if (state.WinnerPlayerIndex.HasValue)
+            {
+                return GameActionResult.Accept();
+            }
         }
         else if (fizzle)
         {

@@ -16,7 +16,9 @@
   "leader": true,
   "leaderDef": {
    "winCondition": "ROYAL_CASTLE_BREAK",
-   "vulnerabilities": ["DAMAGE"],
+   "vulnerabilities": [
+    "DAMAGE"
+   ],
    "winText": "击破王城即获胜",
    "enterEffects": [
     {
@@ -51,7 +53,7 @@
   "punish": 1,
   "attack": 2,
   "health": 1,
-  "text": "",
+  "text": "士兵。",
   "flavor": "帝国的火种，从不熄灭。"
  },
  {
@@ -291,7 +293,7 @@
   "punish": 3,
   "attack": 4,
   "health": 4,
-  "text": ""
+  "text": "龙。"
  },
  {
   "id": "flame_giant",
@@ -307,7 +309,7 @@
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "嘲讽。"
  },
  {
   "id": "flame_assassin",
@@ -362,7 +364,7 @@
   "keywords": [
    "突袭"
   ],
-  "text": ""
+  "text": "突袭（召唤当回合即可攻击）。"
  },
  {
   "id": "flame_sacrifice",

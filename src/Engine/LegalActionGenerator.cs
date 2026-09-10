@@ -111,8 +111,7 @@ public sealed class LegalActionGenerator
         if (player.CloudStack.Count > 0)
         {
             var top = player.CloudStack[player.CloudStack.Count - 1];
-            if (top.Definition.DownloadCost == 0
-                && PullActionHandler.HasSupportedPullEffects(state, top))
+            if (PullActionHandler.HasSupportedPullEffects(state, top))
             {
                 var pullSources = new List<CardInstance>(player.Field.Count + player.LeaderZone.Count);
                 pullSources.AddRange(player.Field);
@@ -124,16 +123,21 @@ public sealed class LegalActionGenerator
                         continue;
                     }
 
-                    actions.Add(new LegalAction
+                    var pullTargets = PullActionHandler.GetLegalTargets(state, playerIdx, top);
+                    if (PullActionHandler.RequiresTargetSelection(top.Definition.PullEffects))
                     {
-                        ActionId = $"pull_{source.InstanceId}_{top.InstanceId}",
-                        Type = Pull,
-                        Actor = playerIdx,
-                        SourceId = source.InstanceId,
-                        TargetId = top.InstanceId,
-                        CardId = top.Definition.Id,
-                        ReasonKey = "action.pull",
-                    });
+                        foreach (var pullTarget in pullTargets)
+                        {
+                            actions.Add(CreatePullAction(
+                                source,
+                                top,
+                                pullTarget.InstanceId));
+                        }
+                    }
+                    else
+                    {
+                        actions.Add(CreatePullAction(source, top));
+                    }
                 }
             }
         }
@@ -143,7 +147,6 @@ public sealed class LegalActionGenerator
             if (EffectRuntime.IsMechanicalCard(source)
                 && !source.IsLeaderEntity
                 && !source.Definition.IsLeader
-                && source.Definition.CommitCost == 0
                 && CommitActionHandler.HasSupportedCommitEffects(state, source))
             {
                 actions.Add(new LegalAction
@@ -157,6 +160,7 @@ public sealed class LegalActionGenerator
                     Payload = new Dictionary<string, object?>
                     {
                         ["commitCost"] = source.Definition.CommitCost,
+                        ["punish"] = source.Definition.CommitCost,
                     },
                 });
             }
@@ -211,6 +215,34 @@ public sealed class LegalActionGenerator
             TargetReferenceId = target?.EntityId.HasValue == true ? null : target?.Id,
             CardId = card.Definition.Id,
             ReasonKey = "action.play_card",
+            Payload = payload,
+        };
+    }
+
+    private static LegalAction CreatePullAction(
+        CardInstance source,
+        CardInstance top,
+        long? selectedTargetId = null)
+    {
+        var payload = new Dictionary<string, object?>();
+        payload["punish"] = top.Definition.DownloadCost;
+        if (selectedTargetId.HasValue)
+        {
+            payload["selectedEntityIds"] = new[] { selectedTargetId.Value };
+        }
+
+        return new LegalAction
+        {
+            ActionId = PullActionHandler.CreateActionId(
+                source.InstanceId,
+                top.InstanceId,
+                selectedTargetId),
+            Type = Pull,
+            Actor = source.ControllerPlayerIndex,
+            SourceId = source.InstanceId,
+            TargetId = top.InstanceId,
+            CardId = top.Definition.Id,
+            ReasonKey = "action.pull",
             Payload = payload,
         };
     }

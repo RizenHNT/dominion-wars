@@ -70,10 +70,10 @@ Status: **OPEN — 新 MVP 周期基线**
 
 ## KI-CONTENT-009 — Skin 只有设计契约，没有 Unity 解析链
 
-- 严重度：P2。
-- 事实：已有 v1.30 skin/theme 设计契约，但 Unity RuntimeBootstrap 没有加载 content manifest、skin 或 theme。
-- 影响：当前牌桌、卡背、王城和 UI 图标仍是占位或代码内表现，不能通过 skinId 组合替换。
-- 计划：MVP 实现默认 skin + 第二个测试 skin，并验证 fallback 和构建打包。
+- 严重度：P2；状态：**部分解决，保持 OPEN**。
+- 事实：`ContentSkinCatalog` 已严格加载 `manifests/skins/*.json`，仓库已有 default/test 两套角色覆盖；Unity content build gate/staging 会校验并复制 skin manifests，runtime resolver 可按 skinId 解析角色和 card-art 覆盖。
+- 影响：当前只证明 programmatic placeholder 和逻辑解析，未宣称最终牌桌/卡背/王城/UI 图标美术；完整 Windows build/package 与所有前端绑定仍需独立门禁。
+- 计划：保留 connected Unity Editor 的内容专项回归，另行完成 Windows build/package 证明；不在本周期添加图片或改变牌桌视觉。
 
 ## KI-CONTENT-010 — 音频和 VFX 尚未实现
 
@@ -82,10 +82,23 @@ Status: **OPEN — 新 MVP 周期基线**
 - 影响：本周期不能声称音乐、SFX 或 VFX 已解耦可用。
 - 计划：MVP 只保留 typed manifest、逻辑 ID 和 no-op/fallback 接口；实际运行时接入另开周期。
 
+## KI-CONTENT-011 — Windows Player foreground visual smoke 仍待人工补齐
+
+- 严重度：P2（验证项）；状态：**OPEN**。
+- 事实：内容收口后的 connected Unity Editor 全量 EditMode **170/170**、PlayMode **6/6**；U-04 专项 **10/10**、U-05 **21/21**、U-06 结构/流程 **14/14 + 17/17**；.NET **521/521**，runtime contract **13 valid/11 expected-invalid/0 fail**。Unity Pipeline Windows Player 已 **Succeeded / 0 errors**，包路径为 `unity/DominionWars.Unity/Builds/StandaloneWindows64/DominionWars.Unity.exe`，构建报告含 **486 shader warnings**。
+- 影响：Player 独立启动日志证明 TITLE shell ready，且自动退出无异常；但后台 `ScreenCapture` 未创建稳定 PNG，故不能把独立包最终视觉内容或前台截图验收写成 PASS。
+- 计划：人类在前台解锁/运行该包后补一张 1280×720 截图并确认牌桌、牌区、阶段、动作可见；在此之前保持 OPEN，不阻塞代码继续推进。
+
+## KI-CONTENT-012 — 跨层运行时表现字段与重启语义待人工/PL 决策
+
+- 严重度：P2（边界决策）；状态：**HUMAN_REQUIRED / PL_REQUIRED**。
+- 事实：Restart 的新 session/seed/match-id 语义尚未冻结；引擎快照尚无 Exile、城堡屏障、统领生命权威字段；LeaderZone 是否聚合 Field/AmbushZone 中的活动统领也尚未冻结。
+- 影响：UI 不能安全显示或推断这些值，也不能自行赋予 Restart 新对局语义；当前对缺少的权威字段保持 `Unavailable`，避免表现层制造规则真相。
+- 计划：由 PL/人类冻结合同字段和聚合范围后，再分别安排引擎/适配器/UI 变更；本轮不猜测、不回填伪数据。
+
 ## 本周期的处理边界
 
 - 只实现已批准的内容管线和 Card Editor MVP，不修改规则、平衡、卡牌效果结算或最终美术方向。
 - 不删除 data/art、旧编辑器或历史设计资产；迁移必须可恢复。
 - 所有实现必须补充 Schema、manifest、编辑器事务、Unity EditMode/PlayMode/构建和回归证据。
 - 在对应证据完成前，状态保持 OPEN，不得把设计规格写成实现完成。
-

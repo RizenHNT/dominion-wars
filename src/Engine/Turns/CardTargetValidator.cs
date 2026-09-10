@@ -21,7 +21,11 @@ internal sealed class CardTargetValidator
         var requirement = TargetRequirement.None;
         foreach (var effect in effects)
         {
-            if (effect.Target is "ENEMY_MINION" or "ENEMY_SINGLE" or "SINGLE_ENEMY")
+            if (effect.Target == "FRIENDLY_MINION")
+            {
+                requirement = TargetRequirement.FriendlyEntity;
+            }
+            else if (effect.Target is "ENEMY_MINION" or "ENEMY_SINGLE" or "SINGLE_ENEMY")
             {
                 requirement = TargetRequirement.Entity;
             }
@@ -51,7 +55,10 @@ internal sealed class CardTargetValidator
         }
 
         var result = new List<TargetReference>();
-        foreach (var candidate in _policy.GetEnemyCandidates(state, sourcePlayerIndex))
+        var candidates = requirement == TargetRequirement.FriendlyEntity
+            ? GetFriendlyMinionCandidates(state, sourcePlayerIndex)
+            : _policy.GetEnemyCandidates(state, sourcePlayerIndex);
+        foreach (var candidate in candidates)
         {
             if (TryResolve(
                 state,
@@ -78,6 +85,21 @@ internal sealed class CardTargetValidator
         TargetRequirement requirement,
         out TargetSelection selection)
     {
+        if (requirement == TargetRequirement.FriendlyEntity)
+        {
+            foreach (var candidate in GetFriendlyMinionCandidates(state, sourcePlayerIndex))
+            {
+                if (string.Equals(candidate.Id, targetId, StringComparison.Ordinal))
+                {
+                    selection = TargetSelection.ForEntity(candidate.EntityId!.Value);
+                    return true;
+                }
+            }
+
+            selection = default;
+            return false;
+        }
+
         if (!_policy.TryResolveEnemyCandidate(state, sourcePlayerIndex, targetId, out var target)
             || target is null)
         {
@@ -143,6 +165,36 @@ internal sealed class CardTargetValidator
         return false;
     }
 
+    private static IReadOnlyList<TargetReference> GetFriendlyMinionCandidates(
+        GameState state,
+        int sourcePlayerIndex)
+    {
+        var result = new List<TargetReference>();
+        foreach (var card in state.GetPlayer(sourcePlayerIndex).Field)
+        {
+            if (IsOrdinaryAliveMinion(card))
+            {
+                result.Add(TargetReference.ForEntity(card));
+            }
+        }
+
+        return result.AsReadOnly();
+    }
+
+    /// <summary>
+    /// FRIENDLY_MINION means a normal living minion. Minion-shaped leaders
+    /// such as the Machine alpha intentionally live in Field, but remain
+    /// leaders and are not valid recipients for ordinary friendly buffs.
+    /// </summary>
+    internal static bool IsOrdinaryAliveMinion(CardInstance? card)
+    {
+        return card is not null
+            && card.IsMinion
+            && !card.IsLeader
+            && !card.IsLeaderEntity
+            && card.IsAlive;
+    }
+
     private static bool ContainsOrdinal(IEnumerable<string> values, string expected)
     {
         foreach (var value in values)
@@ -163,5 +215,6 @@ internal enum TargetRequirement
     Entity,
     AnyEnemy,
     Core,
+    FriendlyEntity,
 }
 }

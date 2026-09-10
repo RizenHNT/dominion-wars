@@ -18,6 +18,7 @@ public static class EngineProjectionAdapter
             ["PHASE_CHANGED"] = "PHASE_CHANGED",
             ["TURN_CHANGED"] = "TURN_CHANGED",
             ["TURN_STARTED"] = "TURN_CHANGED",
+            ["CARDS_DRAWN"] = "CARDS_DRAWN",
             ["ATTACK_DECLARED"] = "ATTACK_DECLARED",
             ["AMBUSH_SET"] = "AMBUSH_SET",
             ["AMBUSH_TRIGGERED"] = "AMBUSH_TRIGGERED",
@@ -25,6 +26,7 @@ public static class EngineProjectionAdapter
             ["PUNISH_DRAW"] = "PUNISH_DRAW",
             ["DAMAGE_DEALT"] = "DAMAGE_APPLIED",
             ["HEALED"] = "HEAL_APPLIED",
+            ["MINION_DESTROYED"] = "MINION_DESTROYED",
             ["CARDS_DISCARDED"] = "CARD_DISCARDED",
             ["CASTLE_DAMAGED"] = "CASTLE_DAMAGED",
             ["CASTLE_BROKEN"] = "CASTLE_BROKEN",
@@ -496,59 +498,157 @@ public static class EngineProjectionAdapter
 
     private static IReadOnlyDictionary<string, object?> ProjectEventData(GameEvent gameEvent)
     {
-        if (gameEvent.EventType == "GAME_WON")
+        // Engine events intentionally keep their historical, internal data
+        // (for example source/target/player/punish).  None of that dictionary
+        // may cross the 1.31 presentation boundary verbatim: ui_event.schema
+        // is fail-closed and only permits the seven canonical data keys below.
+        // Each mapped event therefore gets an explicit public projection.  A
+        // field which has no safe schema representation is dropped rather than
+        // leaking an internal identifier or making the wire payload invalid.
+        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        switch (gameEvent.EventType)
         {
-            // The engine's historical event payload used "player". Keep
-            // reading that input for compatibility, but emit only the
-            // canonical v1.31 GAME_OVER keys on the wire.
-            return new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["winnerPlayerIndex"] = ValueOrNull(gameEvent.Data, "winnerPlayerIndex")
-                    ?? ValueOrNull(gameEvent.Data, "player"),
-                ["reasonKey"] = ValueOrNull(gameEvent.Data, "reasonKey"),
-            };
+            case "CARD_PLAYED":
+                AddCanonicalId(result, "sourceId", gameEvent.Data, "source");
+                AddString(result, "cardId", gameEvent.Data, "cardId");
+                AddNumber(result, "amount", gameEvent.Data, "punish");
+                break;
+
+            case "PHASE_CHANGED":
+                // The current phase is already carried by the envelope.  The
+                // engine's from/to/reason fields are not 1.31 data fields.
+                break;
+
+            case "TURN_CHANGED":
+                AddPlayerTarget(result, gameEvent.Data, "currentPlayer");
+                break;
+
+            case "TURN_STARTED":
+                AddPlayerTarget(result, gameEvent.Data, "player");
+                break;
+
+            case "CARDS_DRAWN":
+            case "PUNISH_DRAW":
+                AddPlayerTarget(result, gameEvent.Data, "player");
+                AddNumber(result, "count", gameEvent.Data, "count");
+                break;
+
+            case "ATTACK_DECLARED":
+                AddCanonicalId(result, "sourceId", gameEvent.Data, "source");
+                AddCanonicalTargets(result, gameEvent.Data, "target");
+                break;
+
+            case "AMBUSH_SET":
+                // Ambush identity remains hidden until the rules make it
+                // public.  The punishment amount is safe presentation data;
+                // source/cardId are intentionally omitted.
+                AddNumber(result, "amount", gameEvent.Data, "punish");
+                break;
+
+            case "AMBUSH_TRIGGERED":
+                // Do not expose the hidden ambush card or its entity id.
+                break;
+
+            case "PUNISH_TRIGGERED":
+                AddCanonicalId(result, "sourceId", gameEvent.Data, "source");
+                break;
+
+            case "DAMAGE_DEALT":
+            case "HEALED":
+                AddCanonicalId(result, "sourceId", gameEvent.Data, "source");
+                AddCanonicalTargets(result, gameEvent.Data, "target");
+                AddNumber(result, "amount", gameEvent.Data, "amount");
+                AddReasonKey(result, gameEvent.Data, "reasonKey");
+                break;
+
+            case "MINION_DESTROYED":
+                AddCanonicalTargets(result, gameEvent.Data, "target");
+                AddReasonKey(result, gameEvent.Data, "reasonKey");
+                break;
+
+            case "CARDS_DISCARDED":
+                AddPlayerTarget(result, gameEvent.Data, "player");
+                AddNumber(result, "count", gameEvent.Data, "count");
+                AddReasonKey(result, gameEvent.Data, "reasonKey");
+                break;
+
+            case "CASTLE_DAMAGED":
+                AddLiteralTarget(result, "castle");
+                AddNumber(result, "amount", gameEvent.Data, "amount");
+                break;
+
+            case "CASTLE_BROKEN":
+                AddLiteralTarget(result, "castle");
+                break;
+
+            case "LEADER_MANIFESTED":
+                AddCanonicalTargets(result, gameEvent.Data, "target");
+                break;
+
+            case "LEADER_REPLACED":
+                AddCanonicalTargets(result, gameEvent.Data, "newLeader");
+                AddString(result, "cardId", gameEvent.Data, "cardId");
+                break;
+
+            case "DECK_CYCLED":
+                AddPlayerTarget(result, gameEvent.Data, "player");
+                break;
+
+            case "COMMIT_DECLARED":
+                AddCanonicalId(result, "sourceId", gameEvent.Data, "source");
+                AddNumber(result, "amount", gameEvent.Data, "punish");
+                break;
+
+            case "CARD_COMMITTED":
+            case "CARD_PUSHED":
+                AddCanonicalTargets(result, gameEvent.Data, "target");
+                AddNumber(result, "amount", gameEvent.Data, "cost");
+                break;
+
+            case "PULL_DECLARED":
+                AddCanonicalId(result, "sourceId", gameEvent.Data, "source");
+                AddCanonicalTargets(result, gameEvent.Data, "target");
+                break;
+
+            case "CARD_PULLED":
+                AddCanonicalId(result, "sourceId", gameEvent.Data, "carrier");
+                AddCanonicalTargets(result, gameEvent.Data, "target");
+                AddNumber(result, "amount", gameEvent.Data, "cost");
+                // A CARD_PULLED event represents one successful pull.  The
+                // engine's pullCount is an owner-wide cumulative victory
+                // counter and must never be exposed as this event's count.
+                AddNumber(result, "count", gameEvent.Data, "count");
+                if (!result.ContainsKey("count"))
+                {
+                    result["count"] = 1;
+                }
+                break;
+
+            case "GAME_WON":
+                var winnerPlayerIndex = ReadPlayerIndex(
+                    ValueOrNull(gameEvent.Data, "winnerPlayerIndex")
+                    ?? ValueOrNull(gameEvent.Data, "player"));
+                if (winnerPlayerIndex is not null)
+                {
+                    result["winnerPlayerIndex"] = winnerPlayerIndex.Value;
+                }
+                AddReasonKey(result, gameEvent.Data, "reasonKey");
+                break;
+
+            case "VICTORY_PROGRESS":
+                AddCanonicalId(result, "sourceId", gameEvent.Data, "source");
+                AddPlayerTarget(result, gameEvent.Data, "player");
+                AddNumber(result, "amount", gameEvent.Data, "current");
+                if (!result.ContainsKey("amount"))
+                {
+                    AddNumber(result, "amount", gameEvent.Data, "remaining");
+                }
+
+                AddVictoryCondition(result, gameEvent.Data, "condition");
+                break;
         }
 
-        if (gameEvent.EventType == "PULL_DECLARED")
-        {
-            return new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["sourceId"] = ValueOrNull(gameEvent.Data, "source"),
-                ["targetIds"] = SingleTargetList(gameEvent.Data, "target"),
-            };
-        }
-
-        if (gameEvent.EventType == "COMMIT_DECLARED")
-        {
-            return new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["sourceId"] = ValueOrNull(gameEvent.Data, "source"),
-                ["targetIds"] = SingleTargetList(gameEvent.Data, "source"),
-            };
-        }
-
-        if (gameEvent.EventType == "CARD_COMMITTED"
-            || gameEvent.EventType == "CARD_PUSHED")
-        {
-            return new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["targetIds"] = SingleTargetList(gameEvent.Data, "target"),
-                ["amount"] = ValueOrNull(gameEvent.Data, "cost"),
-            };
-        }
-
-        if (gameEvent.EventType == "CARD_PULLED")
-        {
-            return new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["sourceId"] = ValueOrNull(gameEvent.Data, "carrier"),
-                ["targetIds"] = SingleTargetList(gameEvent.Data, "target"),
-                ["amount"] = ValueOrNull(gameEvent.Data, "cost"),
-                ["count"] = ValueOrNull(gameEvent.Data, "pullCount"),
-            };
-        }
-
-        return gameEvent.Data;
+        return result;
     }
 
     private static object? ValueOrNull(
@@ -562,7 +662,194 @@ public static class EngineProjectionAdapter
         IReadOnlyDictionary<string, object?> data,
         string key)
     {
-        return new[] { ValueOrNull(data, key) };
+        var value = ReadCanonicalWireId(ValueOrNull(data, key));
+        return value is null ? Array.Empty<object?>() : new[] { value };
+    }
+
+    private static void AddCanonicalId(
+        IDictionary<string, object?> result,
+        string outputKey,
+        IReadOnlyDictionary<string, object?> data,
+        string inputKey)
+    {
+        var value = ReadCanonicalWireId(ValueOrNull(data, inputKey));
+        if (value is not null)
+        {
+            result[outputKey] = value;
+        }
+    }
+
+    private static void AddCanonicalTargets(
+        IDictionary<string, object?> result,
+        IReadOnlyDictionary<string, object?> data,
+        string inputKey)
+    {
+        var targets = SingleTargetList(data, inputKey);
+        if (targets.Count > 0)
+        {
+            result["targetIds"] = targets;
+        }
+    }
+
+    private static void AddLiteralTarget(IDictionary<string, object?> result, string target)
+    {
+        result["targetIds"] = new[] { target };
+    }
+
+    private static void AddPlayerTarget(
+        IDictionary<string, object?> result,
+        IReadOnlyDictionary<string, object?> data,
+        string inputKey)
+    {
+        var playerIndex = ReadPlayerIndex(ValueOrNull(data, inputKey));
+        if (playerIndex is not null)
+        {
+            result["targetIds"] = new[] { "player_" + playerIndex.Value.ToString(CultureInfo.InvariantCulture) };
+        }
+    }
+
+    private static void AddNumber(
+        IDictionary<string, object?> result,
+        string outputKey,
+        IReadOnlyDictionary<string, object?> data,
+        string inputKey)
+    {
+        var value = ValueOrNull(data, inputKey);
+        if (value is null)
+        {
+            return;
+        }
+
+        if (value is byte || value is sbyte || value is short || value is ushort
+            || value is int || value is uint || value is long || value is ulong
+            || value is float || value is double || value is decimal)
+        {
+            result[outputKey] = value;
+        }
+    }
+
+    private static void AddString(
+        IDictionary<string, object?> result,
+        string outputKey,
+        IReadOnlyDictionary<string, object?> data,
+        string inputKey)
+    {
+        var value = ValueOrNull(data, inputKey);
+        if (value is string text && !string.IsNullOrWhiteSpace(text))
+        {
+            result[outputKey] = text;
+        }
+    }
+
+    private static void AddReasonKey(
+        IDictionary<string, object?> result,
+        IReadOnlyDictionary<string, object?> data,
+        string inputKey)
+    {
+        AddString(result, "reasonKey", data, inputKey);
+    }
+
+    private static void AddVictoryCondition(
+        IDictionary<string, object?> result,
+        IReadOnlyDictionary<string, object?> data,
+        string inputKey)
+    {
+        var value = ValueOrNull(data, inputKey);
+        if (value is string condition && !string.IsNullOrWhiteSpace(condition))
+        {
+            result["reasonKey"] = "victory." + condition.ToLowerInvariant();
+        }
+    }
+
+    private static int? ReadPlayerIndex(object? value)
+    {
+        if (value is byte byteValue && byteValue <= 1) return byteValue;
+        if (value is sbyte sbyteValue && sbyteValue is >= 0 and <= 1) return sbyteValue;
+        if (value is short shortValue && shortValue is >= 0 and <= 1) return shortValue;
+        if (value is ushort ushortValue && ushortValue <= 1) return ushortValue;
+        if (value is int intValue && intValue is >= 0 and <= 1) return intValue;
+        if (value is uint uintValue && uintValue <= 1) return (int)uintValue;
+        if (value is long longValue && longValue is >= 0 and <= 1) return (int)longValue;
+        if (value is ulong ulongValue && ulongValue <= 1) return (int)ulongValue;
+
+        if (value is string text)
+        {
+            if (text.StartsWith("player:", StringComparison.Ordinal))
+            {
+                text = text.Substring("player:".Length);
+            }
+            else if (text.StartsWith("player_", StringComparison.Ordinal))
+            {
+                text = text.Substring("player_".Length);
+            }
+
+            if (int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)
+                && parsed is >= 0 and <= 1)
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static object? ReadCanonicalWireId(object? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value is byte byteValue && byteValue > 0) return (long)byteValue;
+        if (value is sbyte sbyteValue && sbyteValue > 0) return (long)sbyteValue;
+        if (value is short shortValue && shortValue > 0) return (long)shortValue;
+        if (value is ushort ushortValue && ushortValue > 0) return (long)ushortValue;
+        if (value is int intValue && intValue > 0) return (long)intValue;
+        if (value is uint uintValue && uintValue > 0) return (long)uintValue;
+        if (value is long longValue && longValue > 0) return longValue;
+        if (value is ulong ulongValue && ulongValue > 0 && ulongValue <= long.MaxValue)
+            return (long)ulongValue;
+
+        if (value is not string text || string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        if (text.StartsWith("entity_", StringComparison.Ordinal)
+            && long.TryParse(text.Substring("entity_".Length), NumberStyles.None, CultureInfo.InvariantCulture, out var entityId)
+            && entityId > 0)
+        {
+            return entityId;
+        }
+
+        if (text.StartsWith("player:", StringComparison.Ordinal))
+        {
+            var playerIndex = ReadPlayerIndex(text);
+            return playerIndex is null
+                ? null
+                : "player_" + playerIndex.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (text.Equals("core:shared_castle", StringComparison.Ordinal))
+        {
+            return "castle";
+        }
+
+        if (text.Equals("castle", StringComparison.Ordinal)
+            || text.StartsWith("player_", StringComparison.Ordinal)
+            || text.StartsWith("leader_", StringComparison.Ordinal)
+            || text.StartsWith("prompt_", StringComparison.Ordinal))
+        {
+            return text;
+        }
+
+        if (long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out entityId)
+            && entityId > 0)
+        {
+            return entityId;
+        }
+
+        return null;
     }
 
     private static string? ReadString(IReadOnlyDictionary<string, object?> data, string key)

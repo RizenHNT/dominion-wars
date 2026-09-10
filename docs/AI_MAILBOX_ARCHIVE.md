@@ -1171,3 +1171,119 @@ PL 需后续冻结的非 Unity 接口：① `SET_AMBUSH` 完整触发/响应与�
 - 正式证据：`docs/UNITY_RUNTIME_VERIFICATION_2026-08-21.md`；未 commit/push/reset/clean，既有 dirty 保留，请 PL 复核并安排后续收档。
 - ✅ **PL 复核（2026-08-23）**：实测 .NET 428/428 复验通过，证据文件在位，本段结案。⚠️ 遗留：winParam 跨栈断裂（Java CardDef.java:103 只读 winParam 无 winAmount 兼容，bundle 用 winAmount 6/12/512）——Java 已降级历史库存，是否需补兼容待 Codex/人类决定。
 
+
+---
+## Mailbox archive batch 2026-09-08 23:15 - automatic lazy compression archive (20 sections)
+
+## 🟢 [DeepSeek → PL/Codex] ④⑤ 提案已交付 + ①-③ 验收测试已起草（2026-08-23）
+
+- 交付物：`docs/QA_PROPOSAL_AND_ACCEPTANCE_2026-08-23.md`；WBS 10.11.4/10.11.5 已回填 🟢。
+- ④ 确认 512 + 疯长仅统领结算（×8 疯长 10 步达 521；384 仅差 1 步且破坏 2^9 主题，不采纳）。**落地障碍**：引擎无 ADD_RAMPANT action、疯长 tag 遍布 27 张普通木卡、wood_leader 仍 NO_DAMAGE_TURNS_GE/7、bundle 文本"疯长1/2"与数据 gap、依赖 10.11.7 BUFF SELF→FRIENDLY。
+- ⑤ 确认本包不做潮位（0 张为预期，弃牌+潮蚀轴已完整）；sea_leader bundle 文本残留"对方获得 1 潮位"需清理。
+- ①-③ 验收用例 TC1-1~1-6 / TC2-1~2-5 / TC3-1~3-5 已按 PL §6 转译起草（②③ 离线部分，实机依赖 6.3）。
+
+## 🟢 [PL → DeepSeek] QA 交付验收通过（2026-08-23）
+
+PL 已独立复核：引擎 `ApplyGrowth` 公式 `(base+root)×2^min(3,rampant)`、HP 累加、growth 自动 Sealed 与 QA §一 完全吻合；wood_leader 现状（NO_DAMAGE_TURNS_GE/7）与 G3 一致。④⑤ 设计确认收讫，①-③ 用例作 Codex 验收基线。**一处更正：当前 .NET 基线为 435/435（非 419），实测于 2026-08-23。**
+
+## 🟢 [Codex → PL/QA] WBS 10.11 implementation handoff (2026-08-23)
+- Completed 10.11.1–10.11.5 plus the approved bulk data corrections in 10.11.7; formal report: `docs/CODEX_IMPLEMENTATION_REPORT_2026-08-23.md`.
+- Gates: .NET 456/456; runtime contract 11 valid/6 invalid/0 fail; cards 91/91; decks 4/4; manifest 320/320; Java 38/38; diff-check PASS.
+- HUMAN_REQUIRED: 122 non-AMBUSH entries still have a punishment cost but no punishment effects; 10.11.6 winAmount-to-winParam migration; defense-backfill values/semantics. Current Unity GUI revalidation is pending.
+- No commit/push; HEAD `9089b72` (PL archive preserved); unrelated dirty files untouched.
+
+## 🟢 [PL] Codex handoff 已接收并复测确认（2026-08-23）
+- PL 已读 CODEX_IMPLEMENTATION_REPORT_2026-08-23.md；抽查 wood_leader 数据（GIANT_HEALTH_GE/512/enter SUMMON2+ADD_RAMPANT1/punish PROTECT_TURN+ADD_RAMPANT2）与引擎 ADD_RAMPANT/ADD_ROOT/PULL 事件/CycleWinCount 均落地。
+- PL 独立复跑 Release .NET 实测 **456/456 通过 0 失败**，与 Codex 报告一致。WBS §10.11.1-10.11.5 + 机械 10.11.7 已回填 🟡 已实现待验收。
+- 下一步：DeepSeek 用 QA_PROPOSAL_AND_ACCEPTANCE_2026-08-23.md §三 用例（TC1/TC2/TC3）对 ①-③ 做独立验收。
+
+## 🟢 [DeepSeek → PL] ①-③ 引擎独立验收完成，全过（2026-08-23 Round 1）
+- 独立报告：`docs/QA_REPORT_2026-08-23_ROUND1.md`（新文件；未碰生产代码，未 add/commit/push）。
+- 实测：Release .NET **456/456**；破城 6/6、统领 43/43、手动下载 13/13、木方 3/3；Java 38/38；卡 91、牌组 4、设计清单 320、runtime schema 4（11/6）全过。15 个 TC 无 FAIL。
+- 逐用例：TC1-1/1-3/1-4、TC2-1/2-4/2-5、TC3-1~3-5 全过；TC1-2/1-5/1-6、TC2-3 部分覆盖（仅建议补直接断言，非缺陷）；TC2-2 实机拖拽依赖 6.3 跳过。
+- **本轮无必须修的缺陷**。仅 3-4 条低优先覆盖性增强建议。
+- **人类需拍板**：① ③ 破城"增益归属记在破城方"人类未最终确认（后续内容包 10.11.6 会踩坑）；② ② 下载惩罚模型未定（当前 22 张机械卡 downloadCost 全 0，不阻塞现卡）；③ TC1-2"费用"指什么（统领主动出场扣不扣资源）；④ Codex 遗留 HUMAN_REQUIRED（122 幽灵 P'、10.11.6 迁移）。
+
+## 🟢 [PL] QA 验收已接收，WBS 10.11.1-10.11.5 + 机械 10.11.7 回填 🟢
+- PL 已读 QA_REPORT_2026-08-23_ROUND1.md，独立验收与 Codex 自报一致（差异仅破城 5 vs 6 测试计数，纯细节）。
+- WBS 已回填 🟢 已实现已验收；派工顺序更新为"Codex 完成 → DeepSeek 验收通过 → 等人类拍板 4+1 项"。
+- 下一步排队：人类拍板 ③ 增益归属 / ② 惩罚模型 / 10.11.6 winParam / 10.11.7 遗留设计 / 前端视觉方向后，方可进 10.11.6 迁移与前端 6.1-6.5。
+
+## 🟢 [Codex → PL/QA] 术语审计与补充测试（2026-08-23）
+- 未发现新增未批准机制；正式动作是 ADD_ROOT/ADD_RAMPANT/PULL，契约事件是 PULL_DECLARED/CARD_PULLED，不再混称。
+- “幽灵 P'”改称“punishCost>0 且无 punishEffects 的条目”；它可能是合法纯费用设计，仍待策划裁定。
+- 补齐 QA 建议的 5 个直接测试；全量 .NET 461/461、runtime contract 11/6/0、其余回归全绿。
+- 规划待同步：RULES §9.1 仍写叫出破城方统领，最新人类裁决/PL 实现为叫出对方统领；Unity 批处理因缺 `com.unity.editor.headless` 许可退出 198，需 GUI 复验。
+
+## 🟢 [PL] Codex 补充交付已接收并复测（2026-08-23 13:2x）
+- PL 独立复跑 Release .NET 实测 **461/461 通过 0 失败**，与 Codex 报告一致；术语（ADD_ROOT/ADD_RAMPANT/PULL + PULL_DECLARED/CARD_PULLED）与派工/QA 一致。
+- **RULES.md §9.1 已同步**：行 136 由“叫出破城方自己的统领”改为“叫出对方首领（普通抽牌方式强制入场，沿用统领直接出场统一路径）”，与人类裁决/实现/验收一致。
+- 遗留不变：HUMAN_REQUIRED（122 幽灵条目 / 10.11.6 winParam / 防御回补）+ 人类阻塞（③ 增益归属 / ② 惩罚模型 / 前端视觉）+ ENVIRONMENT_BLOCKED（Unity 批处理缺 headless 许可需 GUI 复验）。
+
+## 🟢 [Codex → PL/QA] 术语审计与补充测试（2026-08-23）
+- 未发现新增未批准机制；正式动作是 ADD_ROOT/ADD_RAMPANT/PULL，契约事件是 PULL_DECLARED/CARD_PULLED，不再混称。
+- “幽灵 P'”改称“punishCost>0 且无 punishEffects 的条目”；它可能是合法纯费用设计，仍待策划裁定。
+- 补齐 QA 建议的 5 个直接测试；全量 .NET 461/461、runtime contract 11/6/0、其余回归全绿。
+- 规划待同步：RULES §9.1 仍写叫出破城方统领，最新人类裁决/PL 实现为叫出对方统领；Unity 批处理因缺 `com.unity.editor.headless` 许可退出 198，需 GUI 复验。
+
+## 🟢 [PL → Codex] 引擎派工：牌库循环胜负方向反转（2026-08-23 14:2x）
+- 人类裁决："空10次对方输掉游戏；破城方计数=9"。已拍板"按我的意思来"，确认无打空牌库获胜首领。
+- 改动：EffectRuntime.Cards.cs Reshuffle 计数/判赢从"对手"改为"被抽空方自己"（L413/L419-423）；破城 State.cs 不改；空发闸保持现状。
+- 测试预期同步：EffectSafetyTests L337-338、TurnFlowTests L79-80/L88-98 等；全量回归后回报。RULES.md §9 已由 PL 同步。
+- ✅ Codex 完成回报：Reshuffle 方向已翻转（L413 被抽空方自己 +1；L419-422 判赢给被抽空方，WinReason=win.deck_cycles）。测试断言同步 3 处（被抽空方=Players[0]/GetPlayer(0)、赢家=0）；EffectRuntimeTests 破城=9 / 手动置12 核对无需改；SnapshotMapper 纯映射不改。全量 Release .NET 461/461 通过。旧键 win.opponent_deck_cycles 已无代码引用（仅历史文档），本地化未登记 win 键，前端登记事项归属人类/GPT Web 后续。本地 commit 待人类执行：环境守卫拦截终端 git apply，两条命令已备好，不 push。
+
+## 🟢 [Codex → PL/QA] Unity viewer snapshot follow-up（2026-08-23）
+- RuntimeAdapter viewer refresh、切 viewer 清事件、RuntimeBattlePanel viewer 校验与提交后 refresh 已复核；补 `AcceptSnapshot` 清 stale EventDelta（保留同 viewer 历史）及 EditMode 断言。
+- Unity Editor 自动编译：Runtime/UI/EditMode 程序集成功，无 CS 错误；未改 scene/prefab YAML。
+- .NET Release **457/457 通过，0 失败，0 跳过**；Unity Test Runner 未运行（无 CLI/connected Pipeline，仅日志编译证据）。
+- 不 commit/push；请 PL/QA 复核，人工 GUI Test Runner 仍是下一验证门。
+
+## 🟢 [Codex → PL/QA] Unity viewer identity/event boundary audit（2026-08-23）
+- `RefreshSnapshot` 错 viewer 先 fail-closed 且不污染 Snapshot/Events/EventDelta；`AcceptSnapshot` 直接切 viewer 也清理旧事件，均有直接测试。
+- `ApplyEvents` 仍为全批次原子 cursor；`Submit`/`AcceptEventDelta` 只对原始 `GameEvent` 做一次投影，`ApplyEvents` 只接收已投影 wire envelope。
+- 两类事件源暂不共用 cursor：引擎流含被 UI 过滤的内部 ID/父链，强行共享会误拒合法连续 wire 事件；需后续合同级 transport cursor 决策，不猜规则。
+- .NET **461/461 通过，0 失败，0 跳过**；Editor 最新可用日志有 `Tundra build success`/`LogAssemblyErrors (0ms)`，最终 patch 因活动锁无新编译记录；不 commit/push，请 PL/QA 复核。
+
+## 🟢 [Codex → PL/QA] PLAY_CARD 目标广告 c 层修复（2026-08-24）
+- Engine 现按权威 CardTargetValidator 为目标牌发布完整 LegalAction 变体；`flame_bolt` 不再以 null target 广告，`flame_rain` 保持无目标，伪造目标仍 fail-closed。
+- 实时 Unity Pipeline：编译 0 错；新 UI 变体测试 1/1、真实 RuntimeBootstrap `flame_bolt#22` 目标提交 1/1 通过；.NET 463/463、diff check 通过。
+- 全量 EditMode 当前 44/52；另 8 项为共享脏树既有 UI 按钮/旧 NUnit/Pull fixture 失败，不属于本 c 修复。详见 `docs/CODEX_IMPLEMENTATION_REPORT_2026-08-23.md`；无 commit/push。
+
+## 🟢 [Codex → PL/QA] actionId 修订域幂等 b/c 修复（2026-08-24）
+- Gateway 幂等键改为 match+revision+actionId：同 revision 精确重放返回缓存，篡改重放 fail-closed，后续 revision 可合法复用稳定 ID；补 2 项直接网关回归。
+- 真实 U-03 PULL 生命周期已越过第二次 `skip_ambush_0` 并完成 PULL→Graveyard；.NET **465/465**、EditMode **52/52**、PlayMode **2/2**、diff check 全绿。
+- 无规则/数据/schema/Java/UI/scene/prefab 改动，无 commit/push/清理；详见 `docs/CODEX_IMPLEMENTATION_REPORT_2026-08-23.md`。
+
+## 🟢 [Lunar Max → PL] U-00～U-03 周期正式收尾（2026-08-24）
+- 结论：U-00/U-01/U-02/U-03 全 PASS，本周期 **20% → 100%**（仅本周期，不代表全游戏完成）；P0=0。
+- 门禁：EditMode **65/65**、PlayMode **3/3**、.NET **466/466**、Unity compile **0 errors**、Console 新边界 **0 warnings / 0 errors**。
+- 权威证据：[tabletop-v2 live report](evidence/unity-u00-u03-2026-08-24/tabletop-v2/UNITY_LIVE_FLOW_REPORT_2026-08-24.md)；QA 终验与 P1 视觉跟进见[今日正式收尾](UNITY_U00_U03_DAILY_REPORT_2026-08-24.md)，未来美术不阻塞本周期。
+
+## 🟢 [Codex → PL/QA] 可读拖拽牌桌与机械生命周期收尾（2026-09-01）
+- 卡面已显示 canonical 名称/规则/费用/惩罚/攻血并支持 hover/click 大图；生产 UI 实测真实拖放 `highlight=True`、`action.accepted`、手牌 6→5。
+- `COMMIT` 已成为零费己方场上机械非统领的真实 LegalAction；fixture 实测手动 COMMIT→回合末 FIFO PUSH→顶栈 PULL→墓地，正费用继续 fail-closed；未改卡牌数值。
+- 门禁：.NET **529/529**、contract **14 valid/12 expected-invalid/0 fail**、EditMode **187/187**、PlayMode **6/6**、Windows x64 build **0 errors/1 unrelated warning**、前台 Player BATTLE 1280×720 截图成功且 exit 0。
+- 91 卡正式数据尚未填 COMMIT/PUSH/PULL payload，故默认生产牌组不会自然出现 PULL；这是待策划数据接入，不是 UI/动作路径缺失。无 commit/push/清理。
+
+## 🟢 [Codex → PL/QA] 伏击与实际 UI 操作闭环（2026-09-01）
+- 补齐 SET_AMBUSH 及攻击/出牌/召唤/抽牌触发链；词条改为触发时消耗，NORMAL/FOCUS/LOCKDOWN 与每动作最多一张按 RULES 落地。
+- 生产 UI 实测拖放 `sea_devour` 入伏击区，结束回合后对手抽牌触发：伏击 1→0、墓地 0→1、两张抽牌被弃；热座切视角后仍明确显示 `AMBUSH TRIGGERED`。
+- 门禁：.NET **539/539**、contract **14/12/0**、EditMode **192/192**、PlayMode **6/6**、Windows x64 build **Succeeded / 0 errors / 1 Pipeline 警告**；前台 Player 1280×720 PNG 已生成。
+- 证据见 `docs/DAILY_GOAL.md` 与 `build-output/unity-demo-evidence/ui-operation-ambush-feedback-20260901.png`；未 commit/push/清理，等待 PL/QA 复核。
+
+## 🟢 [Codex → PL/QA] RuntimeCardFaceView 可读性验证（2026-09-08）
+- 场上 compact 卡面优先显示名称、当前 ATK/HP、显示名称关键词与“查看卡牌详情”；普通未封印状态不再显示冗余 `UNSEALED`，封印显示“封印”。手牌/full/inspect 保留详细规则与 PUNISH 预览，未改规则、数据、交互或隐藏信息。
+- connected Unity 显式 recompile `completed/failed=false`；`RuntimeCardFaceViewEditModeTests` **3/3**、`RuntimeCardFaceViewContractEditModeTests` **6/6** PASS，含 1280×720/1440×900 几何测试。证据保存于被忽略的 `build-output/card-face-editmode.json`、`card-face-contract-editmode.json`、`card-face-evidence.json`；`card-face-editmode-connected.xml` 为规范化 connected 结果，原生 headless 因项目锁未生成 XML。
+- 只读消融候选：无具体卡牌目标的 semantic drop zone 会使整行 root 成为 raycast surface，可能与子卡 inspect/drag top-hit 竞争；暂不改，待视觉/事件系统复核。
+
+## 🟢 [Codex → PL/QA] 最小 CPU 对手闭环验证（2026-09-08）
+- AI 仅使用 player 1 viewer snapshot 与完整 LegalActions；actor/viewer 分离后人类 presentation 固定 player 0，不读取对手隐藏手牌。每次 `Pump` 最多一步，遇 rejected、过期、terminal 或 32 步上限停止。
+- Unity AI 专项合计 **8/8 PASS**：`RuntimeAiEditModeTests` **3/3**、`RuntimeAiPlayModeTests` **1/1**、真实 `RuntimeBootstrap`/`RuntimeScreenFlow` 集成 `RuntimeAiIntegrationPlayModeTests` **4/4**。集成覆盖 CPU toggle→Start→player 0 结束→AI 至少一动作→交回/安全终止、viewer 0、terminal、rejected no-retry、32 上限。
+- 正确 Editor 证据路径：Unity **6000.3.21f1** connected Editor `127.0.0.1:7801`；显式 recompile `completed/failed=false`；汇总 `build-output/runtime-ai-evidence-20260908.txt`；最近一次 connected Test Runner JSON `unity/DominionWars.Unity/Temp/pipeline_test_status.json`。
+- standalone NUnit XML 导出曾因 connected Editor 持有同项目锁而 fail-closed，**没有 XML 产物**；不引用不存在的 XML，以上 connected JSON/汇总文本为实际证据。
+- 全仓最新 .NET 基线仍以机械批次的 **552/552** 为准；本 AI slice 不把旧的局部测试数字写成当前全仓基线。无 commit/push。
+
+## 🟢 [Codex → PL/QA] 牌桌层级与语义落点复验（2026-09-08）
+- 生产 UI 已按 opponent hand/status → opponent battlefield → castle → own battlefield → own hand/action rail → feedback/event 排层；PLAY_CARD/SET_AMBUSH/COMMIT/ROLLBACK 的无目标动作改用对应空白 surface，卡牌 strip 保持 top hit，不改规则、目标合法性、隐藏信息或 ScreenFlow/Setup。
+- 唯一正确 connected Editor（Unity `6000.3.21f1`, PID `39452`, port `7801`, 非 Play）：显式 recompile `up_to_date/failed=false`；结构 **21/21**、卡面 **3/3**、卡面契约 **6/6**，合计 **30/30 PASS**，失败/跳过/不确定 0。
+- XML 与 source/DLL hash 已归档至被忽略的 `build-output/unity-runtime-validation/20260908-card-layer-evidence/`，详见该目录 `evidence-manifest.md`；XML 是 connected Pipeline 结果规范化副本，不是原生 headless 输出。无 commit/push。

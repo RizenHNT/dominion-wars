@@ -71,6 +71,7 @@ public static class RuntimeEventProjection
                 Turn = projected.Turn,
                 Phase = projected.Phase,
                 SnapshotRevision = snapshotRevision,
+                ReasonKey = projected.ReasonKey,
                 TargetIds = targets.AsReadOnly(),
                 Data = projected.Data,
             });

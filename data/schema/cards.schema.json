@@ -49,6 +49,7 @@
       ]
     },
     "EffectTarget": {
+      "description": "For single-target effects, the target must be selected by the legal-action boundary; FRIENDLY_MINION is the explicit己方随从 choice used by default mechanical PULL effects.",
       "type": "string",
       "enum": [
         "ENEMY_TARGET",
@@ -217,18 +218,21 @@
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }
         },
-        "commitCost": { "type": "integer", "minimum": 0, "maximum": 99 },
-        "uploadCost": { "type": "integer", "minimum": 0, "maximum": 99 },
-        "downloadCost": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "commitCost": { "description": "COMMIT lifecycle punishment amount (中文术语：提交惩罚值): the opponent draws this many cards through the existing punish/response path before the card enters the queue; not a separate payment resource.", "type": "integer", "minimum": 0, "maximum": 99 },
+        "uploadCost": { "description": "Explicit PUSH lifecycle punishment amount (中文术语：上传惩罚值): the opponent draws this many cards when the queue is uploaded; ordinary mechanical minions default to 0 so one upload is not punished twice.", "type": "integer", "minimum": 0, "maximum": 99 },
+        "downloadCost": { "description": "PULL lifecycle punishment amount (中文术语：下载惩罚值): the opponent draws this many cards through the existing punish/response path before the cloud-stack top resolves; not a separate payment resource.", "type": "integer", "minimum": 0, "maximum": 99 },
         "commitEffects": {
+          "description": "Effects resolved when COMMIT moves a mechanical card into the public queue.",
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }
         },
         "pushEffects": {
+          "description": "Effects resolved when PUSH moves a queued card into the cloud stack.",
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }
         },
         "pullEffects": {
+          "description": "Effects resolved when PULL removes the cloud-stack top; single-target effects use an explicit legal-action selection.",
           "type": "array",
           "items": { "$ref": "#/$defs/EffectSpec" }
         },

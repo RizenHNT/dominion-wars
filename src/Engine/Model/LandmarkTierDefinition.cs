@@ -6,8 +6,8 @@ namespace DominionWars.Engine.Model
 {
 
 /// <summary>
-/// Declarative metadata for a landmark tier. Runtime tier advancement remains
-/// a separate rules decision; loading this structure must not activate it.
+/// Declarative metadata for a landmark tier. The mechanical B-mode runtime
+/// advances this metadata from successful PULL resolutions.
 /// </summary>
 public sealed class LandmarkTierDefinition
 {

@@ -239,6 +239,24 @@ RuntimeDataStreamingBuildPreprocessor 在保持现有 cards/decks 行为的基�
 - 现有 91 张卡和旧 data/art 兼容路径仍可回归加载。
 - 音频/VFX 只验证 manifest 接口和 fallback，不宣称实际播放。
 
+### 12.1 2026-08-31 实现检查点
+
+本检查点只收口已批准的 C-00～C-06 内容边界，不改变规则、数值、生产卡牌、牌桌视觉、图片、Packages 或 ProjectSettings：
+
+- `data/content/manifests/content.manifest.json` 已登记 board、card-back、castle、leader、faction-frame 和 UI-icon 的 default/test 稳定资源；资源均为 programmatic placeholder，不新增图片。
+- `data/content/manifests/skins/default.json` 与 `test.json` 已提供稳定 skinId、themeId、角色覆盖和一条 cardArtwork 覆盖；`ContentSkinCatalog` 负责严格字段、kind、alias、draft 和重复 ID 校验。
+- Unity 内容 build gate 会校验并把已验证的 `manifests/skins/*.json` 与主 manifest 一起复制到自有生成目录；运行时 resolver 可读取 skin 角色和 card-art 覆盖，audio/VFX 仍只保留 typed no-op 入口。
+- Card Editor 的实际 art picker→文件预览→programmatic fallback 预览路径已有直接 EditMode 覆盖。
+- 当前证据是 .NET 全量 **521/521**、runtime contract **13 valid/11 expected-invalid/0 fail**，connected Unity Editor 全量 EditMode **132/132**、PlayMode **6/6**、recompile `failed=false`，内容专项 **17/17**（ContentPipeline 9/9、RuntimeContentResolver 7/7、Card Editor picker/preview 1/1），卡 **91/91**、牌组 **4/4**、设计素材清单 **320/320**。这仍不是 Windows Player final smoke 或最终视觉验收的通过声明。
+- Windows Player build/package 的独立证据仍待主代理补齐；在此之前保持 OPEN，不把编辑器门禁结果扩写为独立包运行结果。
+
+### 12.2 本轮仍需人工/PL 决策与未宣称项
+
+- **Restart 语义：** 尚未冻结“重启”是否创建新 session，以及 seed、match-id 是否重新生成/如何显示；当前仅保留导航意图，不宣称已经实现新对局语义。
+- **权威运行时字段：** 引擎快照尚未提供 Exile、城堡屏障、统领生命的权威字段；UI 对这些值保持 `Unavailable`，不能从其他区域或视觉状态推断。
+- **LeaderZone 聚合范围：** 尚未冻结 LeaderZone 是否只显示 canonical `LeaderZone`，还是聚合 Field/AmbushZone 中的活动统领；当前不扩大聚合范围。
+- **独立包门禁：** Windows Player final smoke、打包内容实际读取和最终视觉验收尚未由本轮文档宣称通过。
+
 ## 13. 非程序员一页：文件放哪里
 
 ### 目前可用的旧目录
@@ -267,4 +285,3 @@ VFX：data/content/inbox/vfx/
 在编辑器中执行“导入素材”，再新建卡牌、填写 ID/名称/阵营/类型/费用、选择已有机制和 artId、预览并保存。不要填写路径，不要改 ID，不要覆盖已有 assetId。
 
 程序员实现并注册新机制且测试通过后，该机制会自动出现在编辑器下拉框；在此之前不要用“自定义字段”绕过注册表。
-

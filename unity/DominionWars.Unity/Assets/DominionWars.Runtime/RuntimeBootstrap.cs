@@ -22,7 +22,9 @@ public sealed class RuntimeDeckOption
         string displayName,
         string faction,
         string leader,
-        int index)
+        int index,
+        string leaderDisplayName = null,
+        string leaderWinText = null)
     {
         if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("A deck id is required.", nameof(id));
         if (string.IsNullOrWhiteSpace(displayName)) throw new ArgumentException("A deck display name is required.", nameof(displayName));
@@ -30,6 +32,8 @@ public sealed class RuntimeDeckOption
         DisplayName = displayName;
         Faction = faction ?? string.Empty;
         Leader = leader ?? string.Empty;
+        LeaderDisplayName = leaderDisplayName ?? string.Empty;
+        LeaderWinText = leaderWinText ?? string.Empty;
         Index = index;
     }
 
@@ -37,6 +41,8 @@ public sealed class RuntimeDeckOption
     public string DisplayName { get; }
     public string Faction { get; }
     public string Leader { get; }
+    public string LeaderDisplayName { get; }
+    public string LeaderWinText { get; }
     public int Index { get; }
 }
 
@@ -60,6 +66,7 @@ public sealed class RuntimeBootstrap : MonoBehaviour
     [SerializeField] private bool castleEnabled = true;
     [SerializeField] private int castleHealth = 75;
     [SerializeField] private int seed = 1;
+    [SerializeField] private bool cpuOpponent;
 
     // The shared context is the normal path for newly authored/runtime hosts.
     // Setting this serialized switch to false is the deliberate compatibility
@@ -98,8 +105,19 @@ public sealed class RuntimeBootstrap : MonoBehaviour
 
     public int Player0DeckIndex => player0DeckIndex;
     public int Player1DeckIndex => player1DeckIndex;
+    public bool CpuOpponent => cpuOpponent;
     public string Player0DeckId => DeckIdAt(player0DeckIndex);
     public string Player1DeckId => DeckIdAt(player1DeckIndex);
+
+    /// <summary>
+    /// Selects the local opponent mode for the next explicitly started
+    /// session. The flag changes orchestration only; engine rules remain
+    /// authoritative in the same gateway for both hot-seat and CPU matches.
+    /// </summary>
+    public void SetCpuOpponent(bool enabled)
+    {
+        cpuOpponent = enabled;
+    }
 
     /// <summary>
     /// Unity calls Reset when a component is first added in the Editor. Keep
@@ -267,6 +285,19 @@ public sealed class RuntimeBootstrap : MonoBehaviour
         if (files.Length == 0)
             throw new InvalidDataException("No deck JSON files were found.");
 
+        // Deck setup may safely show the public leader's authored name and
+        // goal. If the optional presentation catalog is unavailable, keep the
+        // deck rows usable and leave those two labels empty.
+        CardCatalog leaderCatalog = null;
+        try
+        {
+            leaderCatalog = LoadCardCatalog(root);
+        }
+        catch (Exception)
+        {
+            leaderCatalog = null;
+        }
+
         var entries = new List<DeckEntry>(files.Length);
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < files.Length; index++)
@@ -276,13 +307,44 @@ public sealed class RuntimeBootstrap : MonoBehaviour
             if (string.IsNullOrWhiteSpace(id) || !ids.Add(id))
                 throw new InvalidDataException("Deck filenames must provide unique stable IDs.");
             var definition = DeckLoader.LoadFile(file);
+            ResolveLeaderPresentation(
+                leaderCatalog,
+                definition.Leader,
+                out var leaderDisplayName,
+                out var leaderWinText);
             entries.Add(new DeckEntry(
                 definition,
-                new RuntimeDeckOption(id, definition.Name, definition.Faction, definition.Leader, index)));
+                new RuntimeDeckOption(
+                    id,
+                    definition.Name,
+                    definition.Faction,
+                    definition.Leader,
+                    index,
+                    leaderDisplayName,
+                    leaderWinText)));
         }
 
         _deckEntries = entries.AsReadOnly();
         _deckOptions = entries.Select(entry => entry.Option).ToArray();
+    }
+
+    private static void ResolveLeaderPresentation(
+        CardCatalog catalog,
+        string leaderId,
+        out string leaderDisplayName,
+        out string leaderWinText)
+    {
+        leaderDisplayName = string.Empty;
+        leaderWinText = string.Empty;
+        if (catalog == null || string.IsNullOrWhiteSpace(leaderId) ||
+            !catalog.TryGetPresentationMetadata(leaderId, out var metadata) ||
+            metadata == null || !metadata.IsLeader)
+        {
+            return;
+        }
+
+        leaderDisplayName = metadata.Name ?? string.Empty;
+        leaderWinText = metadata.LeaderWinText ?? string.Empty;
     }
 
     private DeckEntry FindDeckEntry(string id)

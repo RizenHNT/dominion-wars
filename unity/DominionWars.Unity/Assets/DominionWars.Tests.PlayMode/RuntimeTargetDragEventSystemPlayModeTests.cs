@@ -6,6 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using DominionWars.Adapters;
+using DominionWars.Engine.Events;
 using DominionWars.Unity.Runtime;
 using DominionWars.Unity.UI;
 using NUnit.Framework;
@@ -29,10 +30,13 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
     private RuntimeBattlePanel? _panel;
     private RuntimeAdapter? _adapter;
     private TestSession? _session;
+    private RuntimeScreenFlow? _screenFlow;
+    private bool _screenFlowWasEnabled;
 
     [UnityTearDown]
     public IEnumerator TearDown()
     {
+        RuntimeBattleCardDrag.SetDiagnosticsEnabled(false);
         _adapter?.Dispose();
         _adapter = null;
         if (_canvasObject != null)
@@ -41,6 +45,11 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
             _canvasObject = null;
             _panel = null;
             yield return null;
+        }
+        if (_screenFlow != null)
+        {
+            _screenFlow.enabled = _screenFlowWasEnabled;
+            _screenFlow = null;
         }
     }
 
@@ -76,15 +85,36 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
         Assert.That(castle!.IsHighlighted, Is.False);
 
         var revisionBefore = _adapter!.Presentation.Snapshot!.SnapshotRevision;
-        yield return BeginPointerDrag(drag!.gameObject);
-        Assert.That(drag.IsDragging, Is.True);
+        var input = InstallPointerInputModule();
+        // EventSystem switches modules on its next Update. Let that activation
+        // happen before queueing the first pointer frame; otherwise the press
+        // can be consumed by the module-switch frame or left queued for the
+        // following move assertion.
+        yield return null;
+        Assert.That(EventSystem.current!.currentInputModule, Is.SameAs(input),
+            "The deterministic module must be active before the first queued pointer frame.");
+        input.QueuePress(Center(drag!.gameObject));
+        yield return null;
+        Assert.That(input.ProcessedStepCount, Is.EqualTo(1),
+            "The queued press must be consumed by StandaloneInputModule.Process.");
+        input.QueueMove(Center(drag.gameObject) + new Vector2(12f, 8f));
+        yield return null;
+        Assert.That(input.ProcessedStepCount, Is.EqualTo(2),
+            "The queued threshold move must be consumed by StandaloneInputModule.Process.");
+        Assert.That(drag.IsDragging, Is.True,
+            "A real pointer move past the drag threshold must start the drag.");
         Assert.That(castle.IsHighlighted, Is.True,
             "A legal target must highlight after the drag starts.");
-
-        yield return MovePointerAndUpdate(drag.gameObject, castle.gameObject);
+        input.QueueMove(Center(castle.gameObject));
+        yield return null;
+        Assert.That(input.ProcessedStepCount, Is.EqualTo(3),
+            "The queued target move must be consumed by StandaloneInputModule.Process.");
         Assert.That(castle.IsHighlighted, Is.True,
             "The highlighted legal target must remain visible through the drag.");
-        yield return ReleasePointerOnRaycastTarget(drag.gameObject, castle.gameObject);
+        input.QueueRelease(Center(castle.gameObject));
+        yield return null;
+        Assert.That(input.ProcessedStepCount, Is.EqualTo(4),
+            "The queued release must be consumed by StandaloneInputModule.Process.");
         yield return null;
 
         Assert.That(_session!.Submissions, Has.Count.EqualTo(1));
@@ -95,6 +125,58 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
         Assert.That(drag == null || drag.IsRetired, Is.True,
             "The source card must retire after the one accepted drop.");
         Assert.That(panel.Adapter, Is.SameAs(_adapter));
+    }
+
+    [UnityTest]
+    public IEnumerator HandNoTargetPlayCardReleasesOnBroadOwnFieldSurface()
+    {
+        var play = Action("play_101_field", "PLAY_CARD", 101L, null!, "flame_bolt");
+        var initial = Snapshot(
+            1,
+            new[] { Card(101, "flame_bolt") },
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            new[] { play });
+        var resulting = Snapshot(
+            2,
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeLegalAction>());
+        yield return BuildPanel(initial, resulting);
+
+        var drag = FindDrag(play.ActionId);
+        Assert.That(drag, Is.Not.Null);
+        var field = FindSemanticZone(play.ActionId, play.Type);
+        Assert.That(field, Is.Not.Null,
+            "A null-target PLAY_CARD must expose the broad own-field semantic surface.");
+        var revisionBefore = _adapter!.Presentation.Snapshot!.SnapshotRevision;
+        var input = InstallPointerInputModule();
+        yield return null;
+        Assert.That(EventSystem.current!.currentInputModule, Is.SameAs(input));
+
+        input.QueuePress(Center(drag!.gameObject));
+        yield return null;
+        input.QueueMove(Center(drag.gameObject) + new Vector2(12f, 8f));
+        yield return null;
+        Assert.That(drag.IsDragging, Is.True);
+        Assert.That(_session!.Submissions, Is.Empty,
+            "The card must remain pending until the pointer is released.");
+
+        input.QueueMove(Center(field!.gameObject));
+        yield return null;
+        Assert.That(field.IsHighlighted, Is.True,
+            "The broad own-field surface should provide legal feedback during the drag.");
+        input.QueueRelease(Center(field.gameObject));
+        yield return null;
+        yield return null;
+
+        Assert.That(_session.Submissions, Has.Count.EqualTo(1));
+        Assert.That(_session.Submissions[0].ActionId, Is.EqualTo(play.ActionId));
+        Assert.That(_session.Submissions[0].TargetId, Is.Null);
+        Assert.That(_adapter.Presentation.Snapshot!.SnapshotRevision,
+            Is.EqualTo(revisionBefore + 1));
+        Assert.That(drag.IsRetired, Is.True);
     }
 
     [UnityTest]
@@ -110,23 +192,74 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
         var resulting = Snapshot(
             2,
             Array.Empty<RuntimeCardSnapshot>(),
-            Array.Empty<RuntimeCardSnapshot>(),
+            new[] { Card(201, "flame_unit", currentAttack: 4, currentHealth: 3) },
             Array.Empty<RuntimeCardSnapshot>(),
             Array.Empty<RuntimeLegalAction>());
-        yield return BuildPanel(initial, resulting);
+        yield return BuildPanel(
+            initial,
+            resulting,
+            new[]
+            {
+                new GameEvent(1, null, "ATTACK_DECLARED"),
+                new GameEvent(
+                    2,
+                    1,
+                    "DAMAGE_DEALT",
+                    new Dictionary<string, object?>
+                    {
+                        ["source"] = 201L,
+                        ["target"] = 301L,
+                        ["amount"] = 4,
+                    }),
+                new GameEvent(
+                    3,
+                    2,
+                    "DAMAGE_DEALT",
+                    new Dictionary<string, object?>
+                    {
+                        ["source"] = 301L,
+                        ["target"] = 201L,
+                        ["amount"] = 2,
+                    }),
+            });
 
         var drag = FindDrag(attack.ActionId);
         Assert.That(drag, Is.Not.Null);
         var target = FindCardZone(301L);
         Assert.That(target, Is.Not.Null);
         var revisionBefore = _adapter!.Presentation.Snapshot!.SnapshotRevision;
-
-        yield return BeginPointerDrag(drag!.gameObject);
-        Assert.That(drag.IsDragging, Is.True);
+        var input = InstallPointerInputModule();
+        yield return null;
+        Assert.That(EventSystem.current!.currentInputModule, Is.SameAs(input),
+            "The deterministic module must be active before the first queued attack pointer frame.");
+        input.QueuePress(Center(drag!.gameObject));
+        yield return null;
+        Assert.That(input.ProcessedStepCount, Is.EqualTo(1),
+            "The queued attack press must be consumed by StandaloneInputModule.Process.");
+        input.QueueMove(Center(drag.gameObject) + new Vector2(12f, 8f));
+        yield return null;
+        Assert.That(input.ProcessedStepCount, Is.EqualTo(2),
+            "The queued attack threshold move must be consumed by StandaloneInputModule.Process.");
+        Assert.That(drag.IsDragging, Is.True,
+            "A real pointer move past the attack drag threshold must start the drag.");
+        var attackArrow = drag.GetComponent<RuntimeAttackDragArrow>();
+        Assert.That(attackArrow, Is.Not.Null);
+        Assert.That(attackArrow!.IsVisible, Is.True,
+            "A targeted ATTACK drag must show a presentation arrow before release.");
         Assert.That(target!.IsHighlighted, Is.True,
             "A legal opponent card target must highlight for ATTACK.");
-        yield return MovePointerAndUpdate(drag.gameObject, target.gameObject);
-        yield return ReleasePointerOnRaycastTarget(drag.gameObject, target.gameObject);
+        input.QueueMove(Center(target.gameObject));
+        yield return null;
+        Assert.That(input.ProcessedStepCount, Is.EqualTo(3),
+            "The queued attack target move must be consumed by StandaloneInputModule.Process.");
+        Assert.That(target.IsHighlighted, Is.True,
+            "The highlighted attack target must remain visible through the drag.");
+        Assert.That(attackArrow.IsPointingAtLegalTarget, Is.True,
+            "The attack arrow must switch to legal-target feedback over the advertised enemy target.");
+        input.QueueRelease(Center(target.gameObject));
+        yield return null;
+        Assert.That(input.ProcessedStepCount, Is.EqualTo(4),
+            "The queued attack release must be consumed by StandaloneInputModule.Process.");
         yield return null;
 
         Assert.That(_session!.Submissions, Has.Count.EqualTo(1));
@@ -135,6 +268,23 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
         Assert.That(_session.Submissions[0].TargetId, Is.EqualTo(301L));
         Assert.That(_adapter.Presentation.Snapshot!.SnapshotRevision,
             Is.EqualTo(revisionBefore + 1));
+        var damage = _adapter.Presentation.Events.Single(
+            item => item.Type == "DAMAGE_APPLIED" && item.TargetIds.Contains(301L));
+        Assert.That(damage.Data["sourceId"], Is.EqualTo(201L));
+        var dataTargets = damage.Data["targetIds"] as IEnumerable<object?>;
+        Assert.That(dataTargets, Is.Not.Null);
+        Assert.That(dataTargets!, Does.Contain(301L));
+        Assert.That(damage.Data["amount"], Is.EqualTo(4));
+        var survivingAttacker = _adapter.Presentation.Snapshot.Players
+            .SelectMany(player => player.Field ?? Array.Empty<RuntimeCardSnapshot>())
+            .Single(card => card.EntityId == 201L);
+        Assert.That(survivingAttacker.CurrentHealth, Is.EqualTo(3));
+        Assert.That(
+            _adapter.Presentation.Snapshot.Players
+                .SelectMany(player => player.Field ?? Array.Empty<RuntimeCardSnapshot>())
+                .Any(card => card.EntityId == 301L),
+            Is.False,
+            "The destroyed target must not remain in the resulting field snapshot.");
     }
 
     [UnityTest]
@@ -230,11 +380,26 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
 
     private IEnumerator BuildPanel(
         RuntimeSnapshotEnvelope initial,
-        RuntimeSnapshotEnvelope resulting)
+        RuntimeSnapshotEnvelope resulting,
+        IReadOnlyList<GameEvent>? resultingEvents = null)
     {
-        _session = new TestSession(initial, resulting);
+        _session = new TestSession(
+            initial,
+            resulting,
+            resultingEvents ?? Array.Empty<GameEvent>());
         _adapter = new RuntimeAdapter(_session);
         _adapter.AcceptSnapshot(initial);
+
+        // RuntimeScreenFlow owns the production panel and may hide its
+        // selected battle surface every frame while the test scene remains on
+        // the title shell. Isolate this fixture's panel from that scene-level
+        // presentation switch; the input path itself remains real uGUI.
+        _screenFlow = UnityEngine.Object.FindFirstObjectByType<RuntimeScreenFlow>();
+        if (_screenFlow != null)
+        {
+            _screenFlowWasEnabled = _screenFlow.enabled;
+            _screenFlow.enabled = false;
+        }
 
         _canvasObject = new GameObject(
             "RuntimeTargetDragEventSystemCanvas",
@@ -262,6 +427,20 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
         yield return null;
     }
 
+    private TestPointerInputModule InstallPointerInputModule()
+    {
+        var eventSystem = EventSystem.current;
+        Assert.That(eventSystem, Is.Not.Null);
+        foreach (var module in eventSystem!.GetComponents<BaseInputModule>())
+            module.enabled = false;
+
+        var input = eventSystem.GetComponent<TestPointerInputModule>();
+        if (input == null) input = eventSystem.gameObject.AddComponent<TestPointerInputModule>();
+        input.enabled = true;
+        input.ResetForTest();
+        return input;
+    }
+
     private RuntimeBattleCardDrag FindDrag(string actionId)
     {
         var drag = _canvasObject!.GetComponentsInChildren<RuntimeBattleCardDrag>(true)
@@ -274,6 +453,15 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
         var zone = _canvasObject!.GetComponentsInChildren<RuntimeBattleDropZone>(true)
             .FirstOrDefault(candidate =>
                 RuntimeBattlePanelActionModel.WireValuesEqual(candidate.TargetId, targetId));
+        return zone!;
+    }
+
+    private RuntimeBattleDropZone FindSemanticZone(string actionId, string actionType)
+    {
+        var zone = _canvasObject!.GetComponentsInChildren<RuntimeBattleDropZone>(true)
+            .FirstOrDefault(candidate =>
+                string.Equals(candidate.ActionId, actionId, StringComparison.Ordinal) &&
+                string.Equals(candidate.ActionType, actionType, StringComparison.Ordinal));
         return zone!;
     }
 
@@ -386,6 +574,155 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
             rect!.TransformPoint(rect.rect.center));
     }
 
+    /// <summary>
+    /// Deterministic mouse input for PlayMode. This uses Unity's actual
+    /// StandaloneInputModule implementation and only replaces BaseInput through
+    /// its documented inputOverride seam. The queued frames therefore exercise
+    /// the same press, raycast, enter/exit, drag-threshold and release ordering
+    /// as a production mouse path.
+    /// </summary>
+    private sealed class TestPointerInputModule : StandaloneInputModule
+    {
+        private readonly Queue<PointerStep> _steps = new Queue<PointerStep>();
+        private QueuedBaseInput? _queuedInput;
+
+        public int ProcessedStepCount { get; private set; }
+
+        private void Awake()
+        {
+            _queuedInput = gameObject.AddComponent<QueuedBaseInput>();
+            inputOverride = _queuedInput;
+        }
+
+        public void QueuePress(Vector2 position) => _steps.Enqueue(PointerStep.Press(position));
+
+        public void QueueMove(Vector2 position) => _steps.Enqueue(PointerStep.Move(position));
+
+        public void QueueRelease(Vector2 position) => _steps.Enqueue(PointerStep.Release(position));
+
+        public void ResetForTest()
+        {
+            _steps.Clear();
+            _queuedInput?.Clear();
+            ProcessedStepCount = 0;
+        }
+
+        public override bool ShouldActivateModule()
+        {
+            return enabled && gameObject.activeInHierarchy;
+        }
+
+        public override void Process()
+        {
+            if (_steps.Count == 0 || _queuedInput == null) return;
+
+            var step = _steps.Dequeue();
+            _queuedInput.SetFrame(step);
+            try
+            {
+                base.Process();
+                ProcessedStepCount++;
+            }
+            finally
+            {
+                _queuedInput.ClearTransitions();
+            }
+        }
+
+        public override void ActivateModule()
+        {
+            base.ActivateModule();
+            if (_queuedInput != null) inputOverride = _queuedInput;
+            ProcessedStepCount = 0;
+        }
+
+        public override void DeactivateModule()
+        {
+            _steps.Clear();
+            _queuedInput?.Clear();
+            base.DeactivateModule();
+        }
+
+        private sealed class QueuedBaseInput : BaseInput
+        {
+            private Vector2 _position;
+            private bool _pressed;
+            private bool _released;
+            private bool _held;
+
+            public void SetFrame(PointerStep step)
+            {
+                _position = step.Position;
+                _pressed = step.IsPress;
+                _released = step.IsRelease;
+                _held = !step.IsRelease;
+            }
+
+            public void ClearTransitions()
+            {
+                _pressed = false;
+                _released = false;
+            }
+
+            public void Clear()
+            {
+                _position = Vector2.zero;
+                _pressed = false;
+                _released = false;
+                _held = false;
+            }
+
+            public override bool mousePresent => true;
+
+            public override Vector2 mousePosition => _position;
+
+            public override bool GetMouseButtonDown(int button)
+            {
+                return button == 0 && _pressed;
+            }
+
+            public override bool GetMouseButtonUp(int button)
+            {
+                return button == 0 && _released;
+            }
+
+            public override bool GetMouseButton(int button)
+            {
+                return button == 0 && _held;
+            }
+
+            public override float GetAxisRaw(string axisName)
+            {
+                return 0f;
+            }
+
+            public override bool GetButtonDown(string buttonName)
+            {
+                return false;
+            }
+        }
+
+        private readonly struct PointerStep
+        {
+            private PointerStep(Vector2 position, bool isPress, bool isMove, bool isRelease)
+            {
+                Position = position;
+                IsPress = isPress;
+                IsMove = isMove;
+                IsRelease = isRelease;
+            }
+
+            public Vector2 Position { get; }
+            public bool IsPress { get; }
+            public bool IsMove { get; }
+            public bool IsRelease { get; }
+
+            public static PointerStep Press(Vector2 position) => new PointerStep(position, true, false, false);
+            public static PointerStep Move(Vector2 position) => new PointerStep(position, false, true, false);
+            public static PointerStep Release(Vector2 position) => new PointerStep(position, false, false, true);
+        }
+    }
+
     private static RuntimeSnapshotEnvelope Snapshot(
         long revision,
         IReadOnlyList<RuntimeCardSnapshot> hand,
@@ -468,11 +805,16 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
     {
         private RuntimeSnapshotEnvelope _snapshot;
         private readonly RuntimeSnapshotEnvelope _resulting;
+        private readonly IReadOnlyList<GameEvent> _resultingEvents;
 
-        public TestSession(RuntimeSnapshotEnvelope initial, RuntimeSnapshotEnvelope resulting)
+        public TestSession(
+            RuntimeSnapshotEnvelope initial,
+            RuntimeSnapshotEnvelope resulting,
+            IReadOnlyList<GameEvent> resultingEvents)
         {
             _snapshot = initial;
             _resulting = resulting;
+            _resultingEvents = resultingEvents;
         }
 
         public List<RuntimeGameAction> Submissions { get; } = new List<RuntimeGameAction>();
@@ -494,7 +836,7 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
                     Accepted = true,
                     ReasonKey = "action.accepted",
                 },
-                Array.Empty<DominionWars.Engine.Events.GameEvent>(),
+                _resultingEvents,
                 _resulting);
         }
 

@@ -20,6 +20,7 @@ public sealed class RuntimeBattlePanelActionFeedbackEditModeTests
 
     [TestCase("CARD_PLAYED", RuntimeBattlePanelFeedbackKind.CardPlayed)]
     [TestCase("ATTACK_DECLARED", RuntimeBattlePanelFeedbackKind.AttackDeclared)]
+    [TestCase("DAMAGE_APPLIED", RuntimeBattlePanelFeedbackKind.DamageApplied)]
     [TestCase("CARDS_DRAWN", RuntimeBattlePanelFeedbackKind.CardsDrawn)]
     [TestCase("AMBUSH_SET", RuntimeBattlePanelFeedbackKind.AmbushSet)]
     [TestCase("AMBUSH_TRIGGERED", RuntimeBattlePanelFeedbackKind.AmbushTriggered)]
@@ -32,6 +33,10 @@ public sealed class RuntimeBattlePanelActionFeedbackEditModeTests
     [TestCase("CASTLE_DAMAGED", RuntimeBattlePanelFeedbackKind.CastleDamaged)]
     [TestCase("CASTLE_BROKEN", RuntimeBattlePanelFeedbackKind.CastleBroken)]
     [TestCase("PHASE_CHANGED", RuntimeBattlePanelFeedbackKind.PhaseChanged)]
+    [TestCase("TURN_CHANGED", RuntimeBattlePanelFeedbackKind.PlayerSwitched)]
+    [TestCase("HEAL_APPLIED", RuntimeBattlePanelFeedbackKind.HealApplied)]
+    [TestCase("MINION_DESTROYED", RuntimeBattlePanelFeedbackKind.Death)]
+    [TestCase("GAME_OVER", RuntimeBattlePanelFeedbackKind.GameOver)]
     public void VisibleEventTypesMapToNeutralFeedback(
         string type,
         RuntimeBattlePanelFeedbackKind expectedKind)
@@ -45,6 +50,84 @@ public sealed class RuntimeBattlePanelActionFeedbackEditModeTests
         Assert.That(cue.Kind, Is.EqualTo(expectedKind));
         Assert.That(cue.EventType, Is.EqualTo(type));
         Assert.That(cue.Message, Does.Not.Contain("raw"));
+    }
+
+    [Test]
+    public void DamageAppliedUsesAuthoritativeAmountAndLocalizedTargetLabel()
+    {
+        var eventEnvelope = Event("evt_damage_applied", "DAMAGE_APPLIED", true);
+        eventEnvelope.Data = new Dictionary<string, object?>
+        {
+            ["source"] = 201L,
+            ["target"] = "castle",
+            ["amount"] = 4,
+        };
+
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(eventEnvelope, out var cue), Is.True);
+        Assert.That(cue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.DamageApplied));
+        Assert.That(cue.TargetCount, Is.EqualTo(1));
+        Assert.That(cue.Message, Is.EqualTo("DAMAGE 4 TO ROYAL CASTLE"));
+        Assert.That(cue.Message, Does.Not.Contain("DAMAGE RESOLVED"));
+    }
+
+    [Test]
+    public void DrawTurnAndResolutionCuesUseOnlyAuthoritativeFields()
+    {
+        var draw = Event("evt_draw_feedback", "CARDS_DRAWN", false);
+        draw.Data = new Dictionary<string, object?>
+        {
+            ["count"] = 2,
+            ["player"] = 1,
+            ["privateCardId"] = "hidden-card-42",
+        };
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(draw, out var drawCue), Is.True);
+        Assert.That(drawCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.CardsDrawn));
+        Assert.That(drawCue.Message, Is.EqualTo("CARDS DRAWN 2"));
+        Assert.That(drawCue.Message, Does.Not.Contain("hidden-card-42"));
+        Assert.That(drawCue.Message, Does.Not.Contain("player"));
+
+        var start = Event("evt_turn_start_feedback", "PHASE_CHANGED", false);
+        start.Data = new Dictionary<string, object?> { ["to"] = "START" };
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(start, out var startCue), Is.True);
+        Assert.That(startCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.TurnStarted));
+        Assert.That(startCue.Message, Is.EqualTo("TURN START"));
+
+        var end = Event("evt_turn_end_feedback", "PHASE_CHANGED", false);
+        end.Data = new Dictionary<string, object?> { ["to"] = "END" };
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(end, out var endCue), Is.True);
+        Assert.That(endCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.TurnEnded));
+        Assert.That(endCue.Message, Is.EqualTo("TURN END"));
+
+        var heal = Event("evt_heal_feedback", "HEAL_APPLIED", true);
+        heal.Data = new Dictionary<string, object?> { ["amount"] = 3 };
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(heal, out var healCue), Is.True);
+        Assert.That(healCue.Message, Is.EqualTo("HEAL 3 TO ROYAL CASTLE"));
+
+        var death = Event("evt_death_feedback", "MINION_DESTROYED", true);
+        death.TargetIds = new object[] { 812L };
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(death, out var deathCue), Is.True);
+        Assert.That(deathCue.Message, Is.EqualTo("MINION DEFEATED · TARGET"));
+        Assert.That(deathCue.Message, Does.Not.Contain("812"));
+
+        var switchEvent = Event("evt_switch_feedback", "TURN_CHANGED", false);
+        switchEvent.Data = new Dictionary<string, object?> { ["currentPlayer"] = 1 };
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(switchEvent, out var switchCue), Is.True);
+        Assert.That(switchCue.Message, Is.EqualTo("PLAYER 2 TURN"));
+    }
+
+    [Test]
+    public void DamageAppliedDoesNotInventMissingAmountOrTargetIdentity()
+    {
+        var eventEnvelope = Event("evt_damage_without_fields", "DAMAGE_APPLIED", false);
+
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(eventEnvelope, out var cue), Is.True);
+        Assert.That(cue.Message, Is.EqualTo("DAMAGE APPLIED"));
+
+        eventEnvelope.TargetIds = new object[] { 301L };
+        eventEnvelope.Data = new Dictionary<string, object?>();
+        Assert.That(RuntimeBattlePanelActionFeedbackModel.TryMap(eventEnvelope, out cue), Is.True);
+        Assert.That(cue.Message, Is.EqualTo("DAMAGE TO TARGET"));
+        Assert.That(cue.Message, Does.Not.Contain("301"));
     }
 
     [Test]
@@ -106,6 +189,140 @@ public sealed class RuntimeBattlePanelActionFeedbackEditModeTests
         Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.AmbushTriggered));
         Assert.That(feedback.CurrentMessage, Is.EqualTo("AMBUSH TRIGGERED"));
         Assert.That(feedback.AppliedFeedbackCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void AmbushTriggerOutranksDamageAppliedWithinOneSubmission()
+    {
+        var damage = Event("evt_damage", "DAMAGE_APPLIED", true);
+        damage.Data = new Dictionary<string, object?> { ["amount"] = 4 };
+        var feedback = new RuntimeBattlePanelActionFeedback();
+
+        feedback.Consume(new[]
+        {
+            damage,
+            Event("evt_ambush_damage", "AMBUSH_TRIGGERED", false),
+        });
+
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.AmbushTriggered));
+        Assert.That(feedback.CurrentMessage, Is.EqualTo("AMBUSH TRIGGERED"));
+        Assert.That(feedback.AppliedFeedbackCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void CastleBreakOutranksDamageAppliedWithinOneSubmission()
+    {
+        var castleBroken = Event("evt_castle_broken", "CASTLE_BROKEN", true);
+        var damage = Event("evt_damage_after_break", "DAMAGE_APPLIED", true);
+        damage.Data = new Dictionary<string, object?> { ["amount"] = 4 };
+        var feedback = new RuntimeBattlePanelActionFeedback();
+
+        feedback.Consume(new[] { castleBroken, damage });
+
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.CastleBroken));
+        Assert.That(feedback.CurrentMessage, Is.EqualTo("CASTLE BROKEN"));
+        Assert.That(feedback.AppliedFeedbackCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void FeedbackQueuePreservesRevisionOrderAndCanSkipWithoutMutatingEvents()
+    {
+        var older = Event("evt_000000000101", "CARD_COMMITTED", false);
+        older.SnapshotRevision = 1;
+        var newer = Event("evt_000000000102", "CARD_PUSHED", false);
+        newer.SnapshotRevision = 2;
+        var events = new[] { newer, older };
+        var feedback = new RuntimeBattlePanelActionFeedback();
+
+        feedback.Consume(events);
+
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.Commit));
+        Assert.That(feedback.PendingCueCount, Is.EqualTo(1));
+        Assert.That(feedback.AppliedFeedbackCount, Is.EqualTo(2));
+
+        Assert.That(feedback.SkipCurrentCue(), Is.True);
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.Push));
+        Assert.That(feedback.PendingCueCount, Is.Zero);
+        Assert.That(events[0].EventId, Is.EqualTo("evt_000000000102"));
+        Assert.That(events[1].EventId, Is.EqualTo("evt_000000000101"));
+        Assert.That(feedback.ConsumedEventCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void FeedbackQueuePromotesPriorityWithinRevisionButRetainsFollowingEvents()
+    {
+        var damage = Event("evt_000000000111", "DAMAGE_APPLIED", true);
+        damage.Data = new Dictionary<string, object?> { ["amount"] = 2 };
+        var ambush = Event("evt_000000000112", "AMBUSH_TRIGGERED", false);
+        var phase = Event("evt_000000000113", "PHASE_CHANGED", false);
+        phase.SnapshotRevision = 2;
+
+        var feedback = new RuntimeBattlePanelActionFeedback();
+        feedback.Consume(new[] { damage, ambush, phase });
+
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.AmbushTriggered));
+        Assert.That(feedback.PendingCueCount, Is.EqualTo(2));
+        Assert.That(feedback.SkipCurrentCue(), Is.True);
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.DamageApplied));
+        Assert.That(feedback.SkipCurrentCue(), Is.True);
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.PhaseChanged));
+    }
+
+    [Test]
+    public void FeedbackQueueAdvancesAfterPulseEvenWithoutAView()
+    {
+        var first = Event("evt_000000000121", "CARD_PLAYED", false);
+        var second = Event("evt_000000000122", "CARD_PUSHED", false);
+        var feedback = new RuntimeBattlePanelActionFeedback();
+
+        feedback.Consume(new[] { first, second });
+
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.CardPlayed));
+        Assert.That(feedback.IsAnimating, Is.True);
+        feedback.Tick(RuntimeBattlePanelActionFeedback.StandardDurationSeconds);
+
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.Push));
+        Assert.That(feedback.PendingCueCount, Is.Zero);
+        feedback.Tick(RuntimeBattlePanelActionFeedback.StandardDurationSeconds);
+        Assert.That(feedback.IsAnimating, Is.False);
+    }
+
+    [Test]
+    public void ReducedMotionDrainsQueueWithoutReplayingOrBlockingInput()
+    {
+        var first = Event("evt_000000000131", "CARD_PLAYED", false);
+        var gameOver = Event("evt_000000000132", "GAME_OVER", false);
+        var feedback = new RuntimeBattlePanelActionFeedback();
+        feedback.SetReducedMotion(true);
+
+        feedback.Consume(new[] { first, gameOver });
+
+        Assert.That(feedback.ReducedMotion, Is.True);
+        Assert.That(feedback.IsAnimating, Is.False);
+        Assert.That(feedback.PendingCueCount, Is.Zero);
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.GameOver));
+        Assert.That(feedback.AppliedFeedbackCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void NewRevisionAddsOneCueWhileRepeatedHistoryIsDeduplicated()
+    {
+        var first = Event("evt_000000000141", "CARD_PLAYED", false);
+        first.SnapshotRevision = 1;
+        var next = Event("evt_000000000142", "CARD_PULLED", false);
+        next.SnapshotRevision = 2;
+        var feedback = new RuntimeBattlePanelActionFeedback();
+
+        feedback.Consume(new[] { first });
+        Assert.That(feedback.AppliedFeedbackCount, Is.EqualTo(1));
+        Assert.That(feedback.SkipCurrentCue(), Is.True);
+
+        feedback.Consume(new[] { first, next });
+
+        Assert.That(feedback.AppliedFeedbackCount, Is.EqualTo(2));
+        Assert.That(feedback.ConsumedEventCount, Is.EqualTo(2));
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.Pull));
+        Assert.That(feedback.PendingCueCount, Is.Zero);
     }
 
     [Test]

@@ -1,6 +1,7 @@
 #nullable disable
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using DominionWars.Unity.Runtime;
 using UnityEngine;
@@ -35,6 +36,8 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
     private static readonly Color FrameFill = Hex("162631");
     private static readonly Color FrameBorder = Hex("7294A3");
     private static readonly Color PanelFill = Hex("10202A");
+    private static readonly Color CompactHeaderFill = Hex("1B3440");
+    private static readonly Color CompactBadgeFill = Hex("234451");
     private static readonly Color PanelBorder = Hex("456572");
     private static readonly Color TextPrimary = Hex("F3F7F8");
     private static readonly Color TextMuted = Hex("A9BEC6");
@@ -60,6 +63,7 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
     private UnityEngine.UI.Outline _frameOutline;
     private RectTransform _header;
     private RectTransform _titleRoot;
+    private RectTransform _metaRoot;
     private UnityEngine.UI.Text _titleText;
     private UnityEngine.UI.Text _metaText;
     private RectTransform _costBadge;
@@ -181,7 +185,9 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         if (_artFallbackText != null)
             _artFallbackText.gameObject.SetActive(_diagnosticsVisible && _usingArtFallback);
         if (_costBadge != null)
-            _costBadge.gameObject.SetActive(_diagnosticsVisible);
+            // Cost is player-facing gameplay information, not a wire
+            // diagnostic. Keep it visible in production alongside PUNISH.
+            _costBadge.gameObject.SetActive(true);
     }
 
     /// <summary>
@@ -201,10 +207,10 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         if (skinId != null) _skinId = string.IsNullOrWhiteSpace(skinId) ? DefaultSkinId : skinId;
 
         _titleText.text = Display(card.Name, RuntimeCardDisplayModel.UnknownCard);
-        _metaText.text = BuildMetaText(card);
+        _metaText.text = BuildMetaText(card, _mode);
         _costValue.text = DisplayNumber(card.DeclaredCost);
         _punishValue.text = DisplayNumber(card.PrintedPunish);
-        _rulesText.text = BuildRulesText(card);
+        _rulesText.text = BuildRulesText(card, _mode);
         var runtimeStats = UsesRuntimeStats(card.Zone);
         var showStats = card.IsMinion &&
             (runtimeStats ? card.HasCurrentStats : card.HasPrintedStats);
@@ -306,9 +312,9 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         _titleText.horizontalOverflow = HorizontalWrapMode.Wrap;
         _titleText.verticalOverflow = VerticalWrapMode.Truncate;
 
-        var metaRoot = EnsureRect(_header, "CardMeta");
-        SetAnchors(metaRoot, new Vector2(0.05f, 0.02f), new Vector2(0.95f, 0.38f));
-        _metaText = EnsureText(metaRoot, "Meta", 9, TextMuted);
+        _metaRoot = EnsureRect(_header, "CardMeta");
+        SetAnchors(_metaRoot, new Vector2(0.05f, 0.02f), new Vector2(0.95f, 0.38f));
+        _metaText = EnsureText(_metaRoot, "Meta", 9, TextMuted);
         _metaText.alignment = TextAnchor.MiddleCenter;
         _metaText.horizontalOverflow = HorizontalWrapMode.Wrap;
         _metaText.verticalOverflow = VerticalWrapMode.Truncate;
@@ -317,11 +323,15 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         SetAnchors(_costBadge, new Vector2(0.04f, 0.66f), new Vector2(0.28f, 0.75f));
         EnsureImage(_costBadge, PanelFill, false);
         EnsureOutline(_costBadge, FrameBorder);
-        _costLabel = EnsureText(EnsureRect(_costBadge, "CostLabel"), "Value", 8, TextMuted);
+        var costLabelRoot = EnsureRect(_costBadge, "CostLabel");
+        SetAnchors(costLabelRoot, Vector2.zero, Vector2.one);
+        _costLabel = EnsureText(costLabelRoot, "Value", 8, TextMuted);
         SetAnchors(_costLabel.rectTransform, new Vector2(0.04f, 0.52f), new Vector2(0.96f, 0.98f));
         _costLabel.text = "COST";
         _costLabel.alignment = TextAnchor.MiddleCenter;
-        _costValue = EnsureText(EnsureRect(_costBadge, "CostValue"), "Value", 14, TextPrimary);
+        var costValueRoot = EnsureRect(_costBadge, "CostValue");
+        SetAnchors(costValueRoot, Vector2.zero, Vector2.one);
+        _costValue = EnsureText(costValueRoot, "Value", 14, TextPrimary);
         SetAnchors(_costValue.rectTransform, new Vector2(0.04f, 0.02f), new Vector2(0.96f, 0.58f));
         _costValue.alignment = TextAnchor.MiddleCenter;
         _costValue.fontStyle = FontStyle.Bold;
@@ -330,11 +340,15 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         SetAnchors(_punishBadge, new Vector2(0.72f, 0.66f), new Vector2(0.96f, 0.75f));
         EnsureImage(_punishBadge, PanelFill, false);
         EnsureOutline(_punishBadge, PunishAccent);
-        _punishLabel = EnsureText(EnsureRect(_punishBadge, "PunishLabel"), "Value", 8, PunishAccent);
+        var punishLabelRoot = EnsureRect(_punishBadge, "PunishLabel");
+        SetAnchors(punishLabelRoot, Vector2.zero, Vector2.one);
+        _punishLabel = EnsureText(punishLabelRoot, "Value", 8, PunishAccent);
         SetAnchors(_punishLabel.rectTransform, new Vector2(0.04f, 0.52f), new Vector2(0.96f, 0.98f));
         _punishLabel.text = "PUNISH";
         _punishLabel.alignment = TextAnchor.MiddleCenter;
-        _punishValue = EnsureText(EnsureRect(_punishBadge, "PunishValue"), "Value", 14, TextPrimary);
+        var punishValueRoot = EnsureRect(_punishBadge, "PunishValue");
+        SetAnchors(punishValueRoot, Vector2.zero, Vector2.one);
+        _punishValue = EnsureText(punishValueRoot, "Value", 14, TextPrimary);
         SetAnchors(_punishValue.rectTransform, new Vector2(0.04f, 0.02f), new Vector2(0.96f, 0.58f));
         _punishValue.alignment = TextAnchor.MiddleCenter;
         _punishValue.fontStyle = FontStyle.Bold;
@@ -364,7 +378,9 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         SetAnchors(_rulesPanel, new Vector2(0.05f, 0.16f), new Vector2(0.95f, 0.37f));
         EnsureImage(_rulesPanel, PanelFill, false);
         EnsureOutline(_rulesPanel, PanelBorder);
-        _rulesText = EnsureText(EnsureRect(_rulesPanel, "RulesSummary"), "Text", 10, TextPrimary);
+        var rulesRoot = EnsureRect(_rulesPanel, "RulesSummary");
+        SetAnchors(rulesRoot, Vector2.zero, Vector2.one);
+        _rulesText = EnsureText(rulesRoot, "Text", 10, TextPrimary);
         SetAnchors(_rulesText.rectTransform, new Vector2(0.06f, 0.08f), new Vector2(0.94f, 0.92f));
         _rulesText.alignment = TextAnchor.UpperLeft;
         _rulesText.verticalOverflow = VerticalWrapMode.Truncate;
@@ -409,6 +425,9 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         if (!_built) return;
 
         var compact = _mode == RuntimeCardFaceMode.Compact;
+        var headerImage = _header.GetComponent<UnityEngine.UI.Image>();
+        if (headerImage != null)
+            headerImage.color = compact ? CompactHeaderFill : PanelFill;
         var layout = _cardRoot.GetComponent<UnityEngine.UI.LayoutElement>();
         if (layout == null) layout = _cardRoot.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
         layout.minWidth = compact ? 72f : 88f;
@@ -418,31 +437,79 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         layout.preferredHeight = compact ? CompactHeight : FullHeight;
         layout.flexibleHeight = 0f;
 
-        _titleText.fontSize = compact ? 11 : 15;
-        _metaText.fontSize = compact ? 7 : 9;
-        _costLabel.fontSize = compact ? 6 : 8;
-        _costValue.fontSize = compact ? 10 : 14;
-        _punishLabel.fontSize = compact ? 6 : 8;
-        _punishValue.fontSize = compact ? 10 : 14;
+        // Compact field cards are read at a glance on the battlefield. Keep
+        // the name and live stats legible; detailed rules remain available
+        // through the existing card inspect surface.
+        _titleText.fontSize = compact ? 14 : 15;
+        _titleText.color = compact ? Color.white : TextPrimary;
+        _metaText.fontSize = compact ? 9 : 9;
+        _metaText.color = compact ? Hex("D9F7FC") : TextMuted;
+        _costLabel.fontSize = compact ? 8 : 8;
+        _costLabel.color = compact ? Hex("C8F1F5") : TextMuted;
+        _costValue.fontSize = compact ? 13 : 14;
+        _costValue.color = Color.white;
+        _punishLabel.fontSize = compact ? 8 : 8;
+        _punishLabel.color = compact ? Hex("FFB29D") : PunishAccent;
+        _punishValue.fontSize = compact ? 13 : 14;
+        _punishValue.color = Color.white;
         _rulesText.fontSize = compact ? 8 : 10;
-        _attackLabel.fontSize = compact ? 6 : 8;
-        _attackValue.fontSize = compact ? 10 : 14;
-        _healthLabel.fontSize = compact ? 6 : 8;
-        _healthValue.fontSize = compact ? 10 : 14;
+        _attackLabel.fontSize = compact ? 7 : 8;
+        _attackValue.fontSize = 14;
+        _healthLabel.fontSize = compact ? 7 : 8;
+        _healthValue.fontSize = 14;
         _identityText.fontSize = compact ? 6 : 8;
         _artFallbackText.fontSize = compact ? 7 : 10;
+
+        var compactBattlefieldMinion = compact &&
+            _boundCard != null &&
+            _boundCard.IsMinion &&
+            IsBattlefieldZone(_boundCard.Zone);
+        _punishBadge.gameObject.SetActive(!compactBattlefieldMinion);
 
         _rulesPanel.gameObject.SetActive(true);
         if (compact)
         {
+            // Compact hand cards use two non-overlapping header rows. The
+            // title remains the fastest scan target; type/keyword stays in a
+            // short metadata line below it instead of colliding with the
+            // title when six cards are overlapped in the hand strip.
+            SetAnchors(_metaRoot, new Vector2(0.05f, 0.02f), new Vector2(0.95f, 0.25f));
+            SetAnchors(_titleRoot, new Vector2(0.04f, 0.27f), new Vector2(0.96f, 0.94f));
+            SetAnchors(_costBadge, new Vector2(0.03f, 0.64f), new Vector2(0.33f, 0.76f));
+            SetAnchors(_punishBadge, new Vector2(0.67f, 0.64f), new Vector2(0.97f, 0.76f));
+            SetAnchors(_costLabel.rectTransform, new Vector2(0.03f, 0.05f), new Vector2(0.28f, 0.95f));
+            SetAnchors(_costValue.rectTransform, new Vector2(0.28f, 0.04f), new Vector2(0.97f, 0.96f));
+            SetAnchors(_punishLabel.rectTransform, new Vector2(0.03f, 0.05f), new Vector2(0.28f, 0.95f));
+            SetAnchors(_punishValue.rectTransform, new Vector2(0.28f, 0.04f), new Vector2(0.97f, 0.96f));
+            _costLabel.text = "C";
+            _punishLabel.text = "P";
+            var compactCostImage = _costBadge.GetComponent<UnityEngine.UI.Image>();
+            if (compactCostImage != null) compactCostImage.color = CompactBadgeFill;
+            var compactPunishImage = _punishBadge.GetComponent<UnityEngine.UI.Image>();
+            if (compactPunishImage != null) compactPunishImage.color = CompactBadgeFill;
             SetAnchors(_artPanel, new Vector2(0.05f, 0.43f), new Vector2(0.95f, 0.64f));
-            SetAnchors(_rulesPanel, new Vector2(0.05f, 0.22f), new Vector2(0.95f, 0.41f));
-            SetAnchors(_statsRoot, new Vector2(0.05f, 0.085f), new Vector2(0.95f, 0.20f));
+            SetAnchors(_rulesPanel, new Vector2(0.05f, 0.22f), new Vector2(0.95f, 0.40f));
+            SetAnchors(_statsRoot, new Vector2(0.05f, 0.07f), new Vector2(0.95f, 0.205f));
             SetAnchors(_identityText.rectTransform, new Vector2(0.06f, 0.015f), new Vector2(0.94f, 0.07f));
         }
         else
         {
+            SetAnchors(_metaRoot, new Vector2(0.05f, 0.02f), new Vector2(0.95f, 0.38f));
+            SetAnchors(_titleRoot, new Vector2(0.06f, 0.40f), new Vector2(0.94f, 0.87f));
+            SetAnchors(_costBadge, new Vector2(0.04f, 0.66f), new Vector2(0.28f, 0.75f));
+            SetAnchors(_punishBadge, new Vector2(0.72f, 0.66f), new Vector2(0.96f, 0.75f));
+            SetAnchors(_costLabel.rectTransform, new Vector2(0.04f, 0.52f), new Vector2(0.96f, 0.98f));
+            SetAnchors(_costValue.rectTransform, new Vector2(0.04f, 0.02f), new Vector2(0.96f, 0.58f));
+            SetAnchors(_punishLabel.rectTransform, new Vector2(0.04f, 0.52f), new Vector2(0.96f, 0.98f));
+            SetAnchors(_punishValue.rectTransform, new Vector2(0.04f, 0.02f), new Vector2(0.96f, 0.58f));
+            _costLabel.text = "COST";
+            _punishLabel.text = "PUNISH";
+            var fullCostImage = _costBadge.GetComponent<UnityEngine.UI.Image>();
+            if (fullCostImage != null) fullCostImage.color = PanelFill;
+            var fullPunishImage = _punishBadge.GetComponent<UnityEngine.UI.Image>();
+            if (fullPunishImage != null) fullPunishImage.color = PanelFill;
             SetAnchors(_artPanel, new Vector2(0.05f, 0.40f), new Vector2(0.95f, 0.64f));
+            SetAnchors(_rulesPanel, new Vector2(0.05f, 0.16f), new Vector2(0.95f, 0.37f));
             SetAnchors(_statsRoot, new Vector2(0.05f, 0.055f), new Vector2(0.95f, 0.145f));
             SetAnchors(_identityText.rectTransform, new Vector2(0.06f, 0.005f), new Vector2(0.94f, 0.052f));
         }
@@ -621,19 +688,108 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
         layout.flexibleHeight = flexibleHeight;
     }
 
-    private static string BuildMetaText(RuntimeCardDisplayModel card)
+    private static string BuildMetaText(
+        RuntimeCardDisplayModel card,
+        RuntimeCardFaceMode mode)
     {
-        var sealedSuffix = card.IsSealed ? " · SEALED" : string.Empty;
+        if (IsBattlefieldZone(card.Zone))
+        {
+            var battlefieldProgress = BuildProgressText(card);
+            if (card.IsSealed && battlefieldProgress.Length > 0)
+                return "封印 · " + battlefieldProgress;
+            if (card.IsSealed) return "封印";
+            return battlefieldProgress;
+        }
+
+        if (mode == RuntimeCardFaceMode.Compact)
+        {
+            var type = Display(card.Type, string.Empty);
+            var keywords = Shorten(BuildKeywordText(card), 12);
+            var progress = BuildProgressText(card);
+            var parts = new List<string>(3);
+            if (type.Length > 0) parts.Add(type);
+            if (keywords.Length > 0) parts.Add(keywords);
+            if (progress.Length > 0) parts.Add(progress);
+            return Shorten(string.Join(" ", parts), 24);
+        }
+
+        var sealedSuffix = card.IsSealed ? " · 封印" : string.Empty;
         return Display(card.Type) + " · " + Display(card.Faction) + sealedSuffix;
     }
 
-    private static string BuildRulesText(RuntimeCardDisplayModel card)
+    private static string BuildRulesText(
+        RuntimeCardDisplayModel card,
+        RuntimeCardFaceMode mode)
     {
+        if (IsBattlefieldZone(card.Zone))
+        {
+            var battlefieldKeywords = BuildKeywordText(card);
+            return battlefieldKeywords.Length == 0
+                ? "查看卡牌详情"
+                : battlefieldKeywords + "\n查看卡牌详情";
+        }
+
         var rules = Display(card.RulesText);
-        var keywords = card.Keywords == null || card.Keywords.Count == 0
-            ? string.Empty
-            : "\n[" + string.Join(" · ", card.Keywords) + "]";
+        var keywords = BuildKeywordText(card);
+        if (mode == RuntimeCardFaceMode.Compact)
+        {
+            // The hand face is a glance surface. Keep a short body cue here;
+            // the existing inspect reader remains the authoritative place for
+            // full rules text and keywords. This prevents a 90px-wide card
+            // from rendering a dense, unreadable paragraph over its badges.
+            var compactRules = Display(card.RulesText, string.Empty)
+                .Replace("\r", " ")
+                .Replace("\n", " ")
+                .Trim();
+            compactRules = Shorten(compactRules, 18);
+            if (compactRules.Length == 0)
+                compactRules = Shorten(keywords, 12);
+            return compactRules.Length == 0 ? "点击查看详情" : compactRules;
+        }
+
         return "RULES " + rules + keywords;
+    }
+
+    private static string Shorten(string value, int maxCharacters)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var normalized = value.Trim();
+        if (normalized.Length <= maxCharacters) return normalized;
+        return normalized.Substring(0, Math.Max(1, maxCharacters - 1)) + "…";
+    }
+
+    private static string BuildKeywordText(RuntimeCardDisplayModel card)
+    {
+        if (card.Keywords == null || card.Keywords.Count == 0)
+            return string.Empty;
+
+        // Card catalog metadata already carries player-facing keyword names
+        // (for example, 嘲讽). Keep those display names rather than echoing a
+        // protocol/internal enum token into the card face.
+        var displayNames = new List<string>(card.Keywords.Count);
+        foreach (var keyword in card.Keywords)
+        {
+            var displayName = Display(keyword, string.Empty);
+            if (displayName.Length > 0) displayNames.Add(displayName);
+        }
+
+        return displayNames.Count == 0
+            ? string.Empty
+            : "[" + string.Join(" · ", displayNames) + "]";
+    }
+
+    private static string BuildProgressText(RuntimeCardDisplayModel card)
+    {
+        var progress = new List<string>(2);
+        if (!string.IsNullOrWhiteSpace(card.ChantLine)) progress.Add(card.ChantLine);
+        if (!string.IsNullOrWhiteSpace(card.LandmarkProgressLine)) progress.Add(card.LandmarkProgressLine);
+        return string.Join(" · ", progress);
+    }
+
+    private static bool IsBattlefieldZone(RuntimeCardZone zone)
+    {
+        return zone == RuntimeCardZone.OwnField ||
+            zone == RuntimeCardZone.OpponentField;
     }
 
     private static bool UsesRuntimeStats(RuntimeCardZone zone)

@@ -25,13 +25,28 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
         var catalog = Catalog(
             Definition("own_hand", "Own Hand"),
             Definition("own_field", "Own Field", isMinion: true),
-            Definition("own_leader", "Own Leader", isMinion: true, isLeader: true),
+            Definition(
+                "own_leader",
+                "Own Leader",
+                isMinion: true,
+                isLeader: true,
+                leaderWinText: "己方封印随从生命≥512时获胜"),
             Definition("own_grave", "Own Grave"),
             Definition("own_commit", "Own Commit"),
             Definition("own_cloud", "Own Cloud"),
-            Definition("opponent_secret", "Opponent Secret"),
+            Definition(
+                "opponent_secret",
+                "Opponent Secret",
+                isMinion: true,
+                isLeader: true,
+                leaderWinText: "隐藏统领目标"),
             Definition("opponent_field", "Opponent Field", isMinion: true),
-            Definition("opponent_leader", "Opponent Leader", isMinion: true, isLeader: true),
+            Definition(
+                "opponent_leader",
+                "Opponent Leader",
+                isMinion: true,
+                isLeader: true,
+                leaderWinText: "对手统领目标"),
             Definition("opponent_grave", "Opponent Grave"));
         var snapshot = Snapshot(
             new RuntimePlayerSnapshot
@@ -72,6 +87,20 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
             Is.EqualTo(RuntimeCardZone.OwnCommitQueue));
         Assert.That(cards.Single(card => card.StableId == "own_cloud").Zone,
             Is.EqualTo(RuntimeCardZone.OwnCloudStack));
+        Assert.That(cards.Single(card => card.StableId == "own_leader").LeaderWinText,
+            Is.EqualTo("己方封印随从生命≥512时获胜"));
+        Assert.That(cards.Single(card => card.StableId == "opponent_leader").LeaderWinText,
+            Is.EqualTo("对手统领目标"));
+        var ownLeaderInspect = RuntimeCardInspectModel.Build(
+            cards.Single(card => card.StableId == "own_leader"));
+        var opponentLeaderInspect = RuntimeCardInspectModel.Build(
+            cards.Single(card => card.StableId == "opponent_leader"));
+        Assert.That(ownLeaderInspect.DetailText,
+            Does.Contain("目标 己方封印随从生命≥512时获胜"));
+        Assert.That(opponentLeaderInspect.DetailText,
+            Does.Contain("目标 对手统领目标"));
+        Assert.That(cards.Any(card => card.LeaderWinText == "隐藏统领目标"), Is.False,
+            "A hidden opponent hand card must not enter the visible display model.");
     }
 
     [Test]
@@ -187,6 +216,57 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
     }
 
     [Test]
+    public void ChantRequirementRemainingAndLandmarkProgressUseSnapshotState()
+    {
+        var catalog = Catalog(
+            Definition(
+                "machine_factory",
+                "量产协议",
+                faction: "机械遗迹",
+                type: "SPELL",
+                chant: 2,
+                text: "召唤三个侦察机偶。"),
+            Definition(
+                "machine_leader",
+                "机械地标",
+                faction: "机械遗迹",
+                type: "SPELL",
+                isLeader: true));
+        var snapshot = Snapshot(
+            new RuntimePlayerSnapshot
+            {
+                PlayerId = "player_0",
+                Hand = new[]
+                {
+                    Card("machine_factory", 301, 0),
+                },
+                Field = new[]
+                {
+                    Card("machine_factory", 302, 0, chantRemaining: 1),
+                },
+                LeaderZone = new[]
+                {
+                    Card("machine_leader", 303, 0, landmarkPullCount: 2),
+                },
+            },
+            new RuntimePlayerSnapshot { PlayerId = "player_1" });
+
+        var cards = RuntimeCardDisplayModel.BuildVisibleCards(snapshot, catalog);
+        var hand = cards.Single(card => card.EntityId == 301);
+        var field = cards.Single(card => card.EntityId == 302);
+        var leader = cards.Single(card => card.EntityId == 303);
+
+        Assert.That(hand.Chant, Is.EqualTo(2));
+        Assert.That(hand.ChantLine, Is.EqualTo("吟唱 2"));
+        Assert.That(field.ChantLine, Is.EqualTo("吟唱 2 · 剩余 1"));
+        Assert.That(RuntimeCardInspectModel.Build(field).DetailText,
+            Does.Contain("吟唱 2 · 剩余 1"));
+        Assert.That(leader.LandmarkProgressLine, Is.EqualTo("地标层数 2"));
+        Assert.That(RuntimeCardInspectModel.Build(leader).DetailText,
+            Does.Contain("地标层数 2"));
+    }
+
+    [Test]
     public void CardCatalogPresentationMetadataCopiesPrintedValuesWithoutExposingDefinition()
     {
         var catalog = Catalog(Definition(
@@ -203,7 +283,8 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
             tags: new[] { "测试" },
             commitCost: 1,
             uploadCost: 2,
-            downloadCost: 3));
+            downloadCost: 3,
+            leaderWinText: "展示目标"));
 
         var found = catalog.TryGetPresentationMetadata(
             "metadata_unit",
@@ -227,6 +308,7 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
         Assert.That(metadata.HasDownloadCost, Is.True);
         Assert.That(metadata.Keywords, Is.EqualTo(new[] { "吸血" }));
         Assert.That(metadata.Tags, Is.EqualTo(new[] { "测试" }));
+        Assert.That(metadata.LeaderWinText, Is.EqualTo("展示目标"));
     }
 
     [Test]
@@ -435,7 +517,9 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
         IEnumerable<string>? tags = null,
         int commitCost = 0,
         int uploadCost = 0,
-        int downloadCost = 0)
+        int downloadCost = 0,
+        string? leaderWinText = null,
+        int chant = 0)
     {
         return new CardDefinition(
             id,
@@ -453,7 +537,9 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
             type: type,
             commitCost: commitCost,
             uploadCost: uploadCost,
-            downloadCost: downloadCost);
+            downloadCost: downloadCost,
+            leaderWinText: leaderWinText,
+            chant: chant);
     }
 
     private static CardCatalog CatalogFromJson(string json)
@@ -479,7 +565,9 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
         int owner,
         bool sealedCard = false,
         int? currentAttack = null,
-        int? currentHealth = null)
+        int? currentHealth = null,
+        int? chantRemaining = null,
+        int? landmarkPullCount = null)
     {
         return new RuntimeCardSnapshot
         {
@@ -489,6 +577,8 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
             Sealed = sealedCard,
             CurrentAttack = currentAttack,
             CurrentHealth = currentHealth,
+            ChantRemaining = chantRemaining,
+            LandmarkPullCount = landmarkPullCount,
         };
     }
 

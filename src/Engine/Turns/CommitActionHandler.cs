@@ -9,11 +9,19 @@ namespace DominionWars.Engine.Turns
 
 /// <summary>
 /// Resolves the player-originated manual commit of one mechanical field card.
-/// Positive fees remain fail-closed until the approved cost model defines a
-/// payment source; zero-fee cards can exercise the frozen lifecycle today.
+/// The card's declared commit value is a punishment amount: it makes the
+/// opponent draw through the existing punish/response chain before the card
+/// enters the public commit queue. It is not a separate payment resource.
 /// </summary>
 public sealed class CommitActionHandler : ITurnActionHandler
 {
+    private readonly PlayCardActionHandler _punishResolver;
+
+    public CommitActionHandler(IPunishResponsePolicy? punishResponses = null)
+    {
+        _punishResolver = new PlayCardActionHandler(punishResponses: punishResponses);
+    }
+
     internal static bool HasSupportedCommitEffects(GameState state, CardInstance card)
     {
         if (state is null) throw new ArgumentNullException(nameof(state));
@@ -71,11 +79,6 @@ public sealed class CommitActionHandler : ITurnActionHandler
             return GameActionResult.Reject("action.id_mismatch");
         }
 
-        if (card.Definition.CommitCost > 0)
-        {
-            return GameActionResult.Reject("action.cost_system_unavailable");
-        }
-
         if (!HasSupportedCommitEffects(state, card))
         {
             return GameActionResult.Reject("action.unknown_effect");
@@ -83,7 +86,17 @@ public sealed class CommitActionHandler : ITurnActionHandler
 
         var root = state.Events.Append("COMMIT_DECLARED", null, Data(
             "player", owner.PlayerIndex,
-            "source", card.InstanceId));
+            "source", card.InstanceId,
+            "punish", card.Definition.CommitCost));
+        if (!_punishResolver.ResolveLifecyclePunish(
+                state,
+                owner.PlayerIndex,
+                card.Definition.CommitCost,
+                root.EventId))
+        {
+            return GameActionResult.Accept();
+        }
+
         var runtime = new EffectRuntime(state);
         runtime.CommitCard(
             new EffectSpec(EffectNames.Commit, "SELF"),

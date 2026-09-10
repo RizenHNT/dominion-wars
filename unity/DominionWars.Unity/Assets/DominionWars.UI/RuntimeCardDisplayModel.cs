@@ -56,11 +56,15 @@ public sealed class RuntimeCardDisplayModel
             HasDownloadCost = false;
             CurrentAttack = null;
             CurrentHealth = null;
+            Chant = 0;
+            ChantRemaining = null;
+            LandmarkPullCount = null;
             RulesText = Unavailable;
             FlavorText = Unavailable;
             Keywords = Array.Empty<string>();
             Tags = Array.Empty<string>();
             ArtId = null;
+            LeaderWinText = string.Empty;
             IsMinion = false;
             IsLeader = false;
             PunishActivatable = false;
@@ -89,6 +93,10 @@ public sealed class RuntimeCardDisplayModel
         Keywords = CopyStrings(definition.Keywords);
         Tags = CopyStrings(definition.Tags);
         ArtId = string.IsNullOrWhiteSpace(definition.ArtId) ? null : definition.ArtId;
+        LeaderWinText = string.IsNullOrWhiteSpace(definition.LeaderWinText)
+            ? string.Empty
+            : definition.LeaderWinText!;
+        Chant = definition.Chant;
         IsMinion = definition.IsMinion;
         IsLeader = definition.IsLeader;
         // Current values are meaningful only for an applicable minion. They
@@ -96,6 +104,8 @@ public sealed class RuntimeCardDisplayModel
         // never promoted to a runtime value when the snapshot omits it.
         CurrentAttack = IsMinion ? snapshot.CurrentAttack : (int?)null;
         CurrentHealth = IsMinion ? snapshot.CurrentHealth : (int?)null;
+        ChantRemaining = snapshot.ChantRemaining;
+        LandmarkPullCount = snapshot.LandmarkPullCount;
         PunishActivatable = definition.PunishActivatable;
         MissingDataText = string.Empty;
     }
@@ -135,6 +145,40 @@ public sealed class RuntimeCardDisplayModel
     /// </summary>
     public int? CurrentHealth { get; }
 
+    /// <summary>
+    /// Printed chant requirement from CardCatalog. Active progress is exposed
+    /// separately so a hand card can show its requirement while a battlefield
+    /// card can show the authoritative remaining countdown.
+    /// </summary>
+    public int Chant { get; }
+
+    /// <summary>Authoritative remaining end phases for an active chant.</summary>
+    public int? ChantRemaining { get; }
+
+    /// <summary>Authoritative public pull progress for a landmark.</summary>
+    public int? LandmarkPullCount { get; }
+
+    public string ChantLine
+    {
+        get
+        {
+            if (Chant <= 0 && !ChantRemaining.HasValue) return string.Empty;
+            if (Chant > 0 && ChantRemaining.HasValue)
+            {
+                return "吟唱 " + Chant.ToString(CultureInfo.InvariantCulture) +
+                    " · 剩余 " + ChantRemaining.Value.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return Chant > 0
+                ? "吟唱 " + Chant.ToString(CultureInfo.InvariantCulture)
+                : "吟唱剩余 " + ChantRemaining!.Value.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    public string LandmarkProgressLine => LandmarkPullCount.HasValue
+        ? "地标层数 " + LandmarkPullCount.Value.ToString(CultureInfo.InvariantCulture)
+        : string.Empty;
+
     /// <summary>Printed/base punishment value from CardCatalog.</summary>
     public int? PrintedPunish { get; }
 
@@ -168,6 +212,12 @@ public sealed class RuntimeCardDisplayModel
     public IReadOnlyList<string> Keywords { get; }
     public IReadOnlyList<string> Tags { get; }
     public string? ArtId { get; }
+
+    /// <summary>
+    /// Player-facing goal text copied from CardCatalog. It is empty when the
+    /// card has no declared goal or its presentation metadata is unavailable.
+    /// </summary>
+    public string LeaderWinText { get; }
 
     public string ZoneLabel
     {

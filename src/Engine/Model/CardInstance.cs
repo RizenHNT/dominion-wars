@@ -40,6 +40,14 @@ public sealed class CardInstance
     public bool SummonedThisTurn { get; set; }
     public bool PunishActivated { get; set; }
     public int ChantRemaining { get; set; }
+    /// <summary>
+    /// Number of successful PULL resolutions received by this landmark. This
+    /// is deliberately separate from PlayerState.PullCount: the latter is
+    /// the leader's victory counter, while this value drives landmark tiers.
+    /// </summary>
+    public int LandmarkPullCount { get; set; }
+    /// <summary>Tier summon waiting for the landmark's chant to complete.</summary>
+    public string? PendingLandmarkSummonCardId { get; set; }
     public int Durability { get; set; }
     /// <summary>Temporary controller for CONTROL. Ownership never changes.</summary>
     public int? ControlledByPlayerIndex { get; set; }
@@ -75,6 +83,8 @@ public sealed class CardInstance
         SummonedThisTurn = false;
         PunishActivated = false;
         ChantRemaining = 0;
+        LandmarkPullCount = 0;
+        PendingLandmarkSummonCardId = null;
         Durability = Definition.LeaderDurability;
         ControlledByPlayerIndex = null;
         ControlTurnsRemaining = 0;

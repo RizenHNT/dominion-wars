@@ -65,7 +65,8 @@ public static class RuntimeBattlePanelPresentationModel
     private static readonly HashSet<string> KnownEventTypes = new HashSet<string>(StringComparer.Ordinal)
     {
         "PHASE_CHANGED", "TURN_CHANGED", "CARD_PLAYED", "AMBUSH_SET", "AMBUSH_TRIGGERED",
-        "ATTACK_DECLARED", "TARGET_REJECTED", "DAMAGE_APPLIED", "HEAL_APPLIED", "PUNISH_ISSUED",
+        "CARDS_DRAWN", "ATTACK_DECLARED", "TARGET_REJECTED", "DAMAGE_APPLIED", "HEAL_APPLIED",
+        "MINION_DESTROYED", "PUNISH_ISSUED",
         "PUNISH_DRAW", "PUNISH_TRIGGERED", "CHAIN_LINK", "CHAIN_RESOLVED", "CASTLE_DAMAGED",
         "CASTLE_BROKEN", "LEADER_MANIFESTED", "LEADER_DISABLED", "VICTORY_PROGRESS", "DECK_CYCLED",
         "CARD_DISCARDED", "COMMIT_DECLARED", "CARD_COMMITTED", "CARD_PUSHED",
@@ -185,8 +186,15 @@ public static class RuntimeBattlePanelPresentationModel
 
     public static string BuildLeaderSummary(RuntimePlayerSnapshot player)
     {
+        return BuildLeaderSummary(player, null);
+    }
+
+    public static string BuildLeaderSummary(
+        RuntimePlayerSnapshot player,
+        CardCatalog cardCatalog)
+    {
         var parts = new List<string>(3);
-        AddAvailableLeaderPart(parts, "名称", BuildLeaderName(player));
+        AddAvailableLeaderPart(parts, "名称", BuildLeaderName(player, cardCatalog));
         AddAvailableLeaderPart(parts, "生命", BuildLeaderLife(player));
         AddAvailableLeaderPart(parts, "状态", BuildLeaderStatus(player));
         return string.Join(" | ", parts);
@@ -216,6 +224,72 @@ public static class RuntimeBattlePanelPresentationModel
         return count == 1
             ? "统领"
             : "统领 ×" + count.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Resolves the public LeaderZone cards to their presentation names. The
+    /// leader zone is public in the adapter snapshot, so this never traverses
+    /// a hidden hand or infers an identity from a private card list.
+    /// </summary>
+    public static string BuildLeaderName(
+        RuntimePlayerSnapshot player,
+        CardCatalog cardCatalog)
+    {
+        if (cardCatalog == null || player?.LeaderZone == null)
+            return BuildLeaderName(player);
+
+        var names = new List<string>();
+        for (var index = 0; index < player.LeaderZone.Count; index++)
+        {
+            var card = player.LeaderZone[index];
+            if (card == null ||
+                !cardCatalog.TryGetPresentationMetadata(card.CardId, out var metadata) ||
+                metadata == null ||
+                !metadata.IsLeader ||
+                string.IsNullOrWhiteSpace(metadata.Name))
+            {
+                continue;
+            }
+
+            if (!names.Contains(metadata.Name))
+                names.Add(metadata.Name);
+        }
+
+        return names.Count == 0
+            ? BuildLeaderName(player)
+            : string.Join(", ", names);
+    }
+
+    /// <summary>
+    /// Returns goal text only for public leader-zone cards. It is shared by
+    /// the leader slots and terminal result presentation so both surfaces use
+    /// the same catalog metadata without copying rule numbers into UI code.
+    /// </summary>
+    public static string BuildLeaderWinText(
+        RuntimePlayerSnapshot player,
+        CardCatalog cardCatalog)
+    {
+        if (cardCatalog == null || player?.LeaderZone == null)
+            return string.Empty;
+
+        var winTexts = new List<string>();
+        for (var index = 0; index < player.LeaderZone.Count; index++)
+        {
+            var card = player.LeaderZone[index];
+            if (card == null) continue;
+
+            var display = RuntimeCardDisplayModel.CreateVisible(
+                card,
+                RuntimeCardZone.OwnLeader,
+                cardCatalog);
+            if (!display.IsLeader || string.IsNullOrWhiteSpace(display.LeaderWinText))
+                continue;
+
+            if (!winTexts.Contains(display.LeaderWinText))
+                winTexts.Add(display.LeaderWinText);
+        }
+
+        return string.Join("\n", winTexts);
     }
 
     /// <summary>Returns the stable card/entity form for the debug surface only.</summary>
@@ -259,6 +333,7 @@ public static class RuntimeBattlePanelPresentationModel
         var hasCard = false;
         var sealedLeader = false;
         var unsealedLeader = false;
+        var progress = new List<string>(2);
         for (var index = 0; index < leaders.Count; index++)
         {
             var card = leaders[index];
@@ -266,10 +341,22 @@ public static class RuntimeBattlePanelPresentationModel
             hasCard = true;
             if (card.Sealed) sealedLeader = true;
             else unsealedLeader = true;
+            if (card.LandmarkPullCount.HasValue)
+            {
+                progress.Add("地标层数 " + card.LandmarkPullCount.Value.ToString(CultureInfo.InvariantCulture));
+            }
+            if (card.ChantRemaining.HasValue)
+            {
+                progress.Add("吟唱剩余 " + card.ChantRemaining.Value.ToString(CultureInfo.InvariantCulture));
+            }
         }
         if (!hasCard) return string.Empty;
-        if (sealedLeader && unsealedLeader) return "mixed (sealed/present)";
-        return sealedLeader ? "sealed" : "present";
+        var status = sealedLeader && unsealedLeader
+            ? "mixed (sealed/present)"
+            : sealedLeader ? "sealed" : "present";
+        return progress.Count == 0
+            ? status
+            : status + " | " + string.Join(" · ", progress);
     }
 
     /// <summary>Returns the leader status detail for the debug surface only.</summary>
@@ -325,6 +412,71 @@ public static class RuntimeBattlePanelPresentationModel
             " | 合法行动由引擎提供";
     }
 
+    /// <summary>
+    /// Converts the authoritative terminal reason into a small player-facing
+    /// result cue. Special leader wins reuse the winner's public card metadata
+    /// for the goal text; the numeric threshold is deliberately not copied
+    /// into this presentation layer. Unknown or unrelated outcomes retain the
+    /// existing neutral fallback instead of leaking a protocol token.
+    /// </summary>
+    public static string BuildPlayerFacingResultReason(
+        RuntimeSnapshotEnvelope snapshot,
+        CardCatalog cardCatalog)
+    {
+        if (snapshot == null ||
+            !snapshot.WinnerPlayerIndex.HasValue ||
+            snapshot.WinnerPlayerIndex.Value < 0 ||
+            snapshot.Players == null ||
+            snapshot.WinnerPlayerIndex.Value >= snapshot.Players.Count ||
+            string.IsNullOrWhiteSpace(snapshot.ReasonKey))
+        {
+            return "MATCH COMPLETE";
+        }
+
+        var reasonKey = snapshot.ReasonKey.Trim().ToLowerInvariant();
+        if (IsLeaderGoalReason(reasonKey))
+        {
+            var winner = snapshot.Players[snapshot.WinnerPlayerIndex.Value];
+            var goal = BuildLeaderWinText(winner, cardCatalog);
+            if (!string.IsNullOrWhiteSpace(goal))
+                return "VICTORY GOAL: " + goal.Replace("\n", " | ");
+
+            return reasonKey switch
+            {
+                "win.giant_health_ge" => "VICTORY REASON: GIANT HEALTH GOAL REACHED",
+                "win.pull_total_ge" => "VICTORY REASON: PULL TOTAL GOAL REACHED",
+                "win.opp_discard_total_ge" => "VICTORY REASON: OPPONENT DISCARD GOAL REACHED",
+                "win.no_damage_turns_ge" => "VICTORY REASON: NO-DAMAGE TURN GOAL REACHED",
+                "win.opp_punish_draw_turn_ge" => "VICTORY REASON: PUNISH-DRAW GOAL REACHED",
+                _ => "MATCH COMPLETE",
+            };
+        }
+
+        return reasonKey switch
+        {
+            "win.enemy_leader_defeated" => "VICTORY REASON: ENEMY LEADER DEFEATED",
+            "win.enemy_life_zero" => "VICTORY REASON: ENEMY LIFE REACHED ZERO",
+            "win.castle_break_minion" => "VICTORY REASON: CASTLE BREAK RESOLVED",
+            "win.royal_castle_break" => "VICTORY REASON: ROYAL CASTLE BROKEN",
+            "win.deck_cycles" => "VICTORY REASON: DECK CYCLE LIMIT REACHED",
+            "win.gate_of_fate" => "VICTORY REASON: GATE OF FATE TRIGGERED",
+            "win.special" => "VICTORY REASON: SPECIAL CONDITION MET",
+            // Unknown reason keys intentionally retain the neutral fallback;
+            // never echo an engine token that the player-facing copy does not
+            // understand yet.
+            _ => "MATCH COMPLETE",
+        };
+    }
+
+    private static bool IsLeaderGoalReason(string reasonKey)
+    {
+        return reasonKey == "win.giant_health_ge"
+            || reasonKey == "win.pull_total_ge"
+            || reasonKey == "win.opp_discard_total_ge"
+            || reasonKey == "win.no_damage_turns_ge"
+            || reasonKey == "win.opp_punish_draw_turn_ge";
+    }
+
     public static string BuildPlayerSection(RuntimePlayerSnapshot player, bool viewer)
     {
         return BuildPlayerSection(player, viewer, null);
@@ -359,7 +511,7 @@ public static class RuntimeBattlePanelPresentationModel
             .Append(" | 墓地 ")
             .Append(player.GraveyardCount.ToString(CultureInfo.InvariantCulture));
 
-        var leaderSummary = BuildLeaderSummary(player);
+        var leaderSummary = BuildLeaderSummary(player, cardCatalog);
         if (!string.IsNullOrWhiteSpace(leaderSummary))
             builder.Append('\n').Append("统领：").Append(leaderSummary);
 

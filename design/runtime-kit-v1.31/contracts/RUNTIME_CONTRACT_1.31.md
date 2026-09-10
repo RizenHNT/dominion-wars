@@ -74,9 +74,9 @@
 - **unknown-field**：**fail-closed** —— 与已知 schema 不匹配的未知字段使该 message 无效（不得静默降级，ARCHITECTURE_REVIEW §9）。
 - **numeric width**：integer = 64-bit（JSON 无小数）；float = 64-bit double；无 NaN/Infinity（序列化即失败）。
 - **entity ID wire 形态（2026-08-14 定案）**：对局实体 ID = **裸 JSON integer（64-bit counter，≥1）**，单局稳定、跨局不复用；不使用 `entity_...` 字符串形式。命名 ID（player/leader/castle/prompt）保持字符串（`player_0`/`player_1`/`leader_0`/`leader_1`/`castle`/`prompt_*`）。`sourceId`/`targetId`/`targetIds` 为**联合**：裸整数（实体）或命名 ID 字符串；纯实体字段（snapshot `card.entityId`、payload `selectedEntityIds`）为纯整数 ≥1。与 schema 一致。
-- **card snapshot 可见性与动态状态**：snapshot 中出现的 card object 均代表该 viewer 可见的 face-up/public 卡；对手隐藏手牌只显 `handCount`，不发送 card object。可见卡可携带 optional `currentAttack` / `currentHealth`，其值必须直接来自权威 `CardInstance.Attack` / `CardInstance.Health`，不得从 `CardDefinition` 推断；旧 payload 缺字段时按 unavailable 处理，不按 0 补值。当前 batch 不增加 `attacksUsed` / `attacksPerTurn`，因为攻击可用性与次数仍完全由 `LegalActions` 广告决定。
-- **公开机械区域**：每个 player 可携带 optional `commitQueue` 与 `cloudStack` card arrays。两者均为公开、face-up 投影；`commitQueue` 顺序为引擎列表顺序（最早提交在前），`cloudStack` 顺序为引擎列表顺序（列表末尾为栈顶，UI 应以最后一项作为可下载对象）。数组缺失表示旧 payload 未提供该区域，不得从 count 或其他区域推断内容；不改变 PULL legality、费用或结算。
-- **机械玩家动作（兼容新增）**：`COMMIT` 只接受当前玩家场上的机械非统领卡，wire source 使用该卡实体 ID，目标为空；动作必须来自当前 `LegalActions`。在正式费用来源未冻结前，只有 `commitCost=0` 会被广告，正费用直接 `action.cost_system_unavailable` fail-closed。`PUSH` 仍在结束阶段按提交队列 FIFO 自动处理；`PULL` 仍只指向云端栈顶并使用已广告的下载载体。该技术限制不修改任何卡牌费用或平衡值。
+- **card snapshot 可见性与动态状态**：snapshot 中出现的 card object 均代表该 viewer 可见的 face-up/public 卡；对手隐藏手牌只显 `handCount`，不发送 card object。可见卡可携带 optional `currentAttack` / `currentHealth`，其值必须直接来自权威 `CardInstance.Attack` / `CardInstance.Health`，不得从 `CardDefinition` 推断；处于吟唱中的卡可携带 optional `chantRemaining`，公开地标可携带 `landmarkPullCount`，二者都直接来自权威 `CardInstance`；旧 payload 缺字段时按 unavailable 处理，不按 0 补值。当前 batch 不增加 `attacksUsed` / `attacksPerTurn`，因为攻击可用性与次数仍完全由 `LegalActions` 广告决定。
+- **公开机械区域**：每个 player 可携带 optional `commitQueue` 与 `cloudStack` card arrays。两者均为公开、face-up 投影；`commitQueue` 顺序为引擎列表顺序（最早提交在前），`cloudStack` 顺序为引擎列表顺序（列表末尾为栈顶，UI 应以最后一项作为可下载对象）。数组缺失表示旧 payload 未提供该区域，不得从 count 或其他区域推断内容；不改变 PULL legality、生命周期惩罚值或结算。
+- **机械玩家动作（兼容新增）**：`COMMIT` 只接受当前玩家场上的机械非统领卡，wire source 使用该卡实体 ID，目标为空；动作必须来自当前 `LegalActions`。`commitCost` 与 `downloadCost` 是现有惩罚抽牌/响应链的生命周期值，不是独立支付资源；正值仍可广告和执行。`PUSH` 仍在结束阶段按提交队列 FIFO 自动处理，普通卡默认 `uploadCost=0`；`PULL` 仍只指向云端栈顶并使用已广告的下载载体。
 - **终局 `reasonKey`**：必须匹配 ASCII grammar `^[a-z0-9][a-z0-9_.-]*$`，展示文本由本地化层解析。`WIN_GAME` 优先使用 source/played/attacker 的稳定卡牌 ID（例如 `gate_of_fate` → `win.gate_of_fate`），不把本地化 effect 文本写入 wire。无可用稳定来源时，raw 文本编码为保留域 `win.encoded.` + 原文 UTF-16 code-unit lowercase hex；该保留前缀的 raw 输入也必须整体编码，避免合法透传值与 encoded 值碰撞。
 
 ## 6. HUMAN_REQUIRED 决策清单（已回填 + 残留）
@@ -127,7 +127,8 @@
 | 1.31-wire-entity-id | 2026-08-14 | 定案 wire 实体 ID = 裸 JSON integer（64-bit ≥1）；sourceId/targetId/targetIds 为整数∪命名ID字符串联合；纯实体字段纯整数。castle 禁用统一 `{enabled:false}`（删 `castle:null` 备选）。schema 4 文件 + fixture minimal + 合同同步 |
 | 1.31-leader-reroll | 2026-08-15 | 人类裁决：① 删除 DISABLE_ENEMY_LEADER 机制（初期禁用对方特殊胜利条件过险，机制级删除）；② 所有统领重新设计（machine 因 COMMIT/PUSH/PULL 规则刚定全量重做，其余一并修订）→ 派 QA/策划；③ machine_alpha 胜利条件明确为下载轴（Pull，累计下载达成条件，与惩罚抽卡无关）。§6 残留两项更新；RULES §11.2/§12.4 同步 |
 | 1.31-public-card-runtime-state | 2026-08-31 | snapshot 可见 card 增加 optional `currentAttack`/`currentHealth`（直接投影 CardInstance 当前值）；公开机械区域增加 optional `commitQueue`/`cloudStack` 及确定顺序。旧 payload 缺字段仍兼容；不新增 attacks-used 字段或 PULL legality/费用语义 |
-| 1.31-manual-commit | 2026-09-01 | 为已冻结的机械生命周期加入兼容性 `COMMIT` 玩家动作与 COMMIT/PUSH UI 事件；只广告零提交费的己方场上机械非统领卡，正费用在费用模型冻结前 fail-closed；PUSH 仍为结束阶段 FIFO 自动结算 |
+| 1.31-chant-landmark-runtime-state | 2026-09-10 | snapshot 可见 card 增加 optional `chantRemaining` 与公开地标 `landmarkPullCount`；CardCatalog metadata 携带打印吟唱要求，旧 payload 与无活动吟唱卡保持兼容；不扩展隐藏手牌可见性 |
+| 1.31-manual-commit | 2026-09-01 | 为已冻结的机械生命周期加入兼容性 `COMMIT` 玩家动作与 COMMIT/PUSH UI 事件；生命周期值按现有惩罚抽牌/响应链结算，不引入独立支付资源；PUSH 仍为结束阶段 FIFO 自动结算 |
 | 1.31-ambush-runtime | 2026-09-01 | `SET_AMBUSH` 接入 AMBUSH 阶段 LegalAction；viewer-owned snapshot 增加 optional `ambush` 列表且不扩大对手身份可见性；攻击/出牌/召唤/抽牌触发窗口接入 `AMBUSH_TRIGGERED`，旧 payload 缺字段仍兼容 |
 
 ## 9. 批准记录

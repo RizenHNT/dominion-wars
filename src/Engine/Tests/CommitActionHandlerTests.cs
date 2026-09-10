@@ -47,10 +47,11 @@ public sealed class CommitActionHandlerTests
     }
 
     [Test]
-    public void DoesNotAdvertisePositiveCostNonMechanicalLeaderOrUnknownEffect()
+    public void AdvertisesPositiveLifecyclePunishButStillRejectsInvalidSources()
     {
         var state = CreateActionState(out var flow, out _);
-        state.GetPlayer(0).Field.Add(Mechanical(20, commitCost: 1));
+        var positive = Mechanical(20, commitCost: 1);
+        state.GetPlayer(0).Field.Add(positive);
         state.GetPlayer(0).Field.Add(new CardInstance(21, 0, new CardDefinition(
             "ordinary", "Ordinary", health: 2, isMinion: true)));
         state.GetPlayer(0).Field.Add(Mechanical(22, isLeader: true));
@@ -59,9 +60,16 @@ public sealed class CommitActionHandlerTests
             new EffectSpec("NOT_REGISTERED"),
         }));
 
-        Assert.That(
-            flow.GetLegalActions(state, 0).Where(item => item.Type == LegalActionGenerator.Commit),
-            Is.Empty);
+        var actions = flow.GetLegalActions(state, 0)
+            .Where(item => item.Type == LegalActionGenerator.Commit)
+            .ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(actions.Select(item => item.SourceId), Is.EqualTo(new long?[] { positive.InstanceId }));
+            Assert.That(actions.Single().Payload["commitCost"], Is.EqualTo(1));
+            Assert.That(actions.Single().Payload["punish"], Is.EqualTo(1));
+        });
     }
 
     [Test]
@@ -89,11 +97,13 @@ public sealed class CommitActionHandlerTests
     }
 
     [Test]
-    public void RejectsPositiveCostWhenCalledDirectly()
+    public void ExecutesPositiveLifecyclePunishBeforeCommit()
     {
         var state = CreateActionState(out _, out var router);
-        var card = Mechanical(40, commitCost: 2);
+        var card = Mechanical(40, commitCost: 1);
         state.GetPlayer(0).Field.Add(card);
+        var punished = new CardInstance(41, 1, new CardDefinition("punished", "Punished"));
+        state.GetPlayer(1).Deck.Add(punished);
 
         var result = router.Execute(state, new GameActionRequest(
             0,
@@ -103,10 +113,12 @@ public sealed class CommitActionHandlerTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Accepted, Is.False);
-            Assert.That(result.ReasonKey, Is.EqualTo("action.cost_system_unavailable"));
-            Assert.That(state.GetPlayer(0).Field, Has.Exactly(1).EqualTo(card));
-            Assert.That(state.GetPlayer(0).CommitQueue, Is.Empty);
+            Assert.That(result.Accepted, Is.True);
+            Assert.That(state.GetPlayer(0).Field, Is.Empty);
+            Assert.That(state.GetPlayer(0).CommitQueue, Has.Exactly(1).EqualTo(card));
+            Assert.That(state.GetPlayer(1).Hand, Has.Exactly(1).EqualTo(punished));
+            Assert.That(state.GetPlayer(1).PunishDrawnThisTurn, Is.EqualTo(1));
+            Assert.That(state.Events.Items.Any(item => item.EventType == "PUNISH_DRAW"), Is.True);
         });
     }
 

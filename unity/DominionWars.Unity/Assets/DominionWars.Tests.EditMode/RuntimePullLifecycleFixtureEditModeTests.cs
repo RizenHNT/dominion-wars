@@ -130,7 +130,7 @@ public sealed class RuntimePullLifecycleFixtureEditModeTests
 
             Assert.That(
                 pullSubmission.Events.Select(item => item.EventType),
-                Is.EqualTo(new[] { "PULL_DECLARED", "CARD_PULLED" }));
+                Is.EqualTo(new[] { "PULL_DECLARED", "BUFF_APPLIED", "CARD_PULLED" }));
             var finalPlayer0 = Player(pullSubmission.Snapshot, 0);
             Assert.That(finalPlayer0.CloudStackCount, Is.Zero);
             Assert.That(

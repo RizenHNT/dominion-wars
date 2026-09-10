@@ -95,7 +95,8 @@ public sealed partial class EffectRuntime
         Emit("CARD_COMMITTED", context, Data(
             "target", card.InstanceId,
             "owner", owner.PlayerIndex,
-            "cost", card.Definition.CommitCost));
+            "cost", card.Definition.CommitCost,
+            "punish", card.Definition.CommitCost));
 
         if (card.Definition.CommitEffects.Count > 0 && !IsGameOver)
         {
@@ -126,7 +127,19 @@ public sealed partial class EffectRuntime
             Emit("CARD_PUSHED", context, Data(
                 "target", card.InstanceId,
                 "owner", owner.PlayerIndex,
-                "cost", card.Definition.UploadCost));
+                "cost", card.Definition.UploadCost,
+                "punish", card.Definition.UploadCost));
+
+            // PUSH is the automatic queue-to-cloud timing point. Ordinary
+            // cards default to zero here so COMMIT and PUSH do not punish
+            // twice for one upload. Explicit upload values remain supported.
+            if (card.Definition.UploadCost > 0 && !IsGameOver)
+            {
+                DrawForPunish(
+                    State.GetOpponent(owner.PlayerIndex).PlayerIndex,
+                    card.Definition.UploadCost,
+                    context.RootEventId);
+            }
 
             if (card.Definition.PushEffects.Count > 0 && !IsGameOver)
             {
@@ -165,6 +178,8 @@ public sealed partial class EffectRuntime
             }
         }
 
+        var effectiveDownloadPunish = GetEffectiveDownloadPunish(carrier, card);
+
         // PULL removes the visible stack top before resolving its payload.
         // Besides matching the rulebook order, this prevents a nested PULL
         // payload from observing and resolving the same card recursively.
@@ -181,7 +196,7 @@ public sealed partial class EffectRuntime
                 sourceCard: carrier,
                 playedCard: card,
                 drawnCards: context.DrawnCards,
-                selectedTargetId: carrier.InstanceId);
+                selectedTargetId: context.SelectedTargetId ?? carrier.InstanceId);
             pullDispatcher.ApplyAll(card.Definition.PullEffects, pullContext);
         }
 
@@ -191,12 +206,98 @@ public sealed partial class EffectRuntime
             owner.Graveyard.Add(card);
             owner.PullCount++;
         });
+        AdvanceLandmark(carrier, context);
         Emit("CARD_PULLED", context, Data(
             "target", card.InstanceId,
             "owner", owner.PlayerIndex,
             "carrier", carrier.InstanceId,
-            "cost", card.Definition.DownloadCost,
+            "cost", effectiveDownloadPunish,
+            "punish", effectiveDownloadPunish,
             "pullCount", owner.PullCount));
+    }
+
+    /// <summary>
+    /// Returns the punishment amount emitted by a manual PULL. Lifecycle
+    /// values are not a separate payment resource; the action handler applies
+    /// this amount through the existing punish-draw path before resolving the
+    /// downloaded card.
+    /// </summary>
+    internal static int GetEffectiveDownloadPunish(
+        CardInstance carrier,
+        CardInstance card)
+    {
+        if (carrier is null)
+        {
+            throw new ArgumentNullException(nameof(carrier));
+        }
+
+        if (card is null)
+        {
+            throw new ArgumentNullException(nameof(card));
+        }
+
+        return card.Definition.DownloadCost;
+    }
+
+    private void AdvanceLandmark(CardInstance carrier, EffectContext context)
+    {
+        if (!carrier.Definition.IsLandmark
+            || !carrier.IsLeaderEntity
+            || !State.GetPlayer(carrier.OwnerPlayerIndex).LeaderZone.Contains(carrier))
+        {
+            return;
+        }
+
+        var owner = State.GetPlayer(carrier.OwnerPlayerIndex);
+        Commit(_ => carrier.LandmarkPullCount = checked(carrier.LandmarkPullCount + 1));
+        var tier = carrier.Definition.LandmarkTiers
+            .FirstOrDefault(candidate => candidate.Tier == carrier.LandmarkPullCount);
+        Emit("LANDMARK_TIER_REACHED", context.ForSource(owner.PlayerIndex, carrier), Data(
+            "source", carrier.InstanceId,
+            "tier", carrier.LandmarkPullCount));
+        if (tier is null)
+        {
+            return;
+        }
+
+        var tierContext = context.ForSource(owner.PlayerIndex, carrier);
+        if (tier.EffectSpecs.Count > 0 && !IsGameOver)
+        {
+            EffectDispatcher.CreateDefault(this).ApplyAll(tier.EffectSpecs, tierContext);
+        }
+
+        if (tier.Chant <= 0 && string.IsNullOrWhiteSpace(tier.SummonCardId))
+        {
+            return;
+        }
+
+        Commit(_ =>
+        {
+            carrier.ChantRemaining = tier.Chant;
+            carrier.PendingLandmarkSummonCardId = tier.SummonCardId;
+        });
+        Emit("LANDMARK_CHANT_STARTED", tierContext, Data(
+            "source", carrier.InstanceId,
+            "chant", tier.Chant,
+            "summon", tier.SummonCardId));
+        if (tier.Chant == 0 && !string.IsNullOrWhiteSpace(tier.SummonCardId))
+        {
+            PromoteLandmark(tierContext, carrier);
+        }
+    }
+
+    internal void PromoteLandmark(EffectContext context, CardInstance landmark)
+    {
+        var summonId = landmark.PendingLandmarkSummonCardId;
+        if (string.IsNullOrWhiteSpace(summonId))
+        {
+            return;
+        }
+
+        Commit(_ => landmark.PendingLandmarkSummonCardId = null);
+        SummonLeader(
+            new EffectSpec(EffectNames.SummonLeader, param: summonId),
+            context.ForSource(landmark.OwnerPlayerIndex, landmark));
     }
 
     /// <summary>Returns one explicitly selected queue card, or the only card.</summary>
@@ -275,6 +376,16 @@ public sealed partial class EffectRuntime
 
     private CardInstance? ResolvePullCarrier(PlayerState owner, EffectContext context)
     {
+        // A player-originated PULL carries the carrier as its source card and
+        // may use SelectedTargetId for the separate friendly buff target.
+        // Prefer that explicit source, while retaining the legacy direct
+        // effect path where the carrier is the selected target.
+        if (context.SourceCard is not null
+            && IsDownloadCarrier(owner, context.SourceCard))
+        {
+            return context.SourceCard;
+        }
+
         if (context.SelectedTargetId.HasValue)
         {
             var selected = State.FindEntity(context.SelectedTargetId.Value);

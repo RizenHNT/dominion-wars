@@ -35,24 +35,32 @@ public sealed class RuntimeBattlePanelView
     public RectTransform OpponentExileRoot { get; private set; }
     public RectTransform OpponentLeaderRoot { get; private set; }
     public RectTransform OpponentPhaseRoot { get; private set; }
+    public RectTransform PhaseActionsRoot { get; private set; }
+    public RectTransform PhaseActionsContent { get; private set; }
     public RectTransform CenterRoot { get; private set; }
     public RectTransform CenterPilesRoot { get; private set; }
     public RectTransform CastleRoot { get; private set; }
     public RectTransform CastleBarrierRoot { get; private set; }
     public RectTransform PhaseRoot { get; private set; }
     public RectTransform CommitCardsRoot { get; private set; }
+    public RectTransform CommitDropSurface { get; private set; }
     public RectTransform CloudCardsRoot { get; private set; }
     public RectTransform MechanicalRoot { get; private set; }
     public RectTransform OwnRoot { get; private set; }
     public RectTransform OwnHandRoot { get; private set; }
     public RectTransform OwnAmbushRoot { get; private set; }
     public RectTransform OwnAmbushCardsRoot { get; private set; }
+    public RectTransform OwnAmbushDropSurface { get; private set; }
     public RectTransform OwnFieldRoot { get; private set; }
+    public RectTransform OwnFieldDropSurface { get; private set; }
     public RectTransform OwnDeckRoot { get; private set; }
     public RectTransform OwnGraveyardRoot { get; private set; }
     public RectTransform OwnExileRoot { get; private set; }
     public RectTransform OwnLeaderRoot { get; private set; }
+    public RectTransform OwnHandDropSurface { get; private set; }
     public RectTransform OwnPhaseRoot { get; private set; }
+    public RectTransform DiscardActionsRoot { get; private set; }
+    public RectTransform DiscardActionsContent { get; private set; }
     public RectTransform FooterRoot { get; private set; }
     public RectTransform ActionsArea { get; private set; }
     public RectTransform ActionsScrollRoot { get; private set; }
@@ -61,6 +69,10 @@ public sealed class RuntimeBattlePanelView
     public RectTransform EventsScrollRoot { get; private set; }
     public RectTransform EventsViewport { get; private set; }
     public RectTransform EventsContent { get; private set; }
+    public RectTransform ActionsDrawerRoot { get; private set; }
+    public RectTransform ActionsDrawerScrollRoot { get; private set; }
+    public RectTransform ActionsDrawerViewport { get; private set; }
+    public RectTransform ActionsDrawerContent { get; private set; }
     public RectTransform CardInspectRoot { get; private set; }
     public UnityEngine.UI.RawImage CardInspectArt { get; private set; }
     public UnityEngine.UI.Text CardInspectTitle { get; private set; }
@@ -83,6 +95,14 @@ public sealed class RuntimeBattlePanelView
     public UnityEngine.UI.Text PhaseText { get; private set; }
     public UnityEngine.UI.Text EventsText { get; private set; }
     public RectTransform ActionsRoot { get; private set; }
+    public UnityEngine.UI.Button MoreActionsButton { get; private set; }
+    public UnityEngine.UI.Button ActionsDrawerCloseButton { get; private set; }
+    public RectTransform PauseDrawerRoot { get; private set; }
+    public UnityEngine.UI.Button PauseContinueButton { get; private set; }
+    public UnityEngine.UI.Button PauseSettingsButton { get; private set; }
+    public UnityEngine.UI.Button PauseMainMenuButton { get; private set; }
+    public RectTransform PauseSettingsRoot { get; private set; }
+    public UnityEngine.UI.Button PauseSettingsBackButton { get; private set; }
     public RectTransform DebugOverlayRoot { get; private set; }
     public UnityEngine.UI.Text DebugOverlayText { get; private set; }
 
@@ -98,6 +118,8 @@ public sealed class RuntimeBattlePanelView
     private static readonly Color Green = Hex("67D39B");
     private static readonly Color Red = Hex("E36D78");
     private static readonly Color Muted = Hex("93A8B4");
+    private static readonly Color PublicGoalText = Hex("D9F7FC");
+    private bool _moreActionsAvailable;
 
     private RuntimeBattlePanelView() { }
 
@@ -233,10 +255,35 @@ public sealed class RuntimeBattlePanelView
         BuildOwnLane(view);
         BuildTargetLayer(view);
         BuildFooter(view);
+        BuildPauseDrawer(view);
         BuildCardInspect(view);
         BuildDebugOverlay(view);
+        ArrangeVisualLayers(view);
 
         return view;
+    }
+
+    private static void ArrangeVisualLayers(RuntimeBattlePanelView view)
+    {
+        // Keep advertised semantic surfaces underneath the authored lanes.
+        // They are still raycastable in their own empty space, while a card
+        // child remains the top hit when the two rectangles overlap.
+        view.TargetZonesRoot.SetAsFirstSibling();
+        view.OpponentHandRoot.SetAsLastSibling();
+        view.OwnHandRoot.SetAsLastSibling();
+        if (view.DiscardActionsRoot != null) view.DiscardActionsRoot.SetAsLastSibling();
+        view.OwnFieldDropSurface.SetAsFirstSibling();
+        view.OwnHandDropSurface.SetAsFirstSibling();
+        view.CommitDropSurface.SetAsFirstSibling();
+        view.OwnAmbushDropSurface.SetAsFirstSibling();
+
+        // The event/feedback rails are presentation overlays, not gameplay
+        // targets. Keep their existing rectangles, but make the sibling order
+        // explicit so later content cannot accidentally cover their text.
+        view.FeedbackRoot.SetAsLastSibling();
+        view.EventsArea.SetAsLastSibling();
+        view.ActionsArea.SetAsLastSibling();
+        view.PauseDrawerRoot.SetAsLastSibling();
     }
 
     public void SetDebugOverlayVisible(bool visible)
@@ -272,6 +319,42 @@ public sealed class RuntimeBattlePanelView
         if (CardInspectRoot != null) CardInspectRoot.gameObject.SetActive(false);
     }
 
+    public void SetMoreActionsAvailable(bool available)
+    {
+        _moreActionsAvailable = available;
+        if (!available) SetMoreActionsOpen(false);
+        else if (MoreActionsButton != null)
+            MoreActionsButton.gameObject.SetActive(!MoreActionsOpen);
+    }
+
+    public bool MoreActionsOpen => ActionsDrawerRoot != null && ActionsDrawerRoot.gameObject.activeSelf;
+
+    public void SetMoreActionsOpen(bool open)
+    {
+        if (ActionsDrawerRoot == null) return;
+        if (open && !_moreActionsAvailable) return;
+        ActionsDrawerRoot.gameObject.SetActive(open);
+        if (MoreActionsButton != null)
+            MoreActionsButton.gameObject.SetActive(_moreActionsAvailable && !open);
+    }
+
+    public bool PauseMenuOpen => PauseDrawerRoot != null && PauseDrawerRoot.gameObject.activeSelf;
+
+    public void SetPauseMenuOpen(bool open)
+    {
+        if (PauseDrawerRoot == null) return;
+        PauseDrawerRoot.gameObject.SetActive(open);
+        if (!open && PauseSettingsRoot != null)
+            PauseSettingsRoot.gameObject.SetActive(false);
+    }
+
+    public void SetPauseSettingsOpen(bool open)
+    {
+        if (PauseSettingsRoot == null) return;
+        if (open) SetPauseMenuOpen(true);
+        PauseSettingsRoot.gameObject.SetActive(open);
+    }
+
     private static void BuildSideRails(RuntimeBattlePanelView view)
     {
         view.LeftRailRoot = CreateRect("RuntimeBattlePanelLeftRail", view.BoardRoot);
@@ -297,6 +380,14 @@ public sealed class RuntimeBattlePanelView
         CreateQueueSlot(view.CenterPilesRoot, "CenterCloudMirror", "CLOUD", "—", new Color(0.40f, 0.72f, 0.82f), Vector2.zero, Vector2.zero);
         CreateQueueSlot(view.CenterPilesRoot, "CenterCommitMirror", "SUBMIT QUEUE", "—", new Color(0.42f, 0.77f, 0.60f), Vector2.zero, Vector2.zero);
         view.OwnPhaseRoot = CreateQueueSlot(view.LeftRailRoot, "OwnPhaseAmbush", "AMBUSH", "—", new Color(0.45f, 0.85f, 0.68f), Vector2.zero, Vector2.zero);
+        view.PhaseActionsRoot = CreatePhaseActionsSurface(
+            view.LeftRailRoot,
+            "RuntimeBattlePanelPhaseActions",
+            "PHASE ACTION",
+            new Color(0.45f, 0.85f, 0.68f),
+            out var phaseActionsContent);
+        view.PhaseActionsContent = phaseActionsContent;
+        view.PhaseActionsRoot.gameObject.SetActive(false);
 
         view.MainBattleRoot = CreateRect("RuntimeBattlePanelMainBattle", view.BoardRoot);
         SetAnchors(view.MainBattleRoot, new Vector2(0.14f, 0.01f), new Vector2(0.86f, 0.99f));
@@ -345,7 +436,11 @@ public sealed class RuntimeBattlePanelView
             out var opponentAmbushCards);
         view.OpponentAmbushCardsRoot = opponentAmbushCards;
         view.OpponentHandRoot = CreateCardStrip(view.OpponentRoot, "OpponentHandBacks", new Vector2(0.31f, 0.52f), new Vector2(0.99f, 0.98f), 52f, 88f, 4f);
-        view.OpponentFieldRoot = CreateCardStrip(view.OpponentRoot, "OpponentField", new Vector2(0.31f, 0.04f), new Vector2(0.99f, 0.58f), 82f, 104f, 6f);
+        // Reserve enough vertical room for a compact battlefield card to keep
+        // its title and live ATK/HP legible at the 1280x720 safe frame. The
+        // opponent hand remains a redacted strip above it, so this is a safe
+        // overlap within the opponent lane rather than a new screen region.
+        view.OpponentFieldRoot = CreateCardStrip(view.OpponentRoot, "OpponentField", new Vector2(0.31f, 0.04f), new Vector2(0.99f, 0.66f), 82f, 104f, 6f);
     }
 
     private static void BuildCenterLane(RuntimeBattlePanelView view)
@@ -386,6 +481,12 @@ public sealed class RuntimeBattlePanelView
         view.PhaseText.fontStyle = FontStyle.Bold;
         SetAnchors(view.PhaseText.rectTransform, new Vector2(0.02f, 0.02f), new Vector2(0.98f, 0.98f));
 
+        view.CommitDropSurface = CreateSemanticDropSurface(
+            view.CenterRoot,
+            "CommitDropSurface",
+            "DROP TO COMMIT",
+            new Vector2(0.015f, 0.06f),
+            new Vector2(0.255f, 0.76f));
         view.CommitCardsRoot = CreateCardStrip(
             view.CenterRoot,
             "CommitQueueCards",
@@ -436,11 +537,35 @@ public sealed class RuntimeBattlePanelView
             new Color(0.45f, 0.85f, 0.68f),
             out var ownAmbushCards);
         view.OwnAmbushCardsRoot = ownAmbushCards;
+        view.OwnAmbushDropSurface = CreateSemanticDropSurface(
+            view.OwnAmbushRoot,
+            "OwnAmbushDropSurface",
+            string.Empty,
+            Vector2.zero,
+            Vector2.one);
         // Field and hand overlap slightly, like a physical tabletop. The hand
         // is created last and therefore fans in front without taking another
         // full debug row from the board.
-        view.OwnFieldRoot = CreateCardStrip(view.OwnRoot, "OwnField", new Vector2(0.31f, 0.48f), new Vector2(0.99f, 0.96f), 92f, 112f, 6f);
-        view.OwnHandRoot = CreateCardStrip(view.OwnRoot, "OwnHandFaceUp", new Vector2(0.31f, 0.02f), new Vector2(0.99f, 0.58f), 112f, 136f, 6f, 80f);
+        view.OwnFieldDropSurface = CreateSemanticDropSurface(
+            view.OwnRoot,
+            "OwnFieldDropSurface",
+            "DROP TO FIELD",
+            new Vector2(0.31f, 0.43f),
+            new Vector2(0.99f, 0.98f));
+        view.OwnFieldRoot = CreateCardStrip(view.OwnRoot, "OwnField", new Vector2(0.31f, 0.43f), new Vector2(0.99f, 0.98f), 92f, 112f, 6f);
+        view.OwnHandDropSurface = CreateSemanticDropSurface(
+            view.OwnRoot,
+            "OwnHandDropSurface",
+            "DROP TO HAND",
+            new Vector2(0.31f, 0.02f),
+            new Vector2(0.99f, 0.76f));
+        view.OwnHandRoot = CreateCardStrip(view.OwnRoot, "OwnHandFaceUp", new Vector2(0.31f, 0.02f), new Vector2(0.99f, 0.76f), 112f, 136f, 6f, 80f);
+        view.DiscardActionsRoot = CreateDiscardActionsSurface(
+            view.OwnRoot,
+            "RuntimeBattlePanelDiscardActions",
+            out var discardActionsContent);
+        view.DiscardActionsContent = discardActionsContent;
+        view.DiscardActionsRoot.gameObject.SetActive(false);
     }
 
     private static void BuildTargetLayer(RuntimeBattlePanelView view)
@@ -463,6 +588,8 @@ public sealed class RuntimeBattlePanelView
         AddLayout(view.FooterRoot, 80f, 118f, 0f);
 
         view.ActionsArea = CreateRail(view.FooterRoot, "RuntimeBattlePanelActionsArea", "MAIN ACTIONS  ·  DRAG OR CLICK", ActionPanel, new Vector2(0.705f, 0.0f), new Vector2(1.0f, 1.0f));
+        var actionsHeading = view.ActionsArea.Find("RuntimeBattlePanelActionsAreaTitle");
+        if (actionsHeading != null) actionsHeading.gameObject.SetActive(false);
         RectTransform actionsViewport;
         RectTransform actionsRoot;
         // Keep a real safety reserve below the final action. The action rail is
@@ -475,9 +602,45 @@ public sealed class RuntimeBattlePanelView
             out actionsViewport,
             out actionsRoot,
             8);
+        SetAnchors(view.ActionsScrollRoot, new Vector2(0.012f, 0.04f), new Vector2(0.988f, 0.73f));
         view.ActionsViewport = actionsViewport;
         view.ActionsRoot = actionsRoot;
         view.ActionsScrollRoot.GetComponent<UnityEngine.UI.ScrollRect>().scrollSensitivity = 32f;
+
+        view.MoreActionsButton = CreateFooterButton(
+            view.ActionsArea,
+            "RuntimeBattlePanelMoreActionsButton",
+            "MORE ACTIONS",
+            new Vector2(0.012f, 0.74f),
+            new Vector2(0.988f, 0.98f),
+            Hex("334858"),
+            13);
+
+        view.ActionsDrawerRoot = CreateRect("RuntimeBattlePanelActionsDrawer", view.ActionsArea);
+        SetAnchors(view.ActionsDrawerRoot, new Vector2(0.012f, 0.03f), new Vector2(0.988f, 0.98f));
+        AddPanelBackground(view.ActionsDrawerRoot, Hex("0A1823"), Cyan, 0.99f);
+        var drawerBackground = view.ActionsDrawerRoot.GetComponent<UnityEngine.UI.Image>();
+        if (drawerBackground != null) drawerBackground.raycastTarget = true;
+        RectTransform drawerViewport;
+        RectTransform drawerContent;
+        view.ActionsDrawerScrollRoot = CreateScrollRoot(
+            view.ActionsDrawerRoot,
+            "RuntimeBattlePanelActionsDrawerScrollRect",
+            out drawerViewport,
+            out drawerContent,
+            8);
+        view.ActionsDrawerViewport = drawerViewport;
+        view.ActionsDrawerContent = drawerContent;
+        view.ActionsDrawerCloseButton = CreateFooterButton(
+            view.ActionsDrawerRoot,
+            "RuntimeBattlePanelActionsDrawerCloseButton",
+            "CLOSE",
+            new Vector2(0.012f, 0.76f),
+            new Vector2(0.988f, 0.98f),
+            Hex("3B2830"),
+            11);
+        view.ActionsDrawerRoot.gameObject.SetActive(false);
+        view.SetMoreActionsAvailable(false);
 
         view.EventsArea = CreateRail(view.FooterRoot, "RuntimeBattlePanelEventsArea", "EVENT TIMELINE", EventPanel, new Vector2(0.0f, 0.0f), new Vector2(0.69f, 1.0f));
         RectTransform eventsViewport;
@@ -490,6 +653,73 @@ public sealed class RuntimeBattlePanelView
         view.EventsText.verticalOverflow = VerticalWrapMode.Overflow;
         SetAnchors(view.EventsText.rectTransform, new Vector2(0.02f, 0.02f), new Vector2(0.98f, 0.98f));
         SetLayout(view.EventsText.rectTransform, 68f, 100f, 0f);
+    }
+
+    private static void BuildPauseDrawer(RuntimeBattlePanelView view)
+    {
+        view.PauseDrawerRoot = CreateRect("RuntimeBattlePanelPauseDrawer", view.ContentRoot);
+        SetAnchors(view.PauseDrawerRoot, new Vector2(0.28f, 0.18f), new Vector2(0.72f, 0.82f));
+        AddPanelBackground(view.PauseDrawerRoot, Hex("0A1720"), Gold, 0.99f);
+        var pauseBackground = view.PauseDrawerRoot.GetComponent<UnityEngine.UI.Image>();
+        if (pauseBackground != null) pauseBackground.raycastTarget = true;
+
+        var pauseTitle = CreateText(view.PauseDrawerRoot, "PauseTitle", 22, Color.white);
+        pauseTitle.text = "PAUSED";
+        pauseTitle.alignment = TextAnchor.MiddleCenter;
+        pauseTitle.fontStyle = FontStyle.Bold;
+        SetAnchors(pauseTitle.rectTransform, new Vector2(0.08f, 0.78f), new Vector2(0.92f, 0.94f));
+
+        view.PauseContinueButton = CreateFooterButton(
+            view.PauseDrawerRoot,
+            "RuntimeBattlePanelPauseContinueButton",
+            "CONTINUE",
+            new Vector2(0.10f, 0.57f),
+            new Vector2(0.90f, 0.72f),
+            Hex("27634A"));
+        view.PauseSettingsButton = CreateFooterButton(
+            view.PauseDrawerRoot,
+            "RuntimeBattlePanelPauseSettingsButton",
+            "SETTINGS",
+            new Vector2(0.10f, 0.39f),
+            new Vector2(0.90f, 0.54f),
+            Hex("334858"));
+        view.PauseMainMenuButton = CreateFooterButton(
+            view.PauseDrawerRoot,
+            "RuntimeBattlePanelPauseMainMenuButton",
+            "MAIN MENU",
+            new Vector2(0.10f, 0.21f),
+            new Vector2(0.90f, 0.36f),
+            Hex("633B43"));
+
+        view.PauseSettingsRoot = CreateRect("RuntimeBattlePanelPauseSettings", view.PauseDrawerRoot);
+        SetAnchors(view.PauseSettingsRoot, new Vector2(0.05f, 0.06f), new Vector2(0.95f, 0.94f));
+        AddPanelBackground(view.PauseSettingsRoot, Hex("0C1C27"), Cyan, 0.99f);
+        var settingsBackground = view.PauseSettingsRoot.GetComponent<UnityEngine.UI.Image>();
+        if (settingsBackground != null) settingsBackground.raycastTarget = true;
+        var settingsTitle = CreateText(view.PauseSettingsRoot, "SettingsTitle", 18, Color.white);
+        settingsTitle.text = "SETTINGS";
+        settingsTitle.alignment = TextAnchor.MiddleCenter;
+        settingsTitle.fontStyle = FontStyle.Bold;
+        SetAnchors(settingsTitle.rectTransform, new Vector2(0.08f, 0.78f), new Vector2(0.92f, 0.94f));
+        view.PauseSettingsBackButton = CreateFooterButton(
+            view.PauseSettingsRoot,
+            "RuntimeBattlePanelPauseSettingsBackButton",
+            "BACK",
+            new Vector2(0.10f, 0.08f),
+            new Vector2(0.90f, 0.25f),
+            Hex("334858"));
+
+        // The existing real toggle is moved into the settings drawer rather
+        // than duplicated. It remains the same presentation-only setting and
+        // the panel keeps the same SetReducedMotion binding.
+        if (view.ReducedMotionToggleRoot != null)
+        {
+            view.ReducedMotionToggleRoot.SetParent(view.PauseSettingsRoot, false);
+            SetAnchors(view.ReducedMotionToggleRoot, new Vector2(0.12f, 0.38f), new Vector2(0.88f, 0.68f));
+        }
+
+        view.PauseSettingsRoot.gameObject.SetActive(false);
+        view.PauseDrawerRoot.gameObject.SetActive(false);
     }
 
     private static void BuildCardInspect(RuntimeBattlePanelView view)
@@ -806,19 +1036,34 @@ public sealed class RuntimeBattlePanelView
         title.text = "LEADER";
         title.alignment = TextAnchor.MiddleCenter;
         title.fontStyle = FontStyle.Bold;
-        SetAnchors(title.rectTransform, new Vector2(0.04f, 0.70f), new Vector2(0.96f, 0.94f));
+        SetAnchors(title.rectTransform, new Vector2(0.04f, 0.77f), new Vector2(0.96f, 0.96f));
         var value = CreateText(slot, "LeaderValue", 22, Color.white);
         value.text = string.Empty;
         value.fontSize = 14;
         value.alignment = TextAnchor.MiddleCenter;
+        // The public leader name is a single scan line. Best-fit keeps long
+        // catalog names inside the narrow slot instead of wrapping over the
+        // adjacent field; the inspect surface remains the full-detail path.
+        value.horizontalOverflow = HorizontalWrapMode.Wrap;
         value.verticalOverflow = VerticalWrapMode.Truncate;
-        SetAnchors(value.rectTransform, new Vector2(0.04f, 0.29f), new Vector2(0.96f, 0.68f));
+        value.resizeTextForBestFit = true;
+        value.resizeTextMinSize = 10;
+        value.resizeTextMaxSize = 14;
+        // Keep enough vertical room for a public leader name plus its goal;
+        // the snapshot may omit LeaderZone and the battle panel can fill this
+        // from the selected deck's public metadata.
+        value.fontSize = 14;
+        SetAnchors(value.rectTransform, new Vector2(0.04f, 0.47f), new Vector2(0.96f, 0.74f));
         value.gameObject.SetActive(false);
         var status = CreateText(slot, "LeaderStatus", 11, Muted);
         status.text = string.Empty;
         status.alignment = TextAnchor.MiddleCenter;
+        status.horizontalOverflow = HorizontalWrapMode.Wrap;
         status.verticalOverflow = VerticalWrapMode.Truncate;
-        SetAnchors(status.rectTransform, new Vector2(0.04f, 0.04f), new Vector2(0.96f, 0.26f));
+        status.resizeTextForBestFit = true;
+        status.resizeTextMinSize = 8;
+        status.resizeTextMaxSize = 10;
+        SetAnchors(status.rectTransform, new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.43f));
         status.gameObject.SetActive(false);
         return slot;
     }
@@ -849,6 +1094,68 @@ public sealed class RuntimeBattlePanelView
         return slot;
     }
 
+    private static RectTransform CreatePhaseActionsSurface(
+        RectTransform parent,
+        string name,
+        string titleText,
+        Color accent,
+        out RectTransform content)
+    {
+        var root = CreateRect(name, parent);
+        AddPanelBackground(root, Hex("102A2A"), accent, 0.98f);
+        var rootLayout = root.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+        rootLayout.padding = new RectOffset(4, 4, 3, 3);
+        rootLayout.spacing = 2f;
+        rootLayout.childControlWidth = true;
+        rootLayout.childControlHeight = true;
+        rootLayout.childForceExpandWidth = true;
+        rootLayout.childForceExpandHeight = false;
+        SetLayout(root, 70f, 70f, 0f, 56f, 80f, 1f);
+
+        var title = CreateText(root, "Title", 10, accent);
+        title.text = titleText;
+        title.fontStyle = FontStyle.Bold;
+        title.alignment = TextAnchor.MiddleCenter;
+        SetLayout(title.rectTransform, 16f, 16f, 0f);
+
+        content = CreateRect("Content", root);
+        var contentLayout = content.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+        contentLayout.spacing = 2f;
+        contentLayout.childControlWidth = true;
+        contentLayout.childControlHeight = true;
+        contentLayout.childForceExpandWidth = true;
+        contentLayout.childForceExpandHeight = false;
+        SetLayout(content, 44f, 44f, 1f);
+        return root;
+    }
+
+    private static RectTransform CreateDiscardActionsSurface(
+        RectTransform parent,
+        string name,
+        out RectTransform content)
+    {
+        // The panel sits immediately above the hand strip. It is inactive in
+        // every other phase, so the normal field/hand composition is unchanged
+        // and the button never occupies the bottom-right action rail.
+        var root = CreateRect(name, parent);
+        SetAnchors(root, new Vector2(0.31f, 0.77f), new Vector2(0.99f, 0.995f));
+        AddPanelBackground(root, Hex("352A1B"), Gold, 0.98f);
+        var rootImage = root.GetComponent<UnityEngine.UI.Image>();
+        if (rootImage != null) rootImage.raycastTarget = true;
+
+        RectTransform viewport;
+        var scrollRoot = CreateScrollRoot(
+            root,
+            name + "ScrollRect",
+            out viewport,
+            out content,
+            2);
+        SetAnchors(scrollRoot, new Vector2(0.015f, 0.02f), new Vector2(0.985f, 0.98f));
+        scrollRoot.GetComponent<UnityEngine.UI.ScrollRect>().scrollSensitivity = 32f;
+        _ = viewport;
+        return root;
+    }
+
     private static RectTransform CreateRail(RectTransform parent, string name, string heading, Color fill, Vector2 min, Vector2 max)
     {
         var rail = CreateRect(name, parent);
@@ -860,6 +1167,34 @@ public sealed class RuntimeBattlePanelView
         title.alignment = TextAnchor.MiddleLeft;
         SetAnchors(title.rectTransform, new Vector2(0.018f, 0.72f), new Vector2(0.98f, 0.98f));
         return rail;
+    }
+
+    private static UnityEngine.UI.Button CreateFooterButton(
+        RectTransform parent,
+        string name,
+        string labelText,
+        Vector2 min,
+        Vector2 max,
+        Color fill,
+        int fontSize = 14)
+    {
+        var buttonObject = CreateRect(name, parent);
+        SetAnchors(buttonObject, min, max);
+        var image = buttonObject.gameObject.AddComponent<UnityEngine.UI.Image>();
+        image.color = fill;
+        image.raycastTarget = true;
+        var outline = buttonObject.gameObject.AddComponent<UnityEngine.UI.Outline>();
+        outline.effectColor = new Color(Cyan.r, Cyan.g, Cyan.b, 0.72f);
+        outline.effectDistance = new Vector2(1f, 1f);
+        var button = buttonObject.gameObject.AddComponent<UnityEngine.UI.Button>();
+        button.targetGraphic = image;
+        button.navigation = new UnityEngine.UI.Navigation { mode = UnityEngine.UI.Navigation.Mode.None };
+        var label = CreateText(buttonObject, "Label", fontSize, Color.white);
+        label.text = labelText;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.fontStyle = FontStyle.Bold;
+        label.raycastTarget = false;
+        return button;
     }
 
     private static RectTransform CreateScrollRoot(
@@ -938,6 +1273,44 @@ public sealed class RuntimeBattlePanelView
     }
 
     /// <summary>
+    /// Creates a semantic null-target surface in a zone's existing empty
+    /// presentation layer. It starts disabled and non-raycastable; the panel
+    /// enables it only when the snapshot advertises the corresponding action.
+    /// Card strips are created as later siblings, so their card graphics stay
+    /// above the surface anywhere the two rectangles overlap.
+    /// </summary>
+    public static RectTransform CreateSemanticDropSurface(
+        RectTransform parent,
+        string name,
+        string label,
+        Vector2 min,
+        Vector2 max)
+    {
+        var surface = CreateRect(name, parent);
+        SetAnchors(surface, min, max);
+        AddPanelBackground(
+            surface,
+            new Color(0.10f, 0.22f, 0.28f, 0.22f),
+            new Color(Cyan.r, Cyan.g, Cyan.b, 0.78f),
+            0.96f);
+        var image = surface.GetComponent<UnityEngine.UI.Image>();
+        if (image != null) image.raycastTarget = false;
+
+        if (!string.IsNullOrWhiteSpace(label))
+        {
+            var text = CreateText(surface, "TargetLabel", 11, Color.white);
+            text.text = label;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            SetAnchors(text.rectTransform, new Vector2(0.04f, 0.04f), new Vector2(0.96f, 0.96f));
+            text.gameObject.SetActive(false);
+        }
+
+        surface.gameObject.SetActive(false);
+        return surface;
+    }
+
+    /// <summary>
     /// Creates a semantic drop surface for a wire target that is not a card,
     /// leader slot, player root, or shared castle. The caller owns the target
     /// id on RuntimeBattleDropZone; this helper only provides a visible,
@@ -975,7 +1348,8 @@ public sealed class RuntimeBattlePanelView
         RectTransform slot,
         string name,
         string life,
-        string status)
+        string status,
+        string winText = null)
     {
         if (slot == null) return;
 
@@ -983,9 +1357,16 @@ public sealed class RuntimeBattlePanelView
         if (value != null)
         {
             var valueText = string.Empty;
-            if (IsAvailable(name)) valueText = "NAME  " + name;
-            if (IsAvailable(life))
+            if (IsAvailable(name)) valueText = name;
+            // Leader life is not currently projected by the canonical battle
+            // snapshot. Keep the optional legacy value readable when a test
+            // or future adapter supplies it, but never add a placeholder.
+            if (IsAvailable(life) && !IsAvailable(winText))
                 valueText += (valueText.Length == 0 ? string.Empty : "\n") + "LIFE  " + life;
+            // The compact slot is only about one hundred reference pixels
+            // wide. Keep long public catalog names on one visible line while
+            // preserving the high-contrast size for normal names.
+            value.fontSize = IsAvailable(name) && name.Length > 7 ? 11 : 14;
             value.text = valueText;
             value.gameObject.SetActive(valueText.Length > 0);
         }
@@ -993,9 +1374,53 @@ public sealed class RuntimeBattlePanelView
         var statusText = FindChildText(slot, "LeaderStatus");
         if (statusText != null)
         {
-            statusText.text = IsAvailable(status) ? "STATUS  " + status : string.Empty;
+            if (IsAvailable(winText))
+            {
+                // Battle lanes need a quick public goal summary, not a
+                // multi-line copy block. Parenthetical/detail clauses remain
+                // available through the existing inspect surface. Public
+                // landmark/chant progress is state, not goal prose, so keep
+                // that short live line visible even when a goal is present.
+                statusText.text = "目标  " + ShortenLeaderGoal(winText);
+                var progress = ExtractLeaderProgress(status);
+                if (progress.Length > 0)
+                    statusText.text += "\n" + progress;
+                statusText.color = PublicGoalText;
+            }
+            else
+            {
+                statusText.text = IsAvailable(status) ? "STATUS  " + status : string.Empty;
+                statusText.color = Muted;
+            }
             statusText.gameObject.SetActive(statusText.text.Length > 0);
         }
+    }
+
+    private static string ShortenLeaderGoal(string winText)
+    {
+        var summary = winText.Replace("\r", " ").Replace("\n", " ").Trim();
+        var detailStart = summary.IndexOf('（');
+        if (detailStart < 0) detailStart = summary.IndexOf('(');
+        if (detailStart > 0) summary = summary.Substring(0, detailStart).Trim();
+
+        // The slot is intentionally two lines at most at the 1280 reference
+        // frame. This is presentation truncation only; inspect keeps the
+        // authoritative full win text.
+        const int maxSummaryCharacters = 20;
+        if (summary.Length <= maxSummaryCharacters) return summary;
+        return summary.Substring(0, maxSummaryCharacters - 1) + "…";
+    }
+
+    private static string ExtractLeaderProgress(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return string.Empty;
+        var separator = status.IndexOf(" | ", StringComparison.Ordinal);
+        if (separator < 0 || separator + 3 >= status.Length) return string.Empty;
+        var progress = status.Substring(separator + 3).Trim();
+        return progress.IndexOf("地标层数", StringComparison.Ordinal) >= 0 ||
+            progress.IndexOf("吟唱剩余", StringComparison.Ordinal) >= 0
+            ? progress
+            : string.Empty;
     }
 
     private static void ConfigureCanvas(UnityEngine.Canvas canvas)

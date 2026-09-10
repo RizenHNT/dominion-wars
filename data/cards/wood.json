@@ -12,7 +12,9 @@
   "leaderDef": {
    "durability": 20,
    "winCondition": "GIANT_HEALTH_GE",
-   "vulnerabilities": ["DAMAGE"],
+   "vulnerabilities": [
+    "DAMAGE"
+   ],
    "winParam": 512,
    "winText": "己方封印随从生命≥512时获胜",
    "enterEffects": [
@@ -50,7 +52,13 @@
   "punish": 0,
   "attack": 1,
   "health": 2,
-  "text": ""
+  "text": "登场：扎根2。",
+  "onPlayEffects": [
+   {
+    "action": "ADD_ROOT",
+    "amount": 2
+   }
+  ]
  },
  {
   "id": "wood_guard",
@@ -66,7 +74,19 @@
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "嘲讽。登场：扎根2，并强化一个友方随从+2/+2。",
+  "onPlayEffects": [
+   {
+    "action": "ADD_ROOT",
+    "amount": 2
+   },
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 2,
+    "param": "root"
+   }
+  ]
  },
  {
   "id": "wood_spring",
@@ -100,12 +120,22 @@
   "health": 4,
   "onPlayEffects": [
    {
+    "action": "ADD_ROOT",
+    "amount": 2
+   },
+   {
     "action": "HEAL",
     "target": "FRIENDLY_MINION",
     "amount": 2
+   },
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 2,
+    "param": "root"
    }
   ],
-  "text": "登场：恢复一个友方随从2点生命。"
+  "text": "登场：扎根2，恢复一个友方随从2点生命，并强化一个友方随从+2/+2。"
  },
  {
   "id": "wood_bear",
@@ -121,7 +151,19 @@
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "嘲讽。登场：扎根2，并强化一个友方随从+2/+2。",
+  "onPlayEffects": [
+   {
+    "action": "ADD_ROOT",
+    "amount": 2
+   },
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 2,
+    "param": "root"
+   }
+  ]
  },
  {
   "id": "wood_thorn",
@@ -152,13 +194,17 @@
   "punish": 2,
   "onPlayEffects": [
    {
+    "action": "ADD_RAMPANT",
+    "amount": 1
+   },
+   {
     "action": "BUFF",
     "target": "FRIENDLY_MINION",
     "amount": 2,
-    "param": "both"
+    "param": "rampant"
    }
   ],
-  "text": "一个友方随从获得+2/+2。"
+  "text": "疯长1，并强化一个友方随从+2/+2。"
  },
  {
   "id": "wood_bark",
@@ -250,7 +296,19 @@
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "嘲讽。登场：扎根2，并强化一个友方随从+2/+2。",
+  "onPlayEffects": [
+   {
+    "action": "ADD_ROOT",
+    "amount": 2
+   },
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 2,
+    "param": "root"
+   }
+  ]
  },
  {
   "id": "wood_wisp",
@@ -265,11 +323,15 @@
   "health": 1,
   "onPlayEffects": [
    {
+    "action": "ADD_ROOT",
+    "amount": 2
+   },
+   {
     "action": "DRAW",
     "amount": 1
    }
   ],
-  "text": "登场：你抽1张牌。"
+  "text": "登场：扎根2，你抽1张牌。"
  },
  {
   "id": "wood_moon",
@@ -304,7 +366,19 @@
   "keywords": [
    "扰魔"
   ],
-  "text": ""
+  "text": "扰魔（不能成为指定型效果的目标）。登场：扎根2，并强化一个友方随从+2/+2。",
+  "onPlayEffects": [
+   {
+    "action": "ADD_ROOT",
+    "amount": 2
+   },
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 2,
+    "param": "root"
+   }
+  ]
  },
  {
   "id": "wood_seed",
@@ -321,9 +395,13 @@
     "action": "SUMMON",
     "amount": 1,
     "param": "wood_treant"
+   },
+   {
+    "action": "ADD_ROOT",
+    "amount": 2
    }
   ],
-  "text": "召唤一个古树行者。"
+  "text": "吟唱2：召唤一个古树行者，并扎根2。"
  },
  {
   "id": "wood_stag",
@@ -339,7 +417,19 @@
   "keywords": [
    "突袭"
   ],
-  "text": ""
+  "text": "突袭。登场：扎根2，并强化一个友方随从+2/+2。",
+  "onPlayEffects": [
+   {
+    "action": "ADD_ROOT",
+    "amount": 2
+   },
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 2,
+    "param": "root"
+   }
+  ]
  },
  {
   "id": "wood_circle",
@@ -397,6 +487,18 @@
     "amount": 1
    }
   ],
-  "text": "【惩罚】以惩罚0登场并抽1张牌。"
+  "text": "【惩罚】以惩罚0登场并抽1张牌。登场：扎根2，并强化一个友方随从+2/+2。",
+  "onPlayEffects": [
+   {
+    "action": "ADD_ROOT",
+    "amount": 2
+   },
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 2,
+    "param": "root"
+   }
+  ]
  }
 ]

@@ -284,6 +284,18 @@ public sealed class RuntimeScreenFlowEditModeTests
         Assert.That(
             flow.View.MatchSetupPlayer1DeckButtons[0].GetComponentInChildren<UnityEngine.UI.Text>().text,
             Does.Not.Contain("flame_leader"));
+        Assert.That(
+            flow.View.MatchSetupPlayer0DeckButtons[1].GetComponentInChildren<UnityEngine.UI.Text>().text,
+            Does.Contain("上古咒文·赋值机身"));
+        Assert.That(
+            flow.View.MatchSetupPlayer0DeckButtons[1].GetComponentInChildren<UnityEngine.UI.Text>().text,
+            Does.Contain("己方累计完成6次下载"));
+        Assert.That(
+            flow.View.MatchSetupPlayer0DeckButtons[3].GetComponentInChildren<UnityEngine.UI.Text>().text,
+            Does.Contain("世界树之心"));
+        Assert.That(
+            flow.View.MatchSetupPlayer0DeckButtons[3].GetComponentInChildren<UnityEngine.UI.Text>().text,
+            Does.Contain("己方封印随从生命≥512时获胜"));
 
         flow.View.MatchSetupPlayer0DeckButtons[2].onClick.Invoke();
         flow.View.MatchSetupPlayer1DeckButtons[3].onClick.Invoke();
@@ -448,7 +460,7 @@ public sealed class RuntimeScreenFlowEditModeTests
     }
 
     [Test]
-    public void BattleRecoveryButtonReturnsToMenuAndDisablesPanel()
+    public void BattleMenuOpensPauseDrawerAndMainMenuButtonReturnsToMenu()
     {
         var panelObject = new GameObject(
             "RuntimeBattleRecoveryPanel",
@@ -467,6 +479,9 @@ public sealed class RuntimeScreenFlowEditModeTests
         Assert.That(panel.RecoveryButton!.interactable, Is.True);
         panel.RecoveryButton.onClick.Invoke();
 
+        Assert.That(flow.CurrentScreen, Is.EqualTo(RuntimeScreenId.Battle));
+        Assert.That(panel.View.PauseDrawerRoot.gameObject.activeSelf, Is.True);
+        panel.View.PauseMainMenuButton.onClick.Invoke();
         Assert.That(flow.CurrentScreen, Is.EqualTo(RuntimeScreenId.MainMenu));
         Assert.That(panelObject.activeSelf, Is.False);
     }
@@ -542,6 +557,68 @@ public sealed class RuntimeScreenFlowEditModeTests
         Assert.That(options!.OutputPath, Is.EqualTo(Path.GetFullPath(outputPath)));
         Assert.That(options.QuitAfterCapture, Is.True);
         Assert.That(options.CaptureBattle, Is.True);
+    }
+
+    [Test]
+    public void VisualSmokeSupportsExplicitSetupAndResultStagesWithoutChangingDefault()
+    {
+        var setupPath = Path.Combine(
+            Path.GetTempPath(),
+            "dominion-wars-visual-smoke-setup-" + Guid.NewGuid().ToString("N") + ".png");
+        var resultPath = Path.Combine(
+            Path.GetTempPath(),
+            "dominion-wars-visual-smoke-result-" + Guid.NewGuid().ToString("N") + ".png");
+
+        var setupEnabled = RuntimePlayerVisualSmoke.TryParseCommandLine(
+            new[]
+            {
+                RuntimePlayerVisualSmoke.PathArgument,
+                setupPath,
+                RuntimePlayerVisualSmoke.SetupArgument,
+            },
+            out var setupOptions,
+            out var setupFailure);
+        var resultEnabled = RuntimePlayerVisualSmoke.TryParseCommandLine(
+            new[]
+            {
+                RuntimePlayerVisualSmoke.PathArgument,
+                resultPath,
+                RuntimePlayerVisualSmoke.ResultArgument,
+            },
+            out var resultOptions,
+            out var resultFailure);
+
+        Assert.That(setupEnabled, Is.True, setupFailure);
+        Assert.That(setupOptions, Is.Not.Null);
+        Assert.That(setupOptions!.CaptureSetup, Is.True);
+        Assert.That(setupOptions.CaptureBattle, Is.False);
+        Assert.That(resultEnabled, Is.True, resultFailure);
+        Assert.That(resultOptions, Is.Not.Null);
+        Assert.That(resultOptions!.CaptureResult, Is.True);
+        Assert.That(resultOptions.CaptureBattle, Is.False);
+    }
+
+    [Test]
+    public void VisualSmokeRejectsConflictingScreenStages()
+    {
+        var outputPath = Path.Combine(
+            Path.GetTempPath(),
+            "dominion-wars-visual-smoke-conflict-" + Guid.NewGuid().ToString("N") + ".png");
+
+        var enabled = RuntimePlayerVisualSmoke.TryParseCommandLine(
+            new[]
+            {
+                RuntimePlayerVisualSmoke.PathArgument,
+                outputPath,
+                RuntimePlayerVisualSmoke.SetupArgument,
+                RuntimePlayerVisualSmoke.ResultArgument,
+            },
+            out var options,
+            out var failureReason);
+
+        Assert.That(enabled, Is.False);
+        Assert.That(options, Is.Null);
+        Assert.That(failureReason, Does.Contain("only one visual smoke screen stage"));
     }
 
     [Test]

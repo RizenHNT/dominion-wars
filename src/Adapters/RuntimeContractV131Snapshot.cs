@@ -158,6 +158,10 @@ public static class RuntimeSnapshotProjection
                 Sealed = card.Sealed,
                 CurrentAttack = card.Attack,
                 CurrentHealth = card.Health,
+                ChantRemaining = card.ChantRemaining > 0 ? card.ChantRemaining : (int?)null,
+                LandmarkPullCount = card.Definition.IsLandmark
+                    ? card.LandmarkPullCount
+                    : (int?)null,
             });
         }
         return result.AsReadOnly();

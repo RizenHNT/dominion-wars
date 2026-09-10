@@ -219,7 +219,8 @@ public sealed class SnapshotMapperTests
             Assert.That(mapped[1].TargetIds, Does.Contain("entity_000000000008"));
             Assert.That(mapped[1].Amount, Is.EqualTo(3));
             Assert.That(mapped[1].ReasonKey, Is.EqualTo("effect.damage"));
-            Assert.That(mapped[1].Data["source"], Is.EqualTo(7L));
+            Assert.That(mapped[1].Data["sourceId"], Is.EqualTo(7L));
+            Assert.That(mapped[1].Data["targetIds"], Does.Contain(8L));
         });
     }
 

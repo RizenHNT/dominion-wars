@@ -16,6 +16,58 @@ namespace DominionWars.Unity.PlayMode
 public sealed class RuntimeBattlePanelStructurePlayModeTests
 {
     [UnityTest]
+    public IEnumerator FeedbackQueueShowsAuthoritativeRevisionOrderAndFastMode()
+    {
+        var feedback = new RuntimeBattlePanelActionFeedback();
+        var draw = new RuntimeEventEnvelope
+        {
+            EventId = "evt_000000000201",
+            Type = "CARDS_DRAWN",
+            Turn = 2,
+            Phase = "ACTION",
+            SnapshotRevision = 1,
+            TargetIds = new object[0],
+            Data = new Dictionary<string, object?> { ["count"] = 1 },
+        };
+        var damage = new RuntimeEventEnvelope
+        {
+            EventId = "evt_000000000202",
+            Type = "DAMAGE_APPLIED",
+            Turn = 2,
+            Phase = "ACTION",
+            SnapshotRevision = 2,
+            TargetIds = new object[] { "castle" },
+            Data = new Dictionary<string, object?> { ["amount"] = 2 },
+        };
+
+        feedback.Consume(new[] { damage, draw });
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.CardsDrawn));
+        Assert.That(feedback.PendingCueCount, Is.EqualTo(1));
+        Assert.That(feedback.SkipCurrentCue(), Is.True);
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.DamageApplied));
+
+        feedback.SetReducedMotion(true);
+        feedback.Consume(new[]
+        {
+            new RuntimeEventEnvelope
+            {
+                EventId = "evt_000000000203",
+                Type = "GAME_OVER",
+                Turn = 2,
+                Phase = "OVER",
+                SnapshotRevision = 3,
+                TargetIds = new object[0],
+                Data = new Dictionary<string, object?>(),
+            },
+        });
+        Assert.That(feedback.IsAnimating, Is.False);
+        Assert.That(feedback.PendingCueCount, Is.Zero);
+        Assert.That(feedback.CurrentCue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.GameOver));
+
+        yield return null;
+    }
+
+    [UnityTest]
     public IEnumerator TabletopStructureIsVisibleAtBothApprovedViewports()
     {
         GameObject canvasObject = null!;

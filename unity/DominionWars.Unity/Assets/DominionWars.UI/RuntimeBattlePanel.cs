@@ -71,6 +71,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     private BindingMode _bindingMode;
 
     public RuntimeAdapter Adapter => _adapter;
+    public RuntimeBattlePanelView View => _view;
     public RuntimeBootstrap Bootstrap => bootstrap;
     public int ViewerPlayerIndex => viewerPlayerIndex;
     public bool FollowCurrentPlayer => followCurrentPlayer;
@@ -80,6 +81,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     public bool DiagnosticsVisible => debugOverlayEnabled && IsDiagnosticsBuild;
     public string LastDiagnostic => _lastDiagnostic;
     public bool ReducedMotion => reducedMotion;
+    public bool IsPauseMenuOpen => _view != null && _view.PauseMenuOpen;
     public UnityEngine.UI.Toggle ReducedMotionToggle => _view?.ReducedMotionToggle;
     public UnityEngine.UI.Button RecoveryButton => _view?.RecoveryButton;
     public RuntimeBattlePanelActionFeedback ActionFeedback => _actionFeedback;
@@ -302,7 +304,8 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     /// </summary>
     public void RequestRecovery()
     {
-        RecoveryRequested?.Invoke();
+        EnsureInitialized();
+        _view.SetPauseMenuOpen(true);
     }
 
     private void TryBindBootstrap()
@@ -432,8 +435,29 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         }
         if (_view.RecoveryButton != null)
         {
-            _view.RecoveryButton.interactable = false;
+            // MENU is a presentation control, not an adapter-recovery
+            // affordance. It must remain available during a healthy match so
+            // the player can pause without waiting for an error state.
+            _view.RecoveryButton.interactable = true;
             _view.RecoveryButton.onClick.AddListener(RequestRecovery);
+        }
+        if (_view.MoreActionsButton != null)
+            _view.MoreActionsButton.onClick.AddListener(() => _view.SetMoreActionsOpen(true));
+        if (_view.ActionsDrawerCloseButton != null)
+            _view.ActionsDrawerCloseButton.onClick.AddListener(() => _view.SetMoreActionsOpen(false));
+        if (_view.PauseContinueButton != null)
+            _view.PauseContinueButton.onClick.AddListener(() => _view.SetPauseMenuOpen(false));
+        if (_view.PauseSettingsButton != null)
+            _view.PauseSettingsButton.onClick.AddListener(() => _view.SetPauseSettingsOpen(true));
+        if (_view.PauseSettingsBackButton != null)
+            _view.PauseSettingsBackButton.onClick.AddListener(() => _view.SetPauseSettingsOpen(false));
+        if (_view.PauseMainMenuButton != null)
+        {
+            _view.PauseMainMenuButton.onClick.AddListener(() =>
+            {
+                _view.SetPauseMenuOpen(false);
+                RecoveryRequested?.Invoke();
+            });
         }
         _visualTreeReady = true;
     }
@@ -672,7 +696,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         _statusText.text = string.IsNullOrWhiteSpace(_lastActionStatus)
             ? "READY"
             : _lastActionStatus;
-        if (_view.RecoveryButton != null) _view.RecoveryButton.interactable = false;
+        if (_view.RecoveryButton != null) _view.RecoveryButton.interactable = true;
         _view.MatchText.text = RuntimeBattlePanelPresentationModel.BuildMatchLine(snapshot);
         var opponent = RuntimeBattlePanelPresentationModel.FindPlayer(snapshot, false);
         var own = RuntimeBattlePanelPresentationModel.FindPlayer(snapshot, true);
@@ -819,8 +843,8 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         RuntimePlayerSnapshot own)
     {
         ClearDynamicTablePresentation();
-        BindLeaderSlot(_view.OpponentLeaderRoot, opponent);
-        BindLeaderSlot(_view.OwnLeaderRoot, own);
+        BindLeaderSlot(_view.OpponentLeaderRoot, opponent, false);
+        BindLeaderSlot(_view.OwnLeaderRoot, own, true);
 
         var cardRoots = new List<CardRootRef>();
         if (opponent != null)
@@ -924,8 +948,9 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         RuntimeBattlePanelView.FitCardStrip(_view.CloudCardsRoot);
 
         // Every advertised target gets a visible drop surface. Card targets
-        // use their own frame; known semantic roots and exact generic wire
-        // surfaces handle non-card targets without borrowing the queue rail.
+        // use their own frame; null-target actions use dedicated empty-space
+        // surfaces behind the card strips, while exact generic wire surfaces
+        // handle other non-card targets without borrowing the queue rail.
         RenderDropZones(snapshot, cardRoots);
     }
 
@@ -994,25 +1019,73 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         ClearDropZones(_view.OwnLeaderRoot);
         ClearDropZones(_view.OpponentAmbushRoot);
         ClearDropZones(_view.OwnAmbushRoot);
+        ClearDropZones(_view.OwnFieldDropSurface);
+        ClearDropZones(_view.OwnHandDropSurface);
+        ClearDropZones(_view.OwnAmbushDropSurface);
+        ClearDropZones(_view.CommitDropSurface);
     }
 
     private void BindLeaderSlot(
         RectTransform slot,
-        RuntimePlayerSnapshot player)
+        RuntimePlayerSnapshot player,
+        bool viewer)
     {
+        var leaderName = RuntimeBattlePanelPresentationModel.BuildLeaderName(player, _cardCatalog);
+        var leaderWinText = RuntimeBattlePanelPresentationModel.BuildLeaderWinText(player, _cardCatalog);
+        var selectedDeck = ResolveSelectedDeckOption(viewer);
+
+        // Some current snapshot projections intentionally omit the leader
+        // card from LeaderZone while the selected deck metadata is public in
+        // setup. Use that canonical RuntimeDeckOption only as a display
+        // fallback; never inspect a hidden hand or infer an identity locally.
+        if (IsGenericLeaderName(leaderName) && selectedDeck != null &&
+            !string.IsNullOrWhiteSpace(selectedDeck.LeaderDisplayName))
+            leaderName = selectedDeck.LeaderDisplayName;
+        if (string.IsNullOrWhiteSpace(leaderWinText) && selectedDeck != null)
+            leaderWinText = selectedDeck.LeaderWinText;
+
         RuntimeBattlePanelView.SetLeaderSlot(
             slot,
-            BuildLeaderDisplayName(player),
+            leaderName,
             RuntimeBattlePanelPresentationModel.BuildLeaderLife(player),
-            RuntimeBattlePanelPresentationModel.BuildLeaderStatus(player));
+            RuntimeBattlePanelPresentationModel.BuildLeaderStatus(player),
+            leaderWinText);
     }
 
-    private string BuildLeaderDisplayName(RuntimePlayerSnapshot player)
+    private RuntimeDeckOption ResolveSelectedDeckOption(bool viewer)
     {
-        // Leader identity is not a player-facing snapshot field. Keep the
-        // stable generic label even when presentation card metadata is loaded;
-        // the debug overlay remains the explicit identity inspection surface.
-        return RuntimeBattlePanelPresentationModel.BuildLeaderName(player);
+        if (bootstrap == null) return null;
+
+        var playerIndex = viewer ? viewerPlayerIndex : 1 - viewerPlayerIndex;
+        var deckId = playerIndex == 1
+            ? bootstrap.Player1DeckId
+            : bootstrap.Player0DeckId;
+        if (string.IsNullOrWhiteSpace(deckId)) return null;
+
+        try
+        {
+            var options = bootstrap.DeckOptions;
+            for (var index = 0; index < options.Count; index++)
+            {
+                var option = options[index];
+                if (option != null && string.Equals(option.Id, deckId, StringComparison.Ordinal))
+                    return option;
+            }
+        }
+        catch (Exception)
+        {
+            // A broken optional presentation catalog must not take down the
+            // authoritative battle surface; the normal generic slot remains.
+        }
+
+        return null;
+    }
+
+    private static bool IsGenericLeaderName(string name)
+    {
+        return string.IsNullOrWhiteSpace(name) ||
+            string.Equals(name, "统领", StringComparison.Ordinal) ||
+            name.StartsWith("统领 ×", StringComparison.Ordinal);
     }
 
     private void RenderPublicField(
@@ -1230,13 +1303,13 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
                 // target; the UI never manufactures a gameplay target.
                 RectTransform semanticSurface = null;
                 if (string.Equals(legal.Type, "PLAY_CARD", StringComparison.Ordinal))
-                    semanticSurface = _view.OwnFieldRoot;
+                    semanticSurface = _view.OwnFieldDropSurface;
                 else if (string.Equals(legal.Type, "SET_AMBUSH", StringComparison.Ordinal))
-                    semanticSurface = _view.OwnAmbushRoot;
+                    semanticSurface = _view.OwnAmbushDropSurface;
                 else if (string.Equals(legal.Type, "COMMIT", StringComparison.Ordinal))
-                    semanticSurface = _view.CommitCardsRoot;
+                    semanticSurface = _view.CommitDropSurface;
                 else if (string.Equals(legal.Type, "ROLLBACK", StringComparison.Ordinal))
-                    semanticSurface = _view.OwnHandRoot;
+                    semanticSurface = _view.OwnHandDropSurface;
 
                 if (semanticSurface != null && legal.SourceId != null)
                 {
@@ -1429,6 +1502,8 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         string actionType)
     {
         if (root == null) return;
+        var semanticSurface = IsSemanticDropSurface(root);
+        if (semanticSurface) root.gameObject.SetActive(true);
         var image = root.GetComponent<UnityEngine.UI.Image>();
         if (image == null)
         {
@@ -1436,6 +1511,11 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             image.color = Color.clear;
         }
         image.raycastTarget = true;
+        if (semanticSurface)
+        {
+            var label = root.Find("TargetLabel") as RectTransform;
+            if (label != null) label.gameObject.SetActive(true);
+        }
         var zones = root.GetComponents<RuntimeBattleDropZone>();
         for (var index = 0; index < zones.Length; index++)
         {
@@ -1452,6 +1532,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     private static void ClearDropZones(RectTransform root)
     {
         if (root == null) return;
+        var semanticSurface = IsSemanticDropSurface(root);
         var zones = root.GetComponents<RuntimeBattleDropZone>();
         for (var index = zones.Length - 1; index >= 0; index--)
         {
@@ -1467,8 +1548,16 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         if (image != null)
         {
             image.raycastTarget =
-                root.GetComponent<RuntimeBattleCardDrag>() != null ||
-                root.GetComponent<RuntimeCardInspectInteraction>() != null;
+                !semanticSurface &&
+                (root.GetComponent<RuntimeBattleCardDrag>() != null ||
+                 root.GetComponent<RuntimeCardInspectInteraction>() != null);
+        }
+
+        if (semanticSurface)
+        {
+            var label = root.Find("TargetLabel") as RectTransform;
+            if (label != null) label.gameObject.SetActive(false);
+            root.gameObject.SetActive(false);
         }
 
         var cue = root.Find("LegalDropCue") as RectTransform;
@@ -1478,6 +1567,11 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             if (cueText != null) cueText.text = string.Empty;
             cue.gameObject.SetActive(false);
         }
+    }
+
+    private static bool IsSemanticDropSurface(RectTransform root)
+    {
+        return root != null && root.name.EndsWith("DropSurface", StringComparison.Ordinal);
     }
 
     private void ClearRootRaycastTarget()
@@ -1684,7 +1778,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             _selectedCardEntityId);
         if (snapshot.LegalActions is null || snapshot.LegalActions.Count == 0 || _actionGroups.Count == 0)
         {
-            CreateActionInfo("No legal actions advertised by the engine.", false);
+            CreateActionInfo("No legal actions advertised by the engine.", false, _view.ActionsRoot);
             return;
         }
 
@@ -1692,23 +1786,112 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         {
             if (legal is null)
             {
-                CreateActionInfo("Unavailable action: snapshot entry is missing.", false);
+                CreateActionInfo("Unavailable action: snapshot entry is missing.", false, _view.ActionsDrawerContent);
             }
         }
 
+        var secondaryActionCount = 0;
+        var phaseContextActionCount = 0;
+        var discardContextActionCount = 0;
         foreach (var group in _actionGroups)
         {
-            if (group.Actions.Count == 1)
-                CreateActionButton(group.Actions[0], _view.ActionsRoot, snapshot);
+            RectTransform parent;
+            if (IsPhaseContextGroup(group, snapshot))
+            {
+                parent = _view.PhaseActionsContent;
+                phaseContextActionCount++;
+            }
+            else if (IsDiscardContextGroup(group))
+            {
+                parent = _view.DiscardActionsContent;
+                discardContextActionCount++;
+            }
             else
-                CreateActionGroup(group, _view.ActionsRoot, snapshot);
+            {
+                parent = IsPrimaryActionGroup(group)
+                    ? _view.ActionsRoot
+                    : _view.ActionsDrawerContent;
+                if (ReferenceEquals(parent, _view.ActionsDrawerContent)) secondaryActionCount++;
+            }
+
+            if (group.Actions.Count == 1)
+                CreateActionButton(
+                    group.Actions[0],
+                    parent,
+                    snapshot,
+                    IsDiscardContextGroup(group) ? 36f : 44f,
+                    IsDiscardContextGroup(group) ? 12 : 16);
+            else if (IsDiscardContextGroup(group))
+                CreateDiscardActionChoices(group, parent, snapshot);
+            else
+                CreateActionGroup(group, parent, snapshot);
         }
+        _view.SetMoreActionsAvailable(secondaryActionCount > 0);
+        if (_view.PhaseActionsRoot != null)
+        {
+            _view.PhaseActionsRoot.gameObject.SetActive(phaseContextActionCount > 0);
+            if (phaseContextActionCount > 0) _view.PhaseActionsRoot.SetAsLastSibling();
+        }
+        if (_view.DiscardActionsRoot != null)
+        {
+            _view.DiscardActionsRoot.gameObject.SetActive(discardContextActionCount > 0);
+            if (discardContextActionCount > 0) _view.DiscardActionsRoot.SetAsLastSibling();
+        }
+    }
+
+    private static bool IsPhaseContextGroup(
+        RuntimeBattlePanelActionGroup group,
+        RuntimeSnapshotEnvelope snapshot)
+    {
+        if (group == null || group.Actions == null) return false;
+        foreach (var entry in group.Actions)
+        {
+            if (entry != null && RuntimeBattlePanelActionModel.IsPhaseContextAction(
+                    entry.LegalAction,
+                    snapshot == null ? null : snapshot.Phase))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsDiscardContextGroup(RuntimeBattlePanelActionGroup group)
+    {
+        if (group == null || group.Actions == null) return false;
+        foreach (var entry in group.Actions)
+        {
+            if (entry != null && RuntimeBattlePanelActionModel.IsDiscardContextAction(entry.LegalAction))
+                return true;
+        }
+        return false;
+    }
+
+    private bool IsPrimaryActionGroup(RuntimeBattlePanelActionGroup group)
+    {
+        if (group == null || group.Actions.Count == 0) return false;
+        var firstType = group.Actions[0].LegalAction?.Type ?? string.Empty;
+        if (string.Equals(firstType, "END_TURN", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Once a player has selected a card, its exact advertised action is a
+        // useful compact Confirm fallback. The UI still submits that action
+        // unchanged; it does not infer a target or legality.
+        if (!_selectedCardEntityId.HasValue) return false;
+        foreach (var entry in group.Actions)
+        {
+            if (RuntimeBattlePanelActionModel.WireValuesEqual(
+                    entry.LegalAction?.SourceId,
+                    _selectedCardEntityId.Value))
+                return true;
+        }
+        return false;
     }
 
     private void CreateActionButton(
         RuntimeBattlePanelActionEntry entry,
         RectTransform parent,
-        RuntimeSnapshotEnvelope snapshot)
+        RuntimeSnapshotEnvelope snapshot,
+        float preferredHeight = 44f,
+        int fontSize = 16)
     {
         var legal = entry.LegalAction;
         var buttonObject = RuntimeBattlePanelView.CreateRect(
@@ -1730,7 +1913,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         var label = RuntimeBattlePanelView.CreateText(
             buttonObject,
             "Label",
-            16,
+            fontSize,
             entry.State.Interactable ? Color.white : new Color(0.64f, 0.64f, 0.67f));
         label.alignment = TextAnchor.MiddleCenter;
         label.fontStyle = FontStyle.Bold;
@@ -1741,13 +1924,25 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             snapshot,
             viewerPlayerIndex);
         var element = buttonObject.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
-        element.minHeight = 44f;
-        element.preferredHeight = 44f;
+        element.minHeight = preferredHeight;
+        element.preferredHeight = preferredHeight;
         if (entry.State.Interactable)
         {
             var captured = legal;
             button.onClick.AddListener(() => SubmitAdvertisedAction(captured));
         }
+    }
+
+    private void CreateDiscardActionChoices(
+        RuntimeBattlePanelActionGroup group,
+        RectTransform parent,
+        RuntimeSnapshotEnvelope snapshot)
+    {
+        // Each button is a complete engine-advertised action. The compact
+        // scroll surface keeps every discard choice beside the hand without
+        // rebuilding a source/target payload or adding a local rule.
+        foreach (var entry in group.Actions)
+            CreateActionButton(entry, parent, snapshot, 36f, 12);
     }
 
     private void CreateActionGroup(
@@ -2038,9 +2233,25 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     private void ClearActions()
     {
         if (_view is null || _view.ActionsRoot is null) return;
-        for (var index = _view.ActionsRoot.childCount - 1; index >= 0; index--)
+        _view.SetMoreActionsAvailable(false);
+        ClearActionChildren(_view.ActionsRoot);
+        if (_view.ActionsDrawerContent != null)
+            ClearActionChildren(_view.ActionsDrawerContent);
+        if (_view.PhaseActionsContent != null)
+            ClearActionChildren(_view.PhaseActionsContent);
+        if (_view.PhaseActionsRoot != null)
+            _view.PhaseActionsRoot.gameObject.SetActive(false);
+        if (_view.DiscardActionsContent != null)
+            ClearActionChildren(_view.DiscardActionsContent);
+        if (_view.DiscardActionsRoot != null)
+            _view.DiscardActionsRoot.gameObject.SetActive(false);
+    }
+
+    private static void ClearActionChildren(RectTransform root)
+    {
+        for (var index = root.childCount - 1; index >= 0; index--)
         {
-            var child = _view.ActionsRoot.GetChild(index).gameObject;
+            var child = root.GetChild(index).gameObject;
             DisableActionInteraction(child);
             if (Application.isPlaying) Destroy(child);
             else DestroyImmediate(child);
@@ -2060,10 +2271,10 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         root.SetActive(false);
     }
 
-    private void CreateActionInfo(string message, bool interactable)
+    private void CreateActionInfo(string message, bool interactable, RectTransform parent)
     {
         var objectInfo = new GameObject("ActionInfo", typeof(RectTransform));
-        objectInfo.transform.SetParent(_view.ActionsRoot, false);
+        objectInfo.transform.SetParent(parent, false);
         var label = RuntimeBattlePanelView.CreateText(
             objectInfo.GetComponent<RectTransform>(),
             "Label",

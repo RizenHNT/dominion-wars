@@ -199,16 +199,24 @@ $playerStart.CreateNoWindow = $true
 $playerProcess = [Diagnostics.Process]::new()
 $playerProcess.StartInfo = $playerStart
 $playerReady = $false
+$playerReadyMarker = $null
+$playerReadyMarkers = @(
+    'Dominion Wars runtime bootstrap ready.'
+    'Dominion Wars runtime screen flow ready: TITLE shell active.'
+)
 if (-not $playerProcess.Start()) { throw 'Unity Windows player smoke could not start.' }
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds($PlayerSmokeSeconds)
     while ([DateTime]::UtcNow -lt $deadline) {
         if ($playerProcess.HasExited) {
-            throw "Unity Windows player exited before bootstrap readiness with code $($playerProcess.ExitCode)."
+            throw "Unity Windows player exited before runtime readiness with code $($playerProcess.ExitCode)."
         }
         if (Test-Path -LiteralPath $playerLog -PathType Leaf) {
             $logText = Get-Content -Raw -LiteralPath $playerLog
-            if ($logText.Contains('Dominion Wars runtime bootstrap ready.')) {
+            $playerReadyMarker = $playerReadyMarkers |
+                Where-Object { $logText.Contains($_) } |
+                Select-Object -First 1
+            if ($null -ne $playerReadyMarker) {
                 $playerReady = $true
                 break
             }
@@ -216,7 +224,7 @@ try {
         Start-Sleep -Milliseconds 250
     }
     if (-not $playerReady) {
-        throw "Unity Windows player did not report bootstrap readiness within $PlayerSmokeSeconds seconds."
+        throw "Unity Windows player did not report runtime readiness within $PlayerSmokeSeconds seconds."
     }
 }
 finally {
@@ -239,7 +247,7 @@ if ($playerLogText -match 'NullReferenceException|MissingComponentException|Inva
     playMode = "$($playMode.Passed)/$($playMode.Total) passed; failed=$($playMode.Failed) skipped=$($playMode.Skipped)"
     playModeResults = $playModeResults
     player = $playerPath
-    playerSmoke = "bootstrap ready in <= $PlayerSmokeSeconds seconds"
+    playerSmoke = "runtime marker '$playerReadyMarker' in <= $PlayerSmokeSeconds seconds"
     playerLog = $playerLog
     outputRoot = $runRoot
 } | Format-List

@@ -12,7 +12,9 @@
   "leaderDef": {
    "grantLife": 25,
    "winCondition": "OPP_DISCARD_TOTAL_GE",
-   "vulnerabilities": ["DAMAGE"],
+   "vulnerabilities": [
+    "DAMAGE"
+   ],
    "winParam": 18,
    "winText": "对方累计弃牌达到18张（弃牌阶段的强制弃牌不计入）",
    "enterEffects": [
@@ -44,7 +46,17 @@
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "嘲讽。降临0：恢复2点生命。",
+  "punishActivatable": true,
+  "punishCost": 0,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "HEAL",
+    "target": "SELF",
+    "amount": 2
+   }
+  ]
  },
  {
   "id": "sea_siren",
@@ -82,9 +94,18 @@
    "巨兽"
   ],
   "punish": 3,
-  "attack": 5,
+  "attack": 4,
   "health": 6,
-  "text": ""
+  "text": "巨兽。降临1：你抽1张牌。",
+  "punishActivatable": true,
+  "punishCost": 1,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "DRAW",
+    "amount": 1
+   }
+  ]
  },
  {
   "id": "sea_mistwalker",
@@ -110,14 +131,23 @@
   "tags": [
    "弃牌"
   ],
-  "punish": 1,
+  "punish": 2,
   "onPlayEffects": [
    {
     "action": "DISCARD_OPP_RANDOM",
     "amount": 2
    }
   ],
-  "text": "对方随机弃置2张手牌。"
+  "text": "对方随机弃置2张手牌。降临0：对方再随机弃置1张手牌。",
+  "punishActivatable": true,
+  "punishCost": 0,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "DISCARD_OPP_RANDOM",
+    "amount": 1
+   }
+  ]
  },
  {
   "id": "sea_whirl",
@@ -145,7 +175,7 @@
   "tags": [
    "弃牌"
   ],
-  "punish": 4,
+  "punish": 2,
   "ambushKind": "FOCUS",
   "ambushTrigger": "OPPONENT_DRAWS",
   "ambushEffects": [
@@ -153,8 +183,17 @@
     "action": "DISCARD_DRAWN"
    }
   ],
-  "text": "伏击·专注：对方抽牌时，弃掉其刚抽到的所有牌。",
-  "flavor": "规则书示例卡。"
+  "text": "伏击·专注：对方抽牌时，弃掉其刚抽到的所有牌。降临1：对方随机弃置1张手牌。",
+  "flavor": "规则书示例卡。",
+  "punishActivatable": true,
+  "punishCost": 1,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "DISCARD_OPP_RANDOM",
+    "amount": 1
+   }
+  ]
  },
  {
   "id": "sea_current",
@@ -164,7 +203,7 @@
   "tags": [
    "抽牌"
   ],
-  "punish": 1,
+  "punish": 2,
   "onPlayEffects": [
    {
     "action": "DRAW",
@@ -190,7 +229,18 @@
     "kingSlayer": true
    }
   ],
-  "text": "对一个敌方目标造成3点伤害。"
+  "text": "对一个敌方目标造成3点伤害。降临1：再对敌方统领造成2点伤害。",
+  "punishActivatable": true,
+  "punishCost": 1,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "DAMAGE",
+    "target": "ENEMY_TARGET",
+    "amount": 2,
+    "kingSlayer": true
+   }
+  ]
  },
  {
   "id": "sea_ink",
@@ -235,7 +285,7 @@
   "tags": [
    "召唤"
   ],
-  "punish": 3,
+  "punish": 2,
   "onPlayEffects": [
    {
     "action": "SUMMON",
@@ -243,7 +293,17 @@
     "param": "sea_tentacle"
    }
   ],
-  "text": "召唤两个深渊之触。"
+  "text": "召唤两个深渊之触。降临1：再召唤一个深渊之触。",
+  "punishActivatable": true,
+  "punishCost": 1,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "SUMMON",
+    "amount": 1,
+    "param": "sea_tentacle"
+   }
+  ]
  },
  {
   "id": "sea_tentacle",
@@ -259,7 +319,18 @@
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "嘲讽。降临0：本随从+1/+1。",
+  "punishActivatable": true,
+  "punishCost": 0,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "BUFF",
+    "target": "SELF",
+    "amount": 1,
+    "param": "both"
+   }
+  ]
  },
  {
   "id": "sea_sink",
@@ -276,7 +347,16 @@
     "target": "ENEMY_MINION"
    }
   ],
-  "text": "破坏一个敌方随从（统领免疫）。"
+  "text": "破坏一个敌方随从（统领免疫）。降临2（敌方随从≥2）：改为破坏另一个敌方随从。",
+  "punishActivatable": true,
+  "punishCost": 2,
+  "punishCondition": "ENEMY_MINIONS_GE_2",
+  "punishEffects": [
+   {
+    "action": "DESTROY",
+    "target": "ENEMY_MINION"
+   }
+  ]
  },
  {
   "id": "sea_punish_tsunami",
@@ -317,7 +397,17 @@
     "amount": 3
    }
   ],
-  "text": "登场：恢复一个友方随从3点生命。"
+  "text": "登场：恢复一个友方随从3点生命。降临0：再恢复一个友方随从2点生命。",
+  "punishActivatable": true,
+  "punishCost": 0,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "HEAL",
+    "target": "FRIENDLY_MINION",
+    "amount": 2
+   }
+  ]
  },
  {
   "id": "sea_barrier",
@@ -327,7 +417,7 @@
   "tags": [
    "守护"
   ],
-  "punish": 2,
+  "punish": 1,
   "onPlayEffects": [
    {
     "action": "GRANT_KEYWORD",
@@ -351,7 +441,18 @@
   "keywords": [
    "突袭"
   ],
-  "text": ""
+  "text": "突袭（召唤当回合即可攻击）。降临0：本随从+1/+0。",
+  "punishActivatable": true,
+  "punishCost": 0,
+  "punishCondition": "ALWAYS",
+  "punishEffects": [
+   {
+    "action": "BUFF",
+    "target": "SELF",
+    "amount": 1,
+    "param": "atk"
+   }
+  ]
  },
  {
   "id": "sea_depths",

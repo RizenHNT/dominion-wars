@@ -293,25 +293,34 @@ public sealed class EffectDispatcher {
 
 | 动作 | 中文 | 语义 |
 |---|---|---|
-| COMMIT | 提交 | 玩家主动动作：选己方场上机械卡，付费移入提交队列，触发提交效果（出牌≠提交，B 模式） |
-| PUSH | 上传 | **付费**将队列卡送入云端栈并触发上传效果（2026-08-16：上传与下载都需付费，非 Upload） |
-| PULL | 下载 | 需己方场上下载载体（tag="机械"）才可发起：付费拉取云端栈顶，触发被下载卡声明的下载效果（写在卡自身固定值，强化目标=载体）；无载体不可下载 |
-| ROLLBACK | 回滚 | 队列卡回手（费用不返还） |
+| COMMIT | 提交 | 玩家主动动作：选己方场上机械卡，按 `commitCost` 触发惩罚抽牌/响应后移入提交队列，触发提交效果（出牌≠提交，B 模式） |
+| PUSH | 上传 | 结束阶段按 FIFO 将队列卡送入云端栈并触发上传效果；普通卡默认 `uploadCost=0`，显式值才追加惩罚（非 Upload） |
+| PULL | 下载 | 需己方场上下载载体（tag="机械"）才可发起：按 `downloadCost` 触发惩罚抽牌/响应后拉取云端栈顶，触发被下载卡声明的下载效果（写在卡自身固定值）；单目标效果必须随合法动作明确选择目标；无载体不可下载 |
+| ROLLBACK | 回滚 | 队列卡回手，不回溯已发生的惩罚抽牌 |
 
 ### 11.2.1 Card lifecycle and landmark metadata
 
 The card schema may optionally declare `commitCost`, `uploadCost`, and
-`downloadCost` (non-negative integers) together with `commitEffects`,
-`pushEffects`, and `pullEffects` (`EffectSpec[]`). Omitted fields retain the
-backward-compatible defaults of zero and an empty effect list. The current C#
-runtime exposes the declared costs as action metadata; selecting a concrete
-resource/payment source remains a separate rules decision.
+`downloadCost` (non-negative lifecycle punishment amounts) together with
+`commitEffects`, `pushEffects`, and `pullEffects` (`EffectSpec[]`). For an
+ordinary, non-leader mechanical MINION, an omitted lifecycle field receives
+the approved baseline: COMMIT punishment `1`, PUSH punishment `0`, PULL
+punishment `1`; an omitted `pullEffects` list becomes one
+`BUFF(FRIENDLY_MINION, amount=1, param=both)` effect. Explicit card fields
+always win. Other card types retain the backward-compatible zero/empty
+defaults. The current C# runtime exposes the effective punishment values as
+action/event metadata and routes positive values through the existing
+punish-draw/response chain; no separate payment resource is introduced.
 
 `leaderDef.isLandmark` and `leaderDef.landmarkTiers` are also optional
 declarative metadata. Each tier has a positive `tier`, optional display
 `effect`, optional `effectSpecs`, optional `chant`, and optional stable `summon`
-card id. Loading these fields does not choose a leader shape or advance tiers;
-those behaviors remain gated by the approved landmark rules batch.
+card id. For the approved mechanical B-mode batch, a successful PULL through
+the landmark advances its independent tier counter; tier 2 schedules its
+declared chant/summon. Lifecycle punishment is still determined by the
+downloaded card's `downloadCost`; landmark tiers do not create a separate
+payment waiver. Other landmark definitions remain inert unless they declare
+the corresponding tiers.
 
 ### 11.3 木计数器与计数动作（玩家级状态）
 

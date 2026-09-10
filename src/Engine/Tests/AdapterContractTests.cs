@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using DominionWars.Adapters;
 using DominionWars.Engine.Events;
 using DominionWars.Engine.Model;
@@ -12,6 +15,17 @@ namespace DominionWars.Engine.Tests
 [TestFixture]
 public sealed class AdapterContractTests
 {
+    private static readonly string[] MappedInternalEventTypes =
+    {
+        "CARD_PLAYED", "PHASE_CHANGED", "TURN_CHANGED", "TURN_STARTED",
+        "CARDS_DRAWN", "ATTACK_DECLARED", "AMBUSH_SET", "AMBUSH_TRIGGERED",
+        "PUNISH_TRIGGERED", "PUNISH_DRAW", "DAMAGE_DEALT", "HEALED",
+        "MINION_DESTROYED", "CARDS_DISCARDED", "CASTLE_DAMAGED", "CASTLE_BROKEN",
+        "LEADER_MANIFESTED", "LEADER_REPLACED", "DECK_CYCLED", "COMMIT_DECLARED",
+        "CARD_COMMITTED", "CARD_PUSHED", "PULL_DECLARED", "CARD_PULLED",
+        "GAME_WON", "VICTORY_PROGRESS",
+    };
+
     [Test]
     public void SnapshotProjectionPopulatesRequiredRuntimeKitFields()
     {
@@ -48,6 +62,128 @@ public sealed class AdapterContractTests
             Assert.That(projected.SourceId, Is.EqualTo("entity_000000000002"));
             Assert.That(projected.TargetIds, Does.Contain("entity_000000000003"));
             Assert.That(projected.Amount, Is.EqualTo(4));
+        });
+    }
+
+    [Test]
+    public void CardPulledProjectsPerEventCountInsteadOfCumulativePullCount()
+    {
+        var first = EngineProjectionAdapter.ToEvent(
+            new GameEvent(
+                1,
+                null,
+                "CARD_PULLED",
+                new Dictionary<string, object?>
+                {
+                    ["carrier"] = 10L,
+                    ["target"] = 11L,
+                    ["cost"] = 1,
+                    ["pullCount"] = 1,
+                }),
+            4,
+            "ACTION");
+        var second = EngineProjectionAdapter.ToEvent(
+            new GameEvent(
+                2,
+                1,
+                "CARD_PULLED",
+                new Dictionary<string, object?>
+                {
+                    ["carrier"] = 10L,
+                    ["target"] = 12L,
+                    ["cost"] = 1,
+                    ["pullCount"] = 2,
+                }),
+            4,
+            "ACTION");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.Data["count"], Is.EqualTo(1));
+            Assert.That(second.Data["count"], Is.EqualTo(1));
+            Assert.That(second.Data["count"], Is.Not.EqualTo(2));
+        });
+    }
+
+    [Test]
+    public void DrawAndDeathEventsMapToViewerSafeUiEvents()
+    {
+        var draw = new GameEvent(
+            7,
+            null,
+            "CARDS_DRAWN",
+            new System.Collections.Generic.Dictionary<string, object?>
+            {
+                ["player"] = 1,
+                ["count"] = 2,
+                ["byPunish"] = false,
+            });
+        var death = new GameEvent(
+            8,
+            7,
+            "MINION_DESTROYED",
+            new System.Collections.Generic.Dictionary<string, object?>
+            {
+                ["target"] = 77L,
+                ["reasonKey"] = "effect.lethal_damage",
+            });
+
+        var projectedDraw = EngineProjectionAdapter.ToEvent(draw, 2, "START");
+        var projectedDeath = EngineProjectionAdapter.ToEvent(death, 2, "START");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(projectedDraw.Type, Is.EqualTo("CARDS_DRAWN"));
+            Assert.That(projectedDraw.Data.Keys, Is.EquivalentTo(new[] { "targetIds", "count" }));
+            Assert.That(projectedDraw.Data["count"], Is.EqualTo(2));
+            Assert.That(projectedDeath.Type, Is.EqualTo("MINION_DESTROYED"));
+            Assert.That(projectedDeath.ParentEventId, Is.EqualTo(projectedDraw.EventId));
+            Assert.That(projectedDeath.TargetIds, Does.Contain("entity_000000000077"));
+            Assert.That(projectedDeath.Data.Keys, Is.EquivalentTo(new[] { "targetIds", "reasonKey" }));
+            Assert.That(projectedDeath.Data.Keys, Does.Not.Contain("target"));
+        });
+    }
+
+    [TestCaseSource(nameof(MappedInternalEventTypes))]
+    public void EveryMappedUiEventUsesOnlySchemaDataKeys(string eventType)
+    {
+        var projected = EngineProjectionAdapter.ToEvent(
+            new GameEvent(
+                42,
+                null,
+                eventType,
+                new Dictionary<string, object?>
+                {
+                    ["player"] = 1,
+                    ["currentPlayer"] = 1,
+                    ["source"] = 2L,
+                    ["target"] = 3L,
+                    ["carrier"] = 2L,
+                    ["newLeader"] = 4L,
+                    ["cardId"] = "fixture.card",
+                    ["punish"] = 2,
+                    ["cost"] = 2,
+                    ["count"] = 2,
+                    ["pullCount"] = 2,
+                    ["amount"] = 2,
+                    ["current"] = 2,
+                    ["remaining"] = 2,
+                    ["condition"] = "TEST_CONDITION",
+                    ["reasonKey"] = "fixture.reason",
+                    ["winnerPlayerIndex"] = 1,
+                }),
+            1,
+            "ACTION");
+        var allowed = ReadUiEventDataKeys();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(projected.Data.Keys, Is.SubsetOf(allowed));
+            Assert.That(projected.Data.Keys, Does.Not.Contain("source"));
+            Assert.That(projected.Data.Keys, Does.Not.Contain("target"));
+            Assert.That(projected.Data.Keys, Does.Not.Contain("player"));
+            Assert.That(projected.Data.Keys, Does.Not.Contain("punish"));
+            Assert.That(projected.Data.Keys, Does.Not.Contain("cost"));
         });
     }
 
@@ -231,6 +367,37 @@ public sealed class AdapterContractTests
             Assert.Throws<System.ArgumentNullException>(() => EngineProjectionAdapter.ToSnapshot(null!, "m", 0, "START"));
             Assert.Throws<System.ArgumentException>(() => EngineProjectionAdapter.ToSnapshot(new GameState(), "", 0, "START"));
         });
+    }
+
+    private static IReadOnlyCollection<string> ReadUiEventDataKeys()
+    {
+        var current = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        while (current is not null)
+        {
+            var path = Path.Combine(
+                current.FullName,
+                "design",
+                "runtime-kit-v1.31",
+                "contracts",
+                "schemas",
+                "ui_event.schema.json");
+            if (File.Exists(path))
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(path));
+                var data = document.RootElement
+                    .GetProperty("properties")
+                    .GetProperty("data");
+                Assert.That(data.GetProperty("additionalProperties").GetBoolean(), Is.False);
+                return data.GetProperty("properties")
+                    .EnumerateObject()
+                    .Select(property => property.Name)
+                    .ToHashSet(StringComparer.Ordinal);
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate ui_event.schema.json.");
     }
 }
 }

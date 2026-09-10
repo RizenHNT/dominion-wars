@@ -33,7 +33,9 @@ namespace DominionWars.Data
             string? artId,
             bool? hasCommitCost = null,
             bool? hasUploadCost = null,
-            bool? hasDownloadCost = null)
+            bool? hasDownloadCost = null,
+            string? leaderWinText = null,
+            int chant = 0)
         {
             if (string.IsNullOrWhiteSpace(id))
             {
@@ -68,6 +70,8 @@ namespace DominionWars.Data
             Keywords = CopyStrings(keywords);
             Tags = CopyStrings(tags);
             ArtId = artId;
+            LeaderWinText = leaderWinText;
+            Chant = chant;
         }
 
         public string Id { get; }
@@ -90,17 +94,30 @@ namespace DominionWars.Data
         public int CommitCost { get; }
         public int UploadCost { get; }
         public int DownloadCost { get; }
-        /// <summary>True only when the source card explicitly declared commitCost.</summary>
+        /// <summary>True when the COMMIT punishment value was declared or supplied by an approved mechanical default.</summary>
         public bool HasCommitCost { get; }
-        /// <summary>True only when the source card explicitly declared uploadCost.</summary>
+        /// <summary>True when the PUSH punishment value was declared or supplied by an approved mechanical default.</summary>
         public bool HasUploadCost { get; }
-        /// <summary>True only when the source card explicitly declared downloadCost.</summary>
+        /// <summary>True when the PULL punishment value was declared or supplied by an approved mechanical default.</summary>
         public bool HasDownloadCost { get; }
         public string Text { get; }
         public string? Flavor { get; }
         public IReadOnlyCollection<string> Keywords { get; }
         public IReadOnlyCollection<string> Tags { get; }
         public string? ArtId { get; }
+
+        /// <summary>
+        /// Existing player-facing leader goal text from card data. This is
+        /// presentation metadata only; it does not expose win-condition rules
+        /// or any runtime progress.
+        /// </summary>
+        public string? LeaderWinText { get; }
+
+        /// <summary>
+        /// Printed chant requirement copied from CardDefinition. Runtime
+        /// progress is carried separately by RuntimeCardSnapshot.
+        /// </summary>
+        public int Chant { get; }
 
         private static IReadOnlyCollection<string> CopyStrings(IEnumerable<string>? values)
         {

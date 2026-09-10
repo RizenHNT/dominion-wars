@@ -32,6 +32,8 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
     private long _observedSnapshotRevision = -1;
     private string _selectedPlayer0DeckId = string.Empty;
     private string _selectedPlayer1DeckId = string.Empty;
+    private bool _selectedCpuOpponent;
+    private RuntimeAiTurnCoordinator _aiTurnCoordinator;
     private bool _initialized;
     private bool _readyLogIssued;
 
@@ -42,6 +44,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
     public RuntimeMatchSetupOrchestrator MatchSetupOrchestrator => _matchSetupOrchestrator;
     public string SelectedPlayer0DeckId => _selectedPlayer0DeckId;
     public string SelectedPlayer1DeckId => _selectedPlayer1DeckId;
+    public bool SelectedCpuOpponent => _selectedCpuOpponent;
     public bool IsPresentationReady =>
         _initialized &&
         _view != null &&
@@ -96,6 +99,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
         {
             EnsureEventSystem();
             Refresh();
+            PumpCpuOpponent();
             LogReadyIfPresentationIsVisible();
         }
     }
@@ -142,6 +146,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
             return;
         }
 
+        _bootstrap.SetCpuOpponent(_selectedCpuOpponent);
         if (!_matchSetupOrchestrator.TryStartMatch(
                 _selectedPlayer0DeckId,
                 _selectedPlayer1DeckId,
@@ -161,8 +166,8 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
         if (_battlePanel == null)
             _battlePanel = FindRuntimeBattlePanel();
         WireBattleRecovery();
-        if (_battlePanel != null)
-            _battlePanel.Bind(_bootstrap);
+        BindBattlePanelForSelectedMode();
+        ConfigureCpuOpponent();
         _view.SetMatchSetupError(string.Empty);
         Navigate(RuntimeScreenId.Battle);
     }
@@ -230,8 +235,8 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
         if (_battlePanel == null && Application.isPlaying)
             _battlePanel = RuntimeBattlePanel.EnsureRuntimeInstanceForScene();
         WireBattleRecovery();
-        if (_battlePanel != null)
-            _battlePanel.Bind(_bootstrap);
+        BindBattlePanelForSelectedMode();
+        ConfigureCpuOpponent();
 
         _view.SetMatchSetupError(string.Empty);
         // The previous OVER snapshot has already been discarded. Resetting
@@ -261,6 +266,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
 
     private void StopRuntimeSession()
     {
+        _aiTurnCoordinator = null;
         var runtimeBootstrap = _bootstrap;
         if (runtimeBootstrap == null)
             runtimeBootstrap = UnityEngine.Object.FindFirstObjectByType<RuntimeBootstrap>();
@@ -324,6 +330,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
         _view.MainMenuBackButton.onClick.AddListener(RequestBack);
         _view.MatchSetupStartButton.onClick.AddListener(RequestStartMatch);
         _view.MatchSetupBackButton.onClick.AddListener(RequestBack);
+        _view.MatchSetupCpuToggle.onValueChanged.AddListener(HandleCpuOpponentSelected);
         _view.BattleLoadingBackButton.onClick.AddListener(RequestBack);
         _view.ResultRestartButton.onClick.AddListener(RequestRestart);
         _view.ResultReturnToMenuButton.onClick.AddListener(RequestReturnToMenu);
@@ -360,6 +367,18 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
     private void DiscoverRuntimeHost()
     {
         var nextBootstrap = UnityEngine.Object.FindFirstObjectByType<RuntimeBootstrap>();
+        if (nextBootstrap == null && Application.isPlaying)
+        {
+            // The presentation flow is also the runtime entry point when the
+            // Editor starts from an empty/untitled scene. Keep that path
+            // usable instead of leaving MATCH SETUP with no deck rows; the
+            // bootstrap still owns data loading and the explicit StartMatch
+            // boundary, so this creates no session and does not reproduce
+            // engine rules in the UI.
+            var hostObject = new GameObject("DominionWarsRuntimeBootstrap");
+            nextBootstrap = hostObject.AddComponent<RuntimeBootstrap>();
+        }
+
         if (ReferenceEquals(_bootstrap, nextBootstrap)) return;
 
         _bootstrap = nextBootstrap;
@@ -370,11 +389,13 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
         {
             _selectedPlayer0DeckId = string.Empty;
             _selectedPlayer1DeckId = string.Empty;
+            _selectedCpuOpponent = false;
             return;
         }
 
         _selectedPlayer0DeckId = _bootstrap.Player0DeckId;
         _selectedPlayer1DeckId = _bootstrap.Player1DeckId;
+        _selectedCpuOpponent = _bootstrap.CpuOpponent;
     }
 
     private void RefreshMatchSetupOptions()
@@ -387,6 +408,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
                 _selectedPlayer0DeckId,
                 _selectedPlayer1DeckId,
                 HandleDeckSelected);
+            _view.SetMatchSetupCpuOpponent(_selectedCpuOpponent);
             return;
         }
 
@@ -401,6 +423,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
                 _selectedPlayer0DeckId,
                 _selectedPlayer1DeckId,
                 HandleDeckSelected);
+            _view.SetMatchSetupCpuOpponent(_selectedCpuOpponent);
         }
         catch (Exception)
         {
@@ -411,6 +434,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
                 _selectedPlayer0DeckId,
                 _selectedPlayer1DeckId,
                 HandleDeckSelected);
+            _view.SetMatchSetupCpuOpponent(_selectedCpuOpponent);
             _view.SetMatchSetupError("Deck options are unavailable.");
         }
     }
@@ -423,6 +447,56 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
 
         _view.SetMatchSetupError(string.Empty);
         RefreshMatchSetupOptions();
+    }
+
+    private void HandleCpuOpponentSelected(bool enabled)
+    {
+        _selectedCpuOpponent = enabled;
+        if (_bootstrap != null)
+            _bootstrap.SetCpuOpponent(enabled);
+        RefreshMatchSetupOptions();
+    }
+
+    private void ConfigureCpuOpponent()
+    {
+        _aiTurnCoordinator = null;
+        if (!_selectedCpuOpponent || _bootstrap == null || _bootstrap.Adapter == null)
+            return;
+
+        _aiTurnCoordinator = new RuntimeAiTurnCoordinator(_bootstrap.Adapter);
+    }
+
+    private void BindBattlePanelForSelectedMode()
+    {
+        if (_battlePanel == null || _bootstrap == null)
+            return;
+
+        // Reset the selected viewer before binding a new CPU match. Bind()
+        // renders immediately, so this ordering prevents a prior hot-seat
+        // player-1 viewer from being displayed for one frame.
+        if (_selectedCpuOpponent)
+            _battlePanel.SetViewerPlayerIndex(0);
+        _battlePanel.Bind(_bootstrap);
+        _battlePanel.SetFollowCurrentPlayer(!_selectedCpuOpponent);
+    }
+
+    private void PumpCpuOpponent()
+    {
+        if (_aiTurnCoordinator == null || CurrentScreen != RuntimeScreenId.Battle)
+            return;
+        if (_battlePanel != null && _battlePanel.IsPauseMenuOpen)
+            return;
+
+        try
+        {
+            _aiTurnCoordinator.Pump();
+        }
+        catch (Exception exception)
+        {
+            _aiTurnCoordinator.Halt("ai.coordinator_failed");
+            if (Application.isEditor || Debug.isDebugBuild)
+                Debug.LogException(exception, this);
+        }
     }
 
     private void StayOnMatchSetupWithError(string message)
@@ -457,6 +531,8 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
         ResetObservedSnapshot();
         _selectedPlayer0DeckId = string.Empty;
         _selectedPlayer1DeckId = string.Empty;
+        _selectedCpuOpponent = false;
+        _aiTurnCoordinator = null;
         _readyLogIssued = false;
         if (!_initialized) return;
 
@@ -507,7 +583,12 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
 
     private void ShowAuthoritativeResult(RuntimeSnapshotEnvelope snapshot)
     {
-        _view.SetResultOutcome(snapshot.WinnerPlayerIndex.Value, snapshot.ReasonKey);
+        _view.SetResultOutcome(
+            snapshot.WinnerPlayerIndex.Value,
+            snapshot.ReasonKey,
+            RuntimeBattlePanelPresentationModel.BuildPlayerFacingResultReason(
+                snapshot,
+                _battlePanel == null ? null : _battlePanel.CardCatalog));
         Navigate(RuntimeScreenId.Result);
     }
 

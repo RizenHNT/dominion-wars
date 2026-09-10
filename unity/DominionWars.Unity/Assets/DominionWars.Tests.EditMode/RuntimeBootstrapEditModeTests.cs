@@ -57,6 +57,12 @@ public sealed class RuntimeBootstrapEditModeTests
                 "深海联盟·吞噬之渊",
                 "古木圣地·常青壁垒",
             }));
+            var machine = bootstrap.DeckOptions.Single(option => option.Id == "machine_deck");
+            Assert.That(machine.LeaderDisplayName, Is.EqualTo("上古咒文·赋值机身"));
+            Assert.That(machine.LeaderWinText, Is.EqualTo("己方累计完成6次下载"));
+            var wood = bootstrap.DeckOptions.Single(option => option.Id == "wood_deck");
+            Assert.That(wood.LeaderDisplayName, Is.EqualTo("世界树之心"));
+            Assert.That(wood.LeaderWinText, Is.EqualTo("己方封印随从生命≥512时获胜"));
             Assert.That(bootstrap.Player0DeckId, Is.EqualTo("flame_deck"));
             Assert.That(bootstrap.Player1DeckId, Is.EqualTo("machine_deck"));
         }

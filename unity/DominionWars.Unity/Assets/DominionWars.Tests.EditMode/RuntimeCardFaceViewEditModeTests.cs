@@ -17,7 +17,7 @@ namespace DominionWars.Unity.EditMode
 public sealed class RuntimeCardFaceViewEditModeTests
 {
     [Test]
-    public void CompactFaceKeepsReadableRulesAndUsesSnapshotStatsOnField()
+    public void CompactFacePrioritizesBattlefieldStateAndUsesSnapshotStats()
     {
         GameObject? root = null;
         try
@@ -41,19 +41,29 @@ public sealed class RuntimeCardFaceViewEditModeTests
             face.Bind(model);
 
             Assert.That(face.TitleText.text, Is.EqualTo("Readable Machine"));
-            Assert.That(face.CostBadge.gameObject.activeSelf, Is.False,
-                "The legacy standalone COST badge is diagnostic-only on the player face.");
+            Assert.That(
+                face.TitleText.fontSize,
+                Is.GreaterThanOrEqualTo(13),
+                "Compact battlefield titles must retain a readable minimum size; the exact font size is presentation-tunable.");
+            Assert.That(face.MetaText.text, Is.Empty,
+                "An ordinary battlefield minion should not carry a redundant unsealed status.");
+            Assert.That(face.CostBadge.gameObject.activeSelf, Is.True,
+                "The player-facing card cost must remain visible on the normal card face.");
             Assert.That(face.CostValue.text, Is.EqualTo("4"));
             Assert.That(face.PunishValue.text, Is.EqualTo("2"));
-            Assert.That(face.RulesText.text, Does.Contain("提交后获得强化"));
-            Assert.That(face.RulesText.text, Does.Contain("机械"));
+            Assert.That(face.RulesText.text, Does.Not.Contain("提交后获得强化"));
+            Assert.That(face.RulesText.text, Does.Contain("[机械]"));
+            Assert.That(face.RulesText.text, Does.Contain("查看卡牌详情"));
             Assert.That(face.RulesText.gameObject.activeInHierarchy, Is.True);
+            Assert.That(face.transform.Find("CardPunishBadge")!.gameObject.activeSelf, Is.False,
+                "Compact battlefield cards should reserve the face for state and live stats.");
             Assert.That(face.AttackValue.text, Is.EqualTo("2"));
             Assert.That(face.HealthValue.text, Is.EqualTo("3"));
 
             face.SetDiagnosticsVisible(true);
             Assert.That(face.CostBadge.gameObject.activeSelf, Is.True);
-            Assert.That(face.CostLabel.text, Is.EqualTo("COST"));
+            Assert.That(face.CostLabel.text, Is.EqualTo("C"),
+                "Compact cards use the single-letter cost badge to keep the quick-scan row readable.");
             Assert.That(face.CostValue.text, Is.EqualTo("4"));
         }
         finally

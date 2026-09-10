@@ -5,21 +5,31 @@
   "faction": "机械遗迹",
   "type": "SPELL",
   "tags": [
-   "统领"
+   "统领",
+   "机械"
   ],
   "punish": 0,
   "leader": true,
-  "chant": 2,
-  "chantEffects": [
-   {
-    "action": "SUMMON_LEADER",
-    "param": "machine_alpha"
-   }
-  ],
   "leaderDef": {
-   "winCondition": "NONE",
-   "vulnerabilities": ["DAMAGE"],
-   "winText": "吟唱2回合后召唤【上古极神Alpha】取代本卡成为统领",
+   "winCondition": "PULL_TOTAL_GE",
+   "vulnerabilities": [
+    "DAMAGE"
+   ],
+   "winParam": 6,
+   "winText": "己方累计完成6次下载",
+   "isLandmark": true,
+   "landmarkTiers": [
+    {
+     "tier": 1,
+     "effect": "首次PULL推进地标层数"
+    },
+    {
+     "tier": 2,
+     "effect": "吟唱1：摧毁地标并召唤【上古极神Alpha】",
+     "chant": 1,
+     "summon": "machine_alpha"
+    }
+   ],
    "punishEffects": [
     {
      "action": "ADD_OPP_PUNISH_TURN",
@@ -32,7 +42,7 @@
    ],
    "durability": 8
   },
-  "text": "耐久8。登场后吟唱2回合：召唤【上古极神Alpha】取代本卡成为你的统领。【惩罚】对方本回合所有卡牌惩罚值+3，且你获得1次洗牌免计数。",
+  "text": "【护符/地标】本局累计完成6次下载。地标接收下载：1层→推进层数；2层→吟唱1，摧毁地标并召唤【上古极神Alpha】。普通机械卡的COMMIT/PULL惩罚值按卡面字段结算。",
   "flavor": "规则书示例卡。古老的代码正在自我编译。"
  },
  {
@@ -52,10 +62,12 @@
    "扰魔"
   ],
   "leaderDef": {
-   "winCondition": "OPP_PUNISH_DRAW_TURN_GE",
-   "vulnerabilities": ["DAMAGE"],
-   "winParam": 15,
-   "winText": "对方在单个回合内因惩罚抽牌≥15张",
+   "winCondition": "PULL_TOTAL_GE",
+   "vulnerabilities": [
+    "DAMAGE"
+   ],
+   "winParam": 6,
+   "winText": "己方累计完成6次下载",
    "punishEffects": [
     {
      "action": "ADD_OPP_PUNISH_TURN",
@@ -63,7 +75,7 @@
     }
    ]
   },
-  "text": "胜利：对方在单个回合内因惩罚抽牌≥15张。（由赋值机身吟唱召唤，不可编入卡组）",
+  "text": "圣盾。己方累计完成6次下载时获胜。（由机械地标第二层吟唱召唤，不可编入卡组）",
   "guard": true
  },
  {
@@ -77,13 +89,24 @@
   "punish": 0,
   "attack": 1,
   "health": 1,
+  "commitCost": 1,
+  "uploadCost": 0,
+  "downloadCost": 1,
   "onPlayEffects": [
    {
     "action": "DRAW",
     "amount": 1
    }
   ],
-  "text": "登场：你抽1张牌。"
+  "pullEffects": [
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
+  "text": "登场：你抽1张牌。上传免费。下载后：选择一个己方随从，使其获得+1/+1。"
  },
  {
   "id": "machine_golem",
@@ -96,7 +119,18 @@
   "punish": 2,
   "attack": 3,
   "health": 4,
-  "text": ""
+  "commitCost": 2,
+  "uploadCost": 0,
+  "downloadCost": 1,
+  "pullEffects": [
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
+  "text": "嘲讽。留场主力：提交代价较高，适合作为下载载体。下载后：选择一个己方随从，使其获得+1/+1。"
  },
  {
   "id": "machine_wall",
@@ -109,10 +143,21 @@
   "punish": 2,
   "attack": 0,
   "health": 8,
+  "commitCost": 2,
+  "uploadCost": 0,
+  "downloadCost": 1,
+  "pullEffects": [
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "嘲讽。防御墙：提交代价较高，适合作为下载载体。下载后：选择一个己方随从，使其获得+1/+1。"
  },
  {
   "id": "machine_blaster",
@@ -125,8 +170,19 @@
   "punish": 2,
   "attack": 2,
   "health": 3,
+  "commitCost": 3,
+  "uploadCost": 0,
+  "downloadCost": 1,
+  "pullEffects": [
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
   "attacksPerTurn": 2,
-  "text": "每回合可攻击2次。"
+  "text": "每回合可攻击2次。站场打手：提交代价高。下载后：选择一个己方随从，使其获得+1/+1。"
  },
  {
   "id": "machine_overload",
@@ -291,10 +347,21 @@
   "punish": 5,
   "attack": 6,
   "health": 6,
+  "commitCost": 3,
+  "uploadCost": 0,
+  "downloadCost": 2,
+  "pullEffects": [
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "嘲讽。大墙：提交与下载代价都高，通常留场。下载后：选择一个己方随从，使其获得+1/+1。"
  },
  {
   "id": "machine_spark",
@@ -307,10 +374,27 @@
   "punish": 1,
   "attack": 2,
   "health": 1,
+  "commitCost": 1,
+  "uploadCost": 0,
+  "downloadCost": 1,
+  "pullEffects": [
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
   "keywords": [
    "突袭"
   ],
-  "text": ""
+  "text": "突袭。提交火花机蜂：抽1张牌。下载后：选择一个己方随从，使其获得+1/+1。",
+  "commitEffects": [
+   {
+    "action": "DRAW",
+    "amount": 1
+   }
+  ]
  },
  {
   "id": "machine_assembler",
@@ -323,11 +407,28 @@
   "punish": 2,
   "attack": 3,
   "health": 3,
+  "commitCost": 1,
+  "uploadCost": 0,
+  "downloadCost": 1,
+  "pullEffects": [
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
   "punishActivatable": true,
   "punishCost": 0,
   "punishCondition": "ALWAYS",
   "punishEffects": [],
-  "text": "【惩罚】以惩罚0直接登场。"
+  "text": "上传组装体进云栈：抽1张牌。下载后：选择一个己方随从，使其获得+1/+1。",
+  "pushEffects": [
+   {
+    "action": "DRAW",
+    "amount": 1
+   }
+  ]
  },
  {
   "id": "machine_scan",
@@ -413,6 +514,17 @@
   "punish": 2,
   "attack": 2,
   "health": 5,
+  "commitCost": 1,
+  "uploadCost": 0,
+  "downloadCost": 1,
+  "pullEffects": [
+   {
+    "action": "BUFF",
+    "target": "FRIENDLY_MINION",
+    "amount": 1,
+    "param": "both"
+   }
+  ],
   "punishActivatable": true,
   "punishCost": 1,
   "punishCondition": "HAND_GE_3",
@@ -422,6 +534,12 @@
     "amount": 1
    }
   ],
-  "text": "惩罚(手牌≥3)：登场并抽1张。"
+  "text": "提交回收单元：将提交队列中的一张卡回滚回手。下载后：选择一个己方随从，使其获得+1/+1。",
+  "commitEffects": [
+   {
+    "action": "ROLLBACK",
+    "amount": 1
+   }
+  ]
  }
 ]

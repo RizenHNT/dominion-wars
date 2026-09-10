@@ -50,10 +50,18 @@ public sealed partial class EffectRuntime
                 chanting.Add(card);
             }
         }
+        foreach (var card in player.LeaderZone)
+        {
+            if (card.ChantRemaining > 0)
+            {
+                chanting.Add(card);
+            }
+        }
 
         foreach (var card in chanting)
         {
-            if (IsGameOver || !player.Field.Contains(card))
+            if (IsGameOver
+                || (!player.Field.Contains(card) && !player.LeaderZone.Contains(card)))
             {
                 break;
             }
@@ -70,6 +78,13 @@ public sealed partial class EffectRuntime
 
             var context = rootContext.ForSource(player.PlayerIndex, card);
             EffectDispatcher.CreateDefault(this).ApplyAll(card.Definition.ChantEffects, context);
+            if (!string.IsNullOrWhiteSpace(card.PendingLandmarkSummonCardId)
+                && player.LeaderZone.Contains(card)
+                && !IsGameOver)
+            {
+                PromoteLandmark(context, card);
+            }
+
             if (!card.Definition.IsLeader && player.Field.Contains(card))
             {
                 Commit(_ =>

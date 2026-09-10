@@ -43,10 +43,13 @@ public sealed class RuntimeFullMatchUserJourneyPlayModeTests
         Assert.That(flow.View.MatchSetupPlayer0DeckButtons, Has.Count.EqualTo(4));
         Assert.That(flow.View.MatchSetupPlayer1DeckButtons, Has.Count.EqualTo(4));
 
-        // The same deterministic Sea-versus-Wood route used by the live UX
-        // run. Both selections are made through their rendered uGUI buttons.
-        Click(flow.View.MatchSetupPlayer0DeckButtons[1].gameObject);
-        Click(flow.View.MatchSetupPlayer1DeckButtons[2].gameObject);
+        // Select the deterministic Machine-versus-Sea route used by this
+        // coverage journey. Stable rendered deck IDs keep the test aligned
+        // when another deck is inserted into the alphabetic row order.
+        Click(FindActive("MatchSetupPlayer0Deck_machine_deck"));
+        Click(FindActive("MatchSetupPlayer1Deck_sea_deck"));
+        Assert.That(flow.SelectedPlayer0DeckId, Is.EqualTo("machine_deck"));
+        Assert.That(flow.SelectedPlayer1DeckId, Is.EqualTo("sea_deck"));
         Click(flow.View.MatchSetupStartButton.gameObject);
         yield return null;
 
@@ -107,9 +110,10 @@ public sealed class RuntimeFullMatchUserJourneyPlayModeTests
             "The UI journey hit its action limit before reaching a natural result.");
         Assert.That(flow.CurrentScreen, Is.EqualTo(RuntimeScreenId.Result));
         Assert.That(flow.View.ResultWinnerText.text, Is.Not.Empty);
-        Assert.That(flow.View.ResultReasonText.text, Is.EqualTo("MATCH COMPLETE"));
+        Assert.That(flow.View.ResultReasonText.text,
+            Does.Contain("己方累计完成6次下载"));
         Assert.That(flow.View.ResultReasonText.text, Does.Not.Contain("win."));
-        Assert.That(flow.View.DebugResultOutcome, Does.Contain("win.enemy_leader_defeated"));
+        Assert.That(flow.View.DebugResultOutcome, Does.Contain("win.pull_total_ge"));
         Assert.That(panel.Adapter.Presentation.Snapshot!.WinnerPlayerIndex, Is.Not.Null);
 
         foreach (var required in new[]
@@ -240,6 +244,20 @@ public sealed class RuntimeFullMatchUserJourneyPlayModeTests
             ? "unknown"
             : action.ActionId);
         var direct = FindActive("Action_" + suffix);
+        if (direct == null)
+        {
+            // Secondary legal actions intentionally live in the closed More
+            // Actions drawer. Open that real fallback surface before looking
+            // for the same rendered action; no action identity or legality is
+            // inferred by the test.
+            var moreActions = FindActive("RuntimeBattlePanelMoreActionsButton");
+            if (moreActions != null)
+            {
+                AssertInteractableButton(moreActions);
+                Click(moreActions);
+                direct = FindActive("Action_" + suffix);
+            }
+        }
         if (direct != null)
         {
             AssertInteractableButton(direct);

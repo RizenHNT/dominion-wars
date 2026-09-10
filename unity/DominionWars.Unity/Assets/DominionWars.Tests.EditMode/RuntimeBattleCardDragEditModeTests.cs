@@ -540,6 +540,168 @@ public sealed class RuntimeBattleCardDragEditModeTests
     }
 
     [Test]
+    public void NullTargetFieldSurfaceAcceptsReleaseGeometryWithoutButtonTarget()
+    {
+        GameObject canvasObject = null!;
+        GameObject handObject = null!;
+        GameObject sourceObject = null!;
+        GameObject fieldSurfaceObject = null!;
+        RuntimeLegalAction submitted = null!;
+        try
+        {
+            canvasObject = new GameObject("FieldReleaseCanvas", typeof(RectTransform), typeof(Canvas));
+            var canvas = canvasObject.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasObject.GetComponent<RectTransform>().sizeDelta = new Vector2(800f, 600f);
+
+            handObject = new GameObject("FieldReleaseHand", typeof(RectTransform));
+            handObject.transform.SetParent(canvasObject.transform, false);
+            sourceObject = new GameObject(
+                "FieldReleaseCard",
+                typeof(RectTransform),
+                typeof(UnityEngine.UI.Image));
+            sourceObject.transform.SetParent(handObject.transform, false);
+
+            fieldSurfaceObject = new GameObject(
+                "LargeTableFieldSurface",
+                typeof(RectTransform),
+                typeof(UnityEngine.UI.Image));
+            fieldSurfaceObject.transform.SetParent(canvasObject.transform, false);
+            ConfigureCenteredSurface(fieldSurfaceObject);
+            var surfaceRect = fieldSurfaceObject.GetComponent<RectTransform>();
+            surfaceRect.sizeDelta = new Vector2(360f, 240f);
+            var action = LegalAction("play_to_field", "PLAY_CARD", 3L, null!);
+            var zone = fieldSurfaceObject.AddComponent<RuntimeBattleDropZone>();
+            zone.Configure(null, action.ActionId, action.Type);
+
+            var drag = sourceObject.AddComponent<RuntimeBattleCardDrag>();
+            drag.Configure(new[] { action }, canvas, candidate => submitted = candidate);
+            Canvas.ForceUpdateCanvases();
+            var releasePosition = canvas.pixelRect.center;
+            var pointer = new PointerEventData(null)
+            {
+                pointerDrag = sourceObject,
+                position = releasePosition,
+            };
+
+            Assert.That(
+                RectTransformUtility.RectangleContainsScreenPoint(surfaceRect, releasePosition, null),
+                Is.True,
+                "The fixture must release inside the broad tabletop surface.");
+            drag.OnBeginDrag(pointer);
+            Assert.That(drag.IsDragging, Is.True);
+            Assert.That(drag.IsRetired, Is.False,
+                "Starting a drag must not submit the card before release.");
+            drag.OnEndDrag(pointer);
+
+            Assert.That(submitted, Is.SameAs(action));
+            Assert.That(drag.IsRetired, Is.True);
+            Assert.That(sourceObject.activeSelf, Is.False);
+        }
+        finally
+        {
+            if (sourceObject != null) Object.DestroyImmediate(sourceObject);
+            if (fieldSurfaceObject != null) Object.DestroyImmediate(fieldSurfaceObject);
+            if (handObject != null) Object.DestroyImmediate(handObject);
+            if (canvasObject != null) Object.DestroyImmediate(canvasObject);
+        }
+    }
+
+    [Test]
+    public void AttackDragArrowTracksLegalTargetAndHidesOnCancel()
+    {
+        GameObject canvasObject = null!;
+        GameObject handObject = null!;
+        GameObject sourceObject = null!;
+        GameObject targetObject = null!;
+        RuntimeLegalAction submitted = null!;
+        try
+        {
+            canvasObject = new GameObject("AttackArrowCanvas", typeof(RectTransform), typeof(Canvas));
+            var canvas = canvasObject.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasObject.GetComponent<RectTransform>().sizeDelta = new Vector2(800f, 600f);
+
+            handObject = new GameObject("AttackArrowHand", typeof(RectTransform));
+            handObject.transform.SetParent(canvasObject.transform, false);
+            var handRect = handObject.GetComponent<RectTransform>();
+            handRect.anchorMin = new Vector2(0.5f, 0.5f);
+            handRect.anchorMax = new Vector2(0.5f, 0.5f);
+            handRect.sizeDelta = new Vector2(300f, 160f);
+            handRect.anchoredPosition = new Vector2(-120f, -160f);
+
+            sourceObject = new GameObject(
+                "AttackArrowSource",
+                typeof(RectTransform),
+                typeof(UnityEngine.UI.Image));
+            sourceObject.transform.SetParent(handObject.transform, false);
+            var sourceRect = sourceObject.GetComponent<RectTransform>();
+            sourceRect.sizeDelta = new Vector2(80f, 80f);
+            sourceRect.anchorMin = new Vector2(0.5f, 0.5f);
+            sourceRect.anchorMax = new Vector2(0.5f, 0.5f);
+            sourceRect.anchoredPosition = new Vector2(-220f, 0f);
+
+            targetObject = new GameObject(
+                "AttackArrowTarget",
+                typeof(RectTransform),
+                typeof(UnityEngine.UI.Image));
+            targetObject.transform.SetParent(canvasObject.transform, false);
+            ConfigureCenteredSurface(targetObject);
+            var targetRect = targetObject.GetComponent<RectTransform>();
+            targetRect.sizeDelta = new Vector2(160f, 140f);
+            var zone = targetObject.AddComponent<RuntimeBattleDropZone>();
+            zone.Configure(9L);
+
+            var action = LegalAction("attack_arrow", "ATTACK", 3L, 9L);
+            var drag = sourceObject.AddComponent<RuntimeBattleCardDrag>();
+            drag.Configure(new[] { action }, canvas, candidate => submitted = candidate);
+            var originalParent = sourceObject.transform.parent;
+            var originalPosition = sourceObject.transform.localPosition;
+            var pointer = new PointerEventData(null)
+            {
+                pointerDrag = sourceObject,
+                position = new Vector2(240f, 300f),
+            };
+
+            drag.OnBeginDrag(pointer);
+            var arrow = sourceObject.GetComponent<RuntimeAttackDragArrow>();
+            Assert.That(arrow, Is.Not.Null);
+            Assert.That(arrow!.IsVisible, Is.True);
+            Assert.That(arrow.IsPointingAtLegalTarget, Is.False);
+            Assert.That(submitted, Is.Null,
+                "The arrow is feedback only; pressing/starting a drag must not submit.");
+
+            pointer.position = canvas.pixelRect.center;
+            pointer.pointerEnter = targetObject;
+            pointer.pointerCurrentRaycast = new RaycastResult { gameObject = targetObject };
+            drag.OnDrag(pointer);
+            Assert.That(arrow.IsPointingAtLegalTarget, Is.True);
+            Assert.That(arrow.EndScreenPosition, Is.EqualTo(pointer.position));
+
+            // Release away from the target: the source must cancel and return
+            // to its original slot instead of submitting the attack.
+            pointer.pointerEnter = null;
+            pointer.pointerCurrentRaycast = new RaycastResult();
+            pointer.position = new Vector2(3f, 3f);
+            drag.OnEndDrag(pointer);
+
+            Assert.That(submitted, Is.Null);
+            Assert.That(drag.IsRetired, Is.False);
+            Assert.That(drag.IsDragging, Is.False);
+            Assert.That(arrow.IsVisible, Is.False);
+            Assert.That(sourceObject.transform.parent, Is.SameAs(originalParent));
+            Assert.That(sourceObject.transform.localPosition, Is.EqualTo(originalPosition));
+        }
+        finally
+        {
+            if (sourceObject != null) Object.DestroyImmediate(sourceObject);
+            if (targetObject != null) Object.DestroyImmediate(targetObject);
+            if (handObject != null) Object.DestroyImmediate(handObject);
+            if (canvasObject != null) Object.DestroyImmediate(canvasObject);
+        }
+    }
+
+    [Test]
     public void SharedNonEmptyTargetRejectsAmbiguousActionWithoutIdentity()
     {
         GameObject sourceObject = null!;

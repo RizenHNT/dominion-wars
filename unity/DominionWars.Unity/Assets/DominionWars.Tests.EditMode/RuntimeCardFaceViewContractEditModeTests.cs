@@ -61,17 +61,21 @@ public sealed class RuntimeCardFaceViewContractEditModeTests
                     CardId = "readable_card",
                     EntityId = 101,
                     OwnerPlayer = 0,
+                    Sealed = true,
                 }));
 
             Assert.That(face.TitleText.text, Is.EqualTo("Readable Card"));
             Assert.That(face.MetaText.text, Does.Contain("MINION"));
             Assert.That(face.MetaText.text, Does.Contain("机械遗迹"));
-            Assert.That(face.CostBadge.gameObject.activeSelf, Is.False,
-                "The legacy standalone COST badge is not a player-facing field.");
+            Assert.That(face.MetaText.text, Does.Contain("封印"));
+            Assert.That(face.CostBadge.gameObject.activeSelf, Is.True,
+                "The player-facing card cost must remain visible on the normal card face.");
             Assert.That(face.CostLabel.text, Is.EqualTo("COST"));
             Assert.That(face.CostValue.text, Is.EqualTo("3"));
             Assert.That(face.PunishLabel.text, Is.EqualTo("PUNISH"));
             Assert.That(face.PunishValue.text, Is.EqualTo("2"));
+            Assert.That(face.transform.Find("CardPunishBadge")!.gameObject.activeSelf, Is.True,
+                "Full cards retain the player-facing punishment preview.");
             Assert.That(face.RulesText.text, Does.Contain("RULES"));
             Assert.That(face.RulesText.text, Does.Contain("获得强化"));
             Assert.That(face.AttackLabel.text, Is.EqualTo("ATK"));
@@ -121,13 +125,17 @@ public sealed class RuntimeCardFaceViewContractEditModeTests
                     CardId = "readable_card",
                     EntityId = 102,
                     OwnerPlayer = 0,
-                }));
+                },
+                chant: 2));
 
             Assert.That(hand.Mode, Is.EqualTo(RuntimeCardFaceMode.Compact));
             Assert.That(hand.RulesText.gameObject.activeInHierarchy, Is.True);
             Assert.That(hand.RulesText.text, Does.Contain("获得强化"));
+            Assert.That(hand.MetaText.text, Does.Contain("吟唱 2"));
             Assert.That(hand.AttackValue.text, Is.EqualTo("4"));
             Assert.That(hand.HealthValue.text, Is.EqualTo("5"));
+            Assert.That(hand.transform.Find("CardPunishBadge")!.gameObject.activeSelf, Is.True,
+                "Hand cards retain the punishment preview used before playing a card.");
             var compactLayout = hand.GetComponent<UnityEngine.UI.LayoutElement>();
             Assert.That(compactLayout!.preferredWidth, Is.EqualTo(RuntimeCardFaceView.CompactWidth));
             Assert.That(compactLayout.preferredHeight, Is.EqualTo(RuntimeCardFaceView.CompactHeight));
@@ -148,11 +156,175 @@ public sealed class RuntimeCardFaceViewContractEditModeTests
                 }));
             Assert.That(field.AttackValue.text, Is.EqualTo("2"));
             Assert.That(field.HealthValue.text, Is.EqualTo("3"));
+            Assert.That(field.MetaText.text, Is.Empty);
+            Assert.That(field.RulesText.text, Does.Not.Contain("获得强化"));
+            Assert.That(field.RulesText.text, Does.Contain("[嘲讽]"));
+            Assert.That(field.RulesText.text, Does.Contain("查看卡牌详情"));
+            Assert.That(field.transform.Find("CardPunishBadge")!.gameObject.activeSelf, Is.False);
+            var inspect = RuntimeCardInspectModel.Build(field.BoundCard!);
+            Assert.That(inspect.PunishAndCostLine, Is.EqualTo("PRINTED PUNISH 2"));
         }
         finally
         {
             if (root != null) UnityEngine.Object.DestroyImmediate(root);
         }
+    }
+
+    [TestCase(1280f, 720f)]
+    [TestCase(1440f, 900f)]
+    public void CompactHandFaceKeepsQuickScanFieldsSeparated(
+        float width,
+        float height)
+    {
+        GameObject? root = null;
+        try
+        {
+            root = new GameObject(
+                "CompactHandQuickScanRoot",
+                typeof(RectTransform),
+                typeof(Canvas));
+            var canvasRoot = root.GetComponent<RectTransform>()!;
+            canvasRoot.anchorMin = new Vector2(0.5f, 0.5f);
+            canvasRoot.anchorMax = new Vector2(0.5f, 0.5f);
+            canvasRoot.pivot = new Vector2(0.5f, 0.5f);
+            canvasRoot.sizeDelta = new Vector2(width, height);
+
+            var face = RuntimeCardFaceView.Build(
+                canvasRoot,
+                "CompactHandQuickScanCard",
+                RuntimeCardFaceMode.Compact);
+            face.Bind(Model(
+                RuntimeCardZone.OwnHand,
+                new RuntimeCardSnapshot
+                {
+                    CardId = "readable_card",
+                    EntityId = 108,
+                    OwnerPlayer = 0,
+                }));
+            face.CardRoot.sizeDelta = new Vector2(96f, 112f);
+            Canvas.ForceUpdateCanvases();
+
+            Assert.That(face.TitleText.text, Is.EqualTo("Readable Card"));
+            Assert.That(face.MetaText.text, Is.EqualTo("MINION [嘲讽]"));
+            Assert.That(face.RulesText.text, Does.Contain("获得强化"));
+            Assert.That(face.RulesText.text, Does.Not.Contain("RULES"));
+            Assert.That(face.CostBadge.gameObject.activeSelf, Is.True);
+            Assert.That(face.transform.Find("CardPunishBadge")!.gameObject.activeSelf, Is.True);
+            Assert.That(face.AttackValue.text, Is.EqualTo("4"));
+            Assert.That(face.HealthValue.text, Is.EqualTo("5"));
+
+            AssertContained(face.CardRoot, face.TitleText.rectTransform);
+            AssertContained(face.CardRoot, face.MetaText.rectTransform);
+            AssertContained(face.CardRoot, face.RulesText.rectTransform);
+            AssertContained(face.CardRoot, face.CostBadge);
+            AssertContained(face.CardRoot, face.PunishValue.rectTransform);
+            AssertContained(face.CardRoot, face.AttackValue.rectTransform);
+            AssertContained(face.CardRoot, face.HealthValue.rectTransform);
+            AssertDoesNotOverlap(face.TitleText.rectTransform, face.MetaText.rectTransform);
+        }
+        finally
+        {
+            if (root != null) UnityEngine.Object.DestroyImmediate(root);
+        }
+    }
+
+    [TestCase(1280f, 720f)]
+    [TestCase(1440f, 900f)]
+    public void CompactBattlefieldLayersRemainReadableAndInsideCardBounds(
+        float width,
+        float height)
+    {
+        GameObject? root = null;
+        try
+        {
+            root = new GameObject(
+                "CompactCardFaceGeometryRoot",
+                typeof(RectTransform),
+                typeof(Canvas));
+            var rootRect = root.GetComponent<RectTransform>()!;
+            rootRect.anchorMin = new Vector2(0.5f, 0.5f);
+            rootRect.anchorMax = new Vector2(0.5f, 0.5f);
+            rootRect.pivot = new Vector2(0.5f, 0.5f);
+            rootRect.sizeDelta = new Vector2(width, height);
+
+            var face = RuntimeCardFaceView.Build(
+                rootRect,
+                "CompactGeometryCard",
+                RuntimeCardFaceMode.Compact);
+            face.Bind(Model(
+                RuntimeCardZone.OwnField,
+                new RuntimeCardSnapshot
+                {
+                    CardId = "readable_card",
+                    EntityId = 107,
+                    OwnerPlayer = 0,
+                    Sealed = true,
+                    CurrentAttack = 2,
+                    CurrentHealth = 3,
+                }));
+            face.CardRoot.sizeDelta = new Vector2(
+                RuntimeCardFaceView.CompactWidth,
+                RuntimeCardFaceView.CompactHeight);
+            Canvas.ForceUpdateCanvases();
+
+            Assert.That(face.CardRoot.rect.width, Is.GreaterThan(0f));
+            Assert.That(face.CardRoot.rect.height, Is.GreaterThan(0f));
+            Assert.That(face.TitleText.text, Is.EqualTo("Readable Card"));
+            Assert.That(
+                face.TitleText.fontSize,
+                Is.GreaterThanOrEqualTo(13),
+                "Compact battlefield titles must retain a readable minimum size; the exact font size is presentation-tunable.");
+            Assert.That(face.MetaText.text, Is.EqualTo("封印"));
+            Assert.That(face.AttackValue.text, Is.EqualTo("2"));
+            Assert.That(face.HealthValue.text, Is.EqualTo("3"));
+            Assert.That(face.AttackValue.fontSize, Is.EqualTo(14));
+            Assert.That(face.HealthValue.fontSize, Is.EqualTo(14));
+            Assert.That(face.RulesText.text, Does.Not.Contain("登场：获得强化。"));
+            Assert.That(face.RulesText.text, Does.Contain("查看卡牌详情"));
+
+            AssertContained(face.CardRoot, face.TitleText.rectTransform);
+            AssertContained(face.CardRoot, face.MetaText.rectTransform);
+            AssertContained(face.CardRoot, face.transform.Find("CardRulesPanel") as RectTransform);
+            AssertContained(face.CardRoot, face.StatsRoot);
+            AssertContained(face.CardRoot, face.AttackValue.rectTransform);
+            AssertContained(face.CardRoot, face.HealthValue.rectTransform);
+        }
+        finally
+        {
+            if (root != null) UnityEngine.Object.DestroyImmediate(root);
+        }
+    }
+
+    private static void AssertContained(RectTransform parent, RectTransform? child)
+    {
+        Assert.That(child, Is.Not.Null);
+        var parentCorners = new Vector3[4];
+        var childCorners = new Vector3[4];
+        parent.GetWorldCorners(parentCorners);
+        child!.GetWorldCorners(childCorners);
+        const float epsilon = 0.5f;
+        Assert.That(childCorners[0].x, Is.GreaterThanOrEqualTo(parentCorners[0].x - epsilon), child!.name + " left");
+        Assert.That(
+            childCorners[0].y,
+            Is.GreaterThanOrEqualTo(parentCorners[0].y - epsilon),
+            child.name + " bottom child=" + childCorners[0].y + " parent=" + parentCorners[0].y);
+        Assert.That(childCorners[2].x, Is.LessThanOrEqualTo(parentCorners[2].x + epsilon), child.name + " right");
+        Assert.That(childCorners[2].y, Is.LessThanOrEqualTo(parentCorners[2].y + epsilon), child.name + " top");
+    }
+
+    private static void AssertDoesNotOverlap(RectTransform left, RectTransform right)
+    {
+        var leftCorners = new Vector3[4];
+        var rightCorners = new Vector3[4];
+        left.GetWorldCorners(leftCorners);
+        right.GetWorldCorners(rightCorners);
+        Assert.That(
+            leftCorners[0].x >= rightCorners[2].x ||
+            rightCorners[0].x >= leftCorners[2].x ||
+            leftCorners[0].y >= rightCorners[2].y ||
+            rightCorners[0].y >= leftCorners[2].y,
+            Is.True,
+            left.name + " and " + right.name + " must not overlap.");
     }
 
     [Test]
@@ -264,7 +436,8 @@ public sealed class RuntimeCardFaceViewContractEditModeTests
     private RuntimeCardDisplayModel Model(
         RuntimeCardZone zone,
         RuntimeCardSnapshot snapshot,
-        string? artId = null)
+        string? artId = null,
+        int chant = 0)
     {
         var definition = new CardDefinition(
             "readable_card",
@@ -280,7 +453,8 @@ public sealed class RuntimeCardFaceViewContractEditModeTests
             keywords: new[] { "嘲讽" },
             tags: new[] { "守卫" },
             type: "MINION",
-            punish: 2);
+            punish: 2,
+            chant: chant);
         var catalog = new CardCatalog(new Dictionary<string, CardDefinition>(StringComparer.Ordinal)
         {
             [definition.Id] = definition,

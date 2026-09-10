@@ -123,7 +123,9 @@ namespace DominionWars.Data
                 card.ArtId,
                 hasCommitCost,
                 hasUploadCost,
-                hasDownloadCost);
+                hasDownloadCost,
+                card.LeaderWinText,
+                card.Chant);
             return true;
         }
 
@@ -214,13 +216,26 @@ namespace DominionWars.Data
             var hasExplicitCommitCost = TryGetProperty(element, "commitCost", out _);
             var hasExplicitUploadCost = TryGetProperty(element, "uploadCost", out _);
             var hasExplicitDownloadCost = TryGetProperty(element, "downloadCost", out _);
+            var hasExplicitPullEffects = TryGetProperty(element, "pullEffects", out _);
+            var commitCost = OptionalInt(element, "commitCost", 0, 0, 99, source);
+            var uploadCost = OptionalInt(element, "uploadCost", 0, 0, 99, source);
+            var downloadCost = OptionalInt(element, "downloadCost", 0, 0, 99, source);
+            ApplyMechanicalLifecycleDefaults(
+                faction,
+                isMinion,
+                isLeader,
+                ref commitCost,
+                ref uploadCost,
+                ref downloadCost,
+                ref hasExplicitCommitCost,
+                ref hasExplicitUploadCost,
+                ref hasExplicitDownloadCost,
+                pullEffects,
+                hasExplicitPullEffects);
             costPresence = new CardCostPresence(
                 hasExplicitCommitCost,
                 hasExplicitUploadCost,
                 hasExplicitDownloadCost);
-            var commitCost = OptionalInt(element, "commitCost", 0, 0, 99, source);
-            var uploadCost = OptionalInt(element, "uploadCost", 0, 0, 99, source);
-            var downloadCost = OptionalInt(element, "downloadCost", 0, 0, 99, source);
             var leaderEnterEffects = new List<EffectSpec>();
             var leaderPunishEffects = new List<EffectSpec>();
             var vulnerabilities = new List<string>();
@@ -306,6 +321,61 @@ namespace DominionWars.Data
                 pullEffects: pullEffects,
                 isLandmark: isLandmark,
                 landmarkTiers: landmarkTiers);
+        }
+
+        private static void ApplyMechanicalLifecycleDefaults(
+            string faction,
+            bool isMinion,
+            bool isLeader,
+            ref int commitCost,
+            ref int uploadCost,
+            ref int downloadCost,
+            ref bool hasExplicitCommitCost,
+            ref bool hasExplicitUploadCost,
+            ref bool hasExplicitDownloadCost,
+            List<EffectSpec> pullEffects,
+            bool hasExplicitPullEffects)
+        {
+            if (!isMinion
+                || isLeader
+                || !string.Equals(faction, "机械遗迹", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            // These lifecycle values are punishment draws, not a separate
+            // payment resource. The approved default applies only when a
+            // regular mechanical minion omitted that field; explicit card
+            // data wins.
+            if (!hasExplicitCommitCost)
+            {
+                commitCost = 1;
+                hasExplicitCommitCost = true;
+            }
+
+            if (!hasExplicitUploadCost)
+            {
+                // PUSH is the automatic queue-to-cloud timing point. A
+                // default ordinary minion must not punish twice for the same
+                // upload; an explicit upload value remains available.
+                uploadCost = 0;
+                hasExplicitUploadCost = true;
+            }
+
+            if (!hasExplicitDownloadCost)
+            {
+                downloadCost = 1;
+                hasExplicitDownloadCost = true;
+            }
+
+            if (!hasExplicitPullEffects)
+            {
+                pullEffects.Add(new EffectSpec(
+                    EffectNames.Buff,
+                    target: "FRIENDLY_MINION",
+                    amount: 1,
+                    param: "both"));
+            }
         }
 
         private readonly struct CardCostPresence

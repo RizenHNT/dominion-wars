@@ -253,6 +253,8 @@ public sealed class SerializationTests
                 "{\"EntityId\":1,\"CardId\":\"legacy\",\"OwnerPlayer\":0}")!;
             Assert.That(legacyCard.CurrentAttack, Is.Null);
             Assert.That(legacyCard.CurrentHealth, Is.Null);
+            Assert.That(legacyCard.ChantRemaining, Is.Null);
+            Assert.That(legacyCard.LandmarkPullCount, Is.Null);
         });
 
         var source = new RuntimeSnapshotEnvelope
@@ -299,6 +301,8 @@ public sealed class SerializationTests
                             OwnerPlayer = 0,
                             CurrentAttack = 8,
                             CurrentHealth = 1,
+                            ChantRemaining = 1,
+                            LandmarkPullCount = 2,
                         },
                     },
                 },
@@ -318,6 +322,8 @@ public sealed class SerializationTests
             Assert.That(copy.Players[0].CloudStack[1].EntityId, Is.EqualTo(31L));
             Assert.That(copy.Players[0].CloudStack[1].CurrentAttack, Is.EqualTo(8));
             Assert.That(copy.Players[0].CloudStack[1].CurrentHealth, Is.EqualTo(1));
+            Assert.That(copy.Players[0].CloudStack[1].ChantRemaining, Is.EqualTo(1));
+            Assert.That(copy.Players[0].CloudStack[1].LandmarkPullCount, Is.EqualTo(2));
         });
     }
 
@@ -332,8 +338,12 @@ public sealed class SerializationTests
         {
             Assert.That(legacy.CurrentAttack, Is.Null);
             Assert.That(legacy.CurrentHealth, Is.Null);
+            Assert.That(legacy.ChantRemaining, Is.Null);
+            Assert.That(legacy.LandmarkPullCount, Is.Null);
             Assert.That(legacyJson, Does.Not.Contain("currentAttack"));
             Assert.That(legacyJson, Does.Not.Contain("currentHealth"));
+            Assert.That(legacyJson, Does.Not.Contain("chantRemaining"));
+            Assert.That(legacyJson, Does.Not.Contain("landmarkPullCount"));
         });
 
         var source = new RuntimeCardSnapshot
@@ -343,6 +353,8 @@ public sealed class SerializationTests
             OwnerPlayer = 1,
             CurrentAttack = 7,
             CurrentHealth = 2,
+            ChantRemaining = 1,
+            LandmarkPullCount = 3,
         };
         var json = RuntimeWireSerializer.Serialize(source);
         var copy = RuntimeWireSerializer.Deserialize<RuntimeCardSnapshot>(json);
@@ -351,9 +363,13 @@ public sealed class SerializationTests
         {
             Assert.That(json, Does.Contain("\"currentAttack\":7"));
             Assert.That(json, Does.Contain("\"currentHealth\":2"));
+            Assert.That(json, Does.Contain("\"chantRemaining\":1"));
+            Assert.That(json, Does.Contain("\"landmarkPullCount\":3"));
             Assert.That(json, Does.Not.Contain("\"CurrentAttack\""));
             Assert.That(copy.CurrentAttack, Is.EqualTo(7));
             Assert.That(copy.CurrentHealth, Is.EqualTo(2));
+            Assert.That(copy.ChantRemaining, Is.EqualTo(1));
+            Assert.That(copy.LandmarkPullCount, Is.EqualTo(3));
         });
     }
 

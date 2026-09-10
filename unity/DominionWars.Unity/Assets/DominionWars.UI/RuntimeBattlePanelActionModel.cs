@@ -301,6 +301,39 @@ public static class RuntimeBattlePanelActionModel
         return WireValuesEqual(legal.SourceId, selectedCardEntityId);
     }
 
+    /// <summary>
+    /// Returns whether an already-advertised action belongs in the compact
+    /// phase context surface. This is placement only: the engine remains the
+    /// sole authority for whether the action is legal, and this helper never
+    /// creates or removes an action from a snapshot.
+    ///
+    /// ACTION-phase END_TURN deliberately stays on the main action rail. A
+    /// phase-level END_TURN in another phase is still surfaced beside the
+    /// phase status so the user can see what the current phase is waiting for.
+    /// </summary>
+    public static bool IsPhaseContextAction(
+        RuntimeLegalAction legal,
+        string? phase)
+    {
+        if (legal is null) return false;
+
+        var type = legal.Type?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (type == "SKIP_AMBUSH") return true;
+        return type == "END_TURN" &&
+            !string.Equals(phase, "ACTION", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Returns whether an advertised discard action should be rendered beside
+    /// the player's hand selection. It is intentionally keyed by the wire
+    /// action type only; the panel never infers which cards may be discarded.
+    /// </summary>
+    public static bool IsDiscardContextAction(RuntimeLegalAction legal)
+    {
+        return legal != null &&
+            string.Equals(legal.Type?.Trim(), "DISCARD", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static RuntimeBattlePanelActionState Evaluate(
         RuntimeLegalAction action,
         object? pendingPrompt = null)
