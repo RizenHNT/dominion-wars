@@ -42,7 +42,8 @@
 | 26 | 正向 + **P2/P3（报表）** | **（§13.20 追加）** **PL 的 C# 权威实测已被我独立复现**：从 **HEAD 源码重建 dll** 后覆盖 harness 副本，重跑全部 **14 组配置 / 10 080 局**，得**逐字段 0 差异**（config A 39 字段、其余各 50 字段），种子 **720/720 全唯一**（对照 F20 无采样偏置）、关键计数逐项对上 ⇒ **PL 的 C# 数字有修订版锚点、可复现**（§13.19 的"无锚点"只属于我先前的 Java 读数）。同时发现 **F23**：报告 §3 的链深直方图是**两件仪器逐档相加**（108 730 = 事件 48 060 + 决策 60 670 = 链数 7 541 的 **14.4 倍**）、§5 表 10.61 应为 **10.56**、§4"平均回合"列实为**烈焰的 `avgTurns`**、§4 清深海行 23.11 与产物 23.06 不符——**四处都不改变报告结论方向**。 |
 
 | 27 | **P0×2 / P1×4（复核裁决）** | **（§13.21 追加）** **逐条复核 PL 的代码审核清单**（`docs/PL_CODE_AUDIT_2026-09-09.md`，110 行）：基线 **603/603 全绿**（`dotnet test … -c Release`，当前修订版）。**仍成立**：P0-1（先驱惩罚缺失，且 C# **只做了手牌上限那一半**）、P0-2（`AMBUSH_TRIGGER_WIN` **在 schema enum 里、引擎永不执行**）、P1-1/2/3、P2-2/3/8/9/10、§六"另注"（**升格 P0**：Unity 侧**没有任何"发动惩罚"的合法动作**，`LegalActionGenerator` 中 `punish` 零命中，而 Java `WebHumanAgent.askActivatePunish` 有完整人工路径）。**已过期/误读（建议删除）**：**P0-4 主体**（`EffectRuntime.Cards.cs:514` 确实读取阈值 ⇒ 破城方**只差 1 次循环即胜**，不是死局）、**D-1**（与 `RULES.md:125-126` 方向一致，无歧义）、**D-2**（已由 `:128` 定稿）。**需改表述**：P0-3（已修复 + 已有 `EffectChainTests.cs:38-61`，仅缺两段 AOE 用例）、P2-1（降 P3，两端玩法都有 `Math.max(0,…)`）、P2-4、P2-7、**P2-11**（死分支存在但清单举错了条件名）。**新增 F24–F27**：**F24 C# 完全不读 `data/balance.json`**（全参数硬编码 ⇒ 改平衡文件对 Unity 侧无效，P0-1 只是其一个实例；**已用四臂对照实测证明**：改该文件 C# 输出 SHA 不变、改一张卡即变，见 §13.22）；**F25 快照 wire format 无契约测试**（canonical `game_snapshot.schema.json` **从未被任何 C# 测试引用**，legacy `SnapshotDto` 结构上不可能通过却仍在仓库）；**F26 v1.31 事件契约有校验器却无生产者**（引擎发 **46** 种事件类型 / **51** 种载荷键，契约只收 **29**/**7**，`RuntimeEventEnvelope` 只在测试中构造）；**F27** 澄清（`RuntimeEventCursor` 的校验质量高于清单假设） |
-- 分支：`codex/p0-complete-match-loop-2026-09-06`，`HEAD=880250c`（2026-09-06 之后无新提交）
+| 28 | **P1（契约 / 新发现）** | **（§13.23 追加）** **canonical v1.31 投影会发布违反自身 schema 的负 `currentHealth`（F28）**：`EffectRuntime.Combat.cs:333`（`DamageCard`）**不夹零**，而唯一 canonical 生产者 `RuntimeContractV131Snapshot.cs:160`（`CurrentHealth = card.Health`）**原样搬运** ⇒ 任意**溢出击杀**（伤害 > 剩余血量）使墓场卡 `currentHealth` 为负，违反 `schemas/game_snapshot.schema.json:57` 的 `minimum: 0`，而契约 `:74` 规定无效消息 **fail-closed**；同时契约 `:77` 又要求投影**必须直投**权威血量 ⇒ 二者不可同时满足。**治疗组 vs 对照组实证**：S6 施加 `DAMAGE ALL_ENEMY_MINIONS 5` 后 schema **2 errors**（−2 / −4），S7 同工作台不施加效果 **0 errors**；JSON 由仓库自身 `RuntimeWireSerializer` 生成。**只在 v1.31 成立**（v1.30 的 schema 无 health 约束）。**与 F25 硬耦合**：F25 的"用 schema 校验生产快照"这条测试**今天实现就会红** |
+- 分支：`codex/p0-complete-match-loop-2026-09-06`，`HEAD=4ff38dc`（本报告的 F24 实证提交；`main` 停 `6c9ef65`；两者均未 push）
 - .NET SDK：8.0.425
 - 数据快照：审计时刻 `machine.json` SHA256 前缀 `A7AD0E6F997E`、`wood.json` `240C42D6DAA1`、`sea.json` `4C86A410D0BD`、`flame.json` `2740725CA701`、`neutral.json` `CAE381377FBD`
 
@@ -1356,12 +1357,86 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 
 **本节不可外推的部分**：① 5 个键是**成组**修改 ⇒ 行为实验证明的是"对该文件**整体**零敏感"，**逐键**归因靠上表的源码行号（二者合起来才构成完整证明）；② C# 侧跑的是我的**仓外预言机**而非 Unity 构建产物，但它引用的就是 `build-output` 的 `DominionWars.Engine.dll`，且 `src/Engine` 相对 `HEAD` 无改动 ⇒ 代表主线引擎代码；③ **诚实说明**：我的预言机自身也没有 balance 装载代码（它只把 `data/cards`、`data/decks` 交给引擎）⇒ 行为实验证明的是"**这条 host+engine 路径对该文件零敏感**"；**产品级**的"没有任何宿主读它"这一条，依据是**全仓库排除 `docs/`/`design/` 后的零命中取证**（唯一读取者 = Java 侧 + `scripts/sanity_check_v2.py` 的键齐全校验，含 `unity/Assets` 全部脚本）——两条证据合起来才等于 F24 的完整结论。**复现命令与原始输出**见 `docs/QA_HANDOFF_2026-09-11.md` §5。
 
+### 13.23 P0-3 残留形态探针实证（机制成立、**当前不可达**）+ 由同一探针升级出的新缺陷 **F28（P1）**：canonical v1.31 生产者在溢出击杀后发布**负 `currentHealth`**（2026-09-11 02:0x）
+
+**本节边界**：全部实验在**仓库外** `%TEMP%\qa-p03p04\` 进行，只调用 `src/` 的**公开 API**（`GameState`、`EffectDispatcher`、`RuntimeSnapshotProjection`、`RuntimeWireSerializer` 均为 public；`src/` 内无 `InternalsVisibleTo`）⇒ **未修改任何生产/测试文件、未动 Git 指针、未启动 relay**。探针从**合成摆盘**出发（手工放置 3 个敌方随从 + 1 个我方随从 + 两套预组牌库），不是真实对局回放 ⇒ 结论限于"**机制与投影行为**"；"当前卡池能否触发"另由**全卡扫描**单独证明（13.23.2）。
+
+#### 13.23.1 复现（三条命令，全部在仓库外执行）
+
+| 序 | 命令 | 预期 |
+|---|---|---|
+| 1 | `dotnet build %TEMP%\qa-p03p04\qa-probe.csproj -c Release -p:MSBuildEnableWorkloadResolver=false` | **0 警告 0 错误** |
+| 2 | `dotnet %TEMP%\qa-p03p04\bin\Release\net8.0\QaProbe.dll <仓库根路径>` | 打印 S1–S7；落盘 `canonical-snapshot-1.json`（含负血）与 `canonical-snapshot-2.json`（对照） |
+| 3 | `python %TEMP%\qa-p03p04\validate_snapshot.py design\runtime-kit-v1.31\contracts\schemas\game_snapshot.schema.json <上述两个 JSON>` | 前者 **2 errors**、后者 **0 errors**，末行 `RESULT: FAIL` |
+
+工件 SHA256（前 16 位，便于比对）：`Program.cs` `E017A15E87C1A2DB`、`qa-probe.csproj` `FFBFFC7A55B97C93`、`canonical-snapshot-1.json` `BC0F2BB202B1A9EB`、`canonical-snapshot-2.json` `C9015DAA38E364CF`。
+**第 3 步的脚本必须先 `schema.pop("$id", None)`**：该 schema 的 `$id` 是 `urn:dw:runtime:contract:1.31:game-snapshot`，`jsonschema` 4.17.3 会以 `RefResolutionError: unknown url type: ''` 拒绝加载；删 `$id` 是安全的，因为 schema 内 `$ref` 全是普通 `#/$defs/...`。
+
+#### 13.23.2 卡数据可达性：**当前不可达**（91 张卡全扫描）
+
+- **无任何卡**同时含"同一批内的两段伤害 AOE"（= 清单 P0-3 所假设的形态）；
+- **无任何卡**含"同批伤害 + 治疗"（= S3 那种"打死后在同一批被治疗救回"）；
+- `ROYAL_CASTLE_BREAK` 全仓库只有 `data/cards/flame.json:18` 一个持有者 ⇒ `EffectRuntime.State.cs:214-217` 的"双方均持有"分支**不可达**（`:200-207` 的"双方随从"分支可达）。
+
+⇒ **对清单 P0-3 的裁决**：**主形态（单段 AOE 溢出）确已修复**且已有回归测试（`EffectChainTests.cs:38-61`），**残留形态（同批多段）机制成立但当前不可达**。建议 **Codex 补一条两段 AOE 用例**把语义钉住（究竟"允许第二次命中尸体"还是"应跳过"），**不必改引擎**。
+
+#### 13.23.3 批内行为实测（S1–S5）
+
+摆盘（每个场景前重建）：敌方 `flame_guard#123(5/6)`、`flame_recruit#124(3/3)`、`flame_charger#125(1/2)`；我方 `wood_treant#126(3/8)`。
+
+| 场景 | 施加效果 | 123 / 124 / 125 终值 | 墓场 P1 | `DAMAGE_DEALT` | `MINION_DESTROYED` | 读数 |
+|---|---|---|---|---|---|---|
+| S1 | 单段 `DAMAGE ALL_ENEMY_MINIONS 5`（非延迟） | 0 / **−2** / **−4** | 3 | 3 | 3 | 负血**不是**批内独有 |
+| S2 | 同批 `DAMAGE 5` + `DAMAGE 2`（DeferDeaths） | **−2** / **−4** / **−6** | 3 | **6** | 3 | 尸体被二次命中；**无**双重死亡、**无**重复入墓 |
+| S3 | 同批 `DAMAGE 5` + `HEAL ALL_ENEMY_MINIONS 2` | **2** / 0 / −2 | **2** | 3 | 2 | 5 血单位 **0 → 2 复活并留在场**（必死变存活） |
+| S4 | 两次**独立** `Apply`（各自 CheckAll） | 0 / −2 / −4 | 3 | 3 | 3 | 第二批结算前尸体已清 ⇒ 唯一事件是 `EFFECT_SKIPPED`（`target.none`） |
+| S5 | 同批 `DAMAGE 5` + `HEAL 5`（足量治疗） | 5 / 3 / 1 | 0 | 3 | 0 | 有符号池**完全可逆** ⇒ 批内延迟死亡是**设计**而非 bug |
+
+**读法**：S1/S4 证明"溢出伤害被写成负数"**单段即存在**（不是批内独有）；S2 证明"批内不清理尸体"让同一目标多挨一次（多出 3 条 `DAMAGE_DEALT`）并使负值更深；S3/S5 证明"批内治疗能救回本该死"与"足量治疗完全复原"。⇒ 若改成"伤害时夹零"，S3 的 3 血单位会**从死变活**，因此**不是无害重构**（见 13.23.5 选项 ③）。
+
+#### 13.23.4 ⭐ F28（P1，新）：canonical v1.31 投影会发布**违反自身 schema** 的负 `currentHealth`
+
+**根因链（全在 C# 主线）**
+
+1. **伤害不夹零**：`src/Engine/Effects/EffectRuntime.Combat.cs:333`（`DamageCard`）直接执行 `target.Health -= amount`；对照同一文件 `:112`（`DamageNonMinionLeader`）与 `src/Engine/Effects/EffectRuntime.State.cs:182`（王城）都写了 `Math.Max(0, …)` ⇒ **三条伤害路径两条夹零、一条不夹**。
+2. **投影原样搬运**：`src/Adapters/RuntimeContractV131Snapshot.cs:53`（`Graveyard = Cards(player.Graveyard)`）→ `:160`（`CurrentHealth = card.Health`，**无夹零、无省略**）。该投影是 canonical 的**唯一生产者**（入口 `src/Adapters/RuntimeMatchGateway.cs:132-136`），Unity 侧由 `unity/DominionWars.Unity/Assets/DominionWars.Runtime/RuntimeAdapter.cs:60/67` 消费。
+3. **契约自相矛盾**：`design/runtime-kit-v1.31/contracts/RUNTIME_CONTRACT_1.31.md:77` 要求 `currentHealth` **必须直接来自权威 `CardInstance.Health`**；`contracts/schemas/game_snapshot.schema.json:57` 要求 `minimum: 0`（`:49` `additionalProperties: false`）；契约 `:74` 规定无法解析/无效的消息**fail-closed**（整条消息作废）。⇒ 只要发生**一次溢出击杀**，二者**不可能同时满足**。
+
+**证据（S6 治疗组 / S7 对照组，JSON 由仓库自己的 `RuntimeWireSerializer` 生成，viewer = 受害方 `player_1`）**
+
+| 臂 | 施加 | 墓场 `currentHealth` | 负值计数 | schema 校验结果 |
+|---|---|---|---|---|
+| S6 | `DAMAGE ALL_ENEMY_MINIONS 5` | `[123=0, 124=−2, 125=−4]` | **2** | **2 errors**：`players/1/graveyard/1/currentHealth` = −2、`players/1/graveyard/2/currentHealth` = −4（均 `is less than the minimum of 0`） |
+| S7 | 无（同一工作台，不施加效果） | `[123=5, 124=3, 125=1]`（未死亡） | 0 | **0 errors** |
+
+**违规被隔离到负血量这一个值**：其余载荷（`contractVersion`、`players`、`field`、`hand`、`castle`、计数类字段）全部合规 —— S6 与 S7 的 `jsonBytes` 只差 2（1874 vs 1872），正好是 `-2` / `-4` 与 `0` / `0` 的字节差。
+
+**影响面**
+
+- 按契约 `:74`，合规客户端**必须拒绝一份合法对局快照** ⇒ 任意一次溢出击杀后画面/状态同步断裂；
+- Unity 卡牌检视视图会枚举墓场卡并走 `RuntimeCardDisplayModel.cs:106`（`CurrentHealth = IsMinion ? snapshot.CurrentHealth : null`）⇒ **UI 会显示 −2**（主战面板的墓场只显示数量，`RuntimeBattlePanel.cs:876/921` `SetPileCount`，所以问题只在检视/未来的卡面渲染）；
+- **只在 v1.31 成立**：v1.30 的 `game_snapshot` schema 极松（`players.items` 仅 `{type: object}`，**无** health 约束）⇒ 负血量在 v1.30 **不构成违规**（这也是它长期不被发现的原因）。
+
+#### 13.23.5 修复选项（**需 PL 定稿契约文本；我不改生产代码**）
+
+| 选项 | 改动位置 | 影响 | 评价 |
+|---|---|---|---|
+| ① **投影层夹零** | `RuntimeContractV131Snapshot.cs:160` 改 `Math.Max(0, card.Health)` | 与 Java 的显示约定一致（`src/main/java/com/dominionwars/engine/Game.java:1113` 打印 `Math.max(0, target.health)`）；**零规则影响** | **推荐**；但需在契约 `:77` 加一句豁免（"权威状态不夹零；投影/日志展示值夹零"） |
+| ② `Health ≤ 0` 时**省略** `currentHealth` | 同处条件赋值 | schema `:50` 已允许缺省、`:77` 标注 optional ⇒ **零 schema 改动** | 次优；代价是墓场卡面缺一个数值 |
+| ③ **引擎层** `DamageCard` 夹零 | `EffectRuntime.Combat.cs:333` | 按 S3：3 血单位受 5 伤先夹到 0，再受同批 `HEAL 2` → **2，从必死变为存活** ⇒ **规则语义变更** | **不是无害重构**，需 owner 批准；且该场景**当前无卡可达** |
+| ④ 放宽 schema（删 `minimum: 0`） | 契约变更 | 让"投影 = 权威"这条约束**永久失守** | 最差 |
+
+**与 F25 的硬耦合**：`codex-f25-snapshot-contract-test`（用 `game_snapshot.schema.json` 校验生产快照）**一旦实现，今天就会红** —— 任意溢出击杀即触发 F28 ⇒ **必须先定 F28，再做 F25**。
+
+#### 13.23.6 本节不可外推的部分
+
+① 探针是**合成摆盘**，不覆盖"真实对局驱动的完整快照"（但 F28 只需**一次**溢出击杀，与摆盘方式无关，且 S6 的 JSON 由**仓库自身**的 wire 序列化器产出）；② 我**未**跑 Unity 侧渲染，"UI 显示 −2"的依据是**源码路径**（`RuntimeCardDisplayModel.cs:106` + 检视视图枚举墓场），**未**做屏幕级验证；③ 卡池可达性扫描基于当前 `data/cards/*.json` 快照，**新增一张卡即可改变结论**（这正是要把它写成门禁用例的理由）；④ S1–S7 的原始转录见 `%TEMP%\qa-p03p04\probe-output.txt`（96 行）。
+
 ---
 
 ## 14. 本轮新增发现汇总与建议动作
 
-> ⚠️ **F17 行已作废，以 §13.17 为准**（F17 撤回为"非引擎缺陷"；剩余工作是改 `RULES.md` 文本 + 修 F18 + 补一格覆盖用例）。**F18 / F19 / F20 行维持有效**，其中 F19 的性质由"需定稿裁决"变为"**需文本改写（owner 意图已明确）**"。新增 **F21**（`docs/BALANCE.md` 陈旧基线，见下与 §13.18）与 **F22**（**`HEAD` ≠ 工作树**：1 402 行未提交代码是唯一的"合并候选"风险，见 §13.19）。**本段再追加 F23**（PL 报告的 §3/§4/§5 **五处取值与表述问题**，**均不改变其结论方向**；并附 QA 独立追加的 **B 模式消融证据**，见 §13.20）。**再追加 F24–F27**（PL 代码审核清单的逐条复核裁决与四项新发现，见 §13.21）。
-
+> ⚠️ **F17 行已作废，以 §13.17 为准**（F17 撤回为"非引擎缺陷"；剩余工作是改 `RULES.md` 文本 + 修 F18 + 补一格覆盖用例）。**F18 / F19 / F20 行维持有效**，其中 F19 的性质由"需定稿裁决"变为"**需文本改写（owner 意图已明确）**"。新增 **F21**（`docs/BALANCE.md` 陈旧基线，见下与 §13.18）与 **F22**（**`HEAD` ≠ 工作树**：1 402 行未提交代码是唯一的"合并候选"风险，见 §13.19）。**本段再追加 F23**（PL 报告的 §3/§4/§5 **五处取值与表述问题**，**均不改变其结论方向**；并附 QA 独立追加的 **B 模式消融证据**，见 §13.20）。**再追加 F24–F27**（PL 代码审核清单的逐条复核裁决与四项新发现，见 §13.21）。**最后追加 F28**：P0-3 残留形态探针（`%TEMP%\qa-p03p04\`，仓库外只读）证明批内延迟死亡机制**成立但当前不可达**，并由同一探针端到端证实 **canonical v1.31 生产者在溢出击杀后发布负 `currentHealth`**（违反自身 schema、fail-closed 契约）——见 §13.23；**F28 与 F25 硬耦合（先定 F28 再做 F25）**。
 | # | 发现 | 严重度 | 归属 / 建议动作 |
 |---|---|---|---|
 | F3 | 生产 AI 无生命周期策略 ⇒ 机械（及任何生命周期轴统领）在发布路径上胜率恒 0，改数值无效 | **P0**（主线完成度） | **Codex**：**C# `RuntimeAiPolicy.cs`** 至今零 `Pull/Commit/Push/Rollback` 分支（Java `AiAgent` 已在 23:53–00:00 补上，但那是测试台）⇒ 需在 C# 侧补提交/下载/地标策略，或在合法动作表层面给出可用选择 |
@@ -1391,6 +1466,7 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 | **F25** | **快照 wire format 从来没有契约测试**：canonical `design/runtime-kit-v1.31/contracts/schemas/game_snapshot.schema.json`（`additionalProperties:false`、required 含 `snapshotRevision`/`viewerPlayerId`/`pendingPrompt`、player 要 `fieldCount`/`graveyardCount`/`ambushCount`、**无 `deck` 字段**、`card.currentHealth minimum 0`）**从未被任何 C# 测试引用**（`ContractBoundaryTests.cs:151` 只引 `game_action.schema.json`，v1.31 目录虽有 valid/invalid fixtures）。legacy `SnapshotDto`/`PlayerDto`（`src/Adapters/ContractDtos.cs:7-49`：PascalCase `Id`/`FieldEntityIds`/`Deck`/一堆 `*ThisTurn`）**结构上不可能通过 v1.31 校验**却仍在仓库里被测试固化（`EngineProjectionAdapter.cs:62-103` 还投影**有序牌库**与双方手牌）。这正是 **P2-3 负 HP** 与 **P2-5 名不副实测试**能长期存活的共同根因 | **P1（契约）** | **Codex**：① 加用 `game_snapshot.schema.json` 校验生产快照的测试；② legacy 1.30 DTO/适配器打 `[Obsolete]` 或删除；③ 修 `RuntimeSnapshotProjectionTests.cs:453` 的断言（它只验 `DeckCount`，从未验 `Deck` 列表）。**详见 §13.21.5** |
 | **F26** | **v1.31 的"事件边界"有契约、有校验器，却没有生产者**：引擎实际发出 **46** 种事件类型、**51** 种 `Data()` 载荷键（字面量扫描，**下界**）；canonical `ui_event.schema.json` 的 `type.enum` 只有 **29** 个，`RuntimeEventCursor`（`:29-38`）**逐个对齐这 29 个**并把载荷键限制为 **7** 个（`:40-43`，`:92` 未知键即 `event.data_field_unknown`）。**但 `RuntimeEventEnvelope`/`RuntimeEventCursor` 在 `src/` 中只被 `src/Engine/Tests/RuntimeEventCursorTests.cs` 构造**；`RuntimeMatchGateway` 对外返回**原始引擎 `GameEvent`**（`:110-111/:177`）。唯一的类型改名表是 legacy 1.30 的 `EventTypeMap`（`EngineProjectionAdapter.cs:14-43`，26 键、仅覆盖 22 种引擎类型；批量为**静默丢弃**、单条为**抛异常**）⇒ **28 个引擎事件类型在 canonical 契约中不可表达、11 个契约类型无生产者**。任何要把事件按契约扇出到 Web 的宿主都得再写一遍映射 | **P1（集成缺口）** | **Codex**：补 `GameEvent → RuntimeEventEnvelope` 的生产映射（改名表 + 载荷裁剪 + `snapshotRevision` 打戳），覆盖全部 46 种（或与 PL 一起收窄 enum）；**PL/owner**：确认那 29 项 enum 是否为最终意图。**清单 P2-8（`DEFEAT_PREVENTED`）是本条的一个实例**（引擎发出但两端白名单都没有 ⇒ 批量静默丢弃） |
 | **F27** | **（澄清，防重写）** `RuntimeEventCursor` 的校验质量高于清单假设：已实现乱序 / 缺号 / 重复 / 父缺失 / 相位 / 版本 / 终局载荷（`GAME_OVER` 必须恰好两字段且 `reasonKey` 齐备，`:95-115`）等拒绝原因 ⇒ 清单把 P2-8 描述为"白名单缺失"**低估了已有实现**，真正的缺口是 F26 的"没有生产者" | 澄清 | 记录在案，供 Codex **复用而非重写**；**详见 §13.21.5** |
+| **F28** | **canonical v1.31 的投影会发布违反自身 schema 的负 `currentHealth`（溢出击杀 ⇒ 投影与契约不可能同时满足）**：`EffectRuntime.Combat.cs:333`（`DamageCard`）**不夹零**（对照：`:112` 与 `Runtime.State.cs:182` 都夹零；Java `Game.java:1112` 状态不夹零但 `:1113` 日志夹零），而 canonical 的**唯一生产者** `Adapters/RuntimeContractV131Snapshot.cs:160`（`CurrentHealth = card.Health`）**原样搬运** ⇒ 任意伤害超过剩余血量时，墓场卡 `currentHealth` 为负，违反 `contracts/schemas/game_snapshot.schema.json:57` 的 `minimum: 0`，而契约 `:74` 要求无效消息 **fail-closed**；同时契约 `:77` 又要求投影**必须直投权威 `CardInstance.Health`** ⇒ **同时满足不可能**。**实证**（JSON 由仓库自身 `RuntimeWireSerializer` 生成）：S6 施加 `DAMAGE ALL_ENEMY_MINIONS 5` ⇒ `graveyard = [0, −2, −4]`、schema **2 errors**（`players/1/graveyard/1`、`/2` 的 `currentHealth`）；S7 同工作台不施加效果 ⇒ **0 errors**；两臂 `jsonBytes` 只差 2 ⇒ **违规被隔离到负血量这一个值**。**影响**：合规客户端必须拒绝一份合法对局快照；Unity 检视视图经 `RuntimeCardDisplayModel.cs:106` 会显示 −2（主战面板墓场只显示数量）。**只在 v1.31 成立**（v1.30 的 schema 无 health 约束） | **P1（契约）** | **PL/owner 定稿契约文本 → 再由 Codex 落地**。**PL 裁决四选一**：① 投影层夹零 `Math.Max(0, …)`（**零规则影响**，与 Java 日志约定一致，需在 `:77` 加一句"权威不夹零、展示夹零"豁免）＝**推荐**；② `Health ≤ 0` 时省略 `currentHealth`（schema 已允许，**零 schema 改动**）；③ 引擎层 `DamageCard` 夹零 —— **不是无害重构**：按 S3，3 血单位受 5 伤夹零 → 0，再受同批 `HEAL 2` → **2 存活**，**改的是规则结果**，需 owner 批准（该场景当前无卡可达）；④ 放宽 schema＝最差。**Codex**：**必须先定 F28 再做 `codex-f25-snapshot-contract-test`** —— 该测试今天实现即红（任意溢出击杀）。**探针/复现**：见 §13.23.1（三条命令，仓库外，只读仓库） |
 | F17 | ~~"双随从 + 仅防守方持有 ⇒ C# 抢走防守方被动胜"~~ **⚠️ 本节结论已由 §13.17 整体撤回**：按 owner 2026-09-11 的定稿（「不然大家都不打王城了」+「alpha……所以不需要破城」），第 4 行的**应然结果就是破城方胜**，C# `:200-207` **结果正确**、`EffectRuntimeTests.cs:604-642` **编码的正是定稿规则应保留**；§13.14-⑤ 的**方案 (a) 作废**。剩余工作＝改 `RULES.md:105/:137/:138` 文本（PL/owner）+ 修 F18 + 补一格覆盖用例（Codex） | **~~P1~~ 撤回** | **PL/owner**（文本）+ **Codex**（F18 + Java 对齐 + 补用例）。**详见 §13.17** |
 | F18 | **F17 撤回后，本地唯一的真缺陷**：`EffectRuntime.State.cs:214-217` 在"双方均持有 `ROYAL_CASTLE_BREAK`"时 `return`（无人获胜），而 `RULES.md:138` 与 owner 的"打破平局"意图都要求**破城方胜**（Java 亦正确）⇒ **可无条件判定为缺陷、可立刻修，不需要等定稿**。今天不可达（仅 `flame_leader` 持有），且在第 3/4 行被 `:200-207` 抢先 `return` 掩盖；只在"双方均持有 **且** 至少一方非随从"时暴露 | **P2（潜伏，可立刻修）** | **Codex**：改为 `if (!breakerHolds && !defenderHolds) return;` 再 `DeclareWinner(breakerHolds ? breaker : defender, "win.royal_castle_break")`。**C# 的 `:200-207` 不要动**（见 §13.17） |
 
@@ -1398,4 +1474,4 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 
 ---
 
-— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19 / 破城胜利分歧与采样缺陷追加 2026-09-11 00:26 / **定稿复核：F17 撤回、F18 维持（§13.17）、`BALANCE.md` 陈旧基线 F21（§13.18）追加 2026-09-11 00:34** / **读数复现校验 + F21 范围更正（"部分失效"）+ F19 转纯文本改写 2026-09-11 00:36** / **提交态 vs 工作树独立重建对比、新增 F22（1 402 行未提交代码）2026-09-11 00:44** / **独立复现 PL 的 10 080 局 C# 权威实测（14/14 配置、逐字段 0 差异）+ 新增 F23（§13.20）2026-09-11 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27（§13.21）2026-09-11 01:0x** / **F24 行为级实证：改该文件对 C# 输出零影响、改一张卡即变（四臂对照含阳性对照，§13.22）2026-09-11 01:2x**
+— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19 / 破城胜利分歧与采样缺陷追加 2026-09-11 00:26 / **定稿复核：F17 撤回、F18 维持（§13.17）、`BALANCE.md` 陈旧基线 F21（§13.18）追加 2026-09-11 00:34** / **读数复现校验 + F21 范围更正（"部分失效"）+ F19 转纯文本改写 2026-09-11 00:36** / **提交态 vs 工作树独立重建对比、新增 F22（1 402 行未提交代码）2026-09-11 00:44** / **独立复现 PL 的 10 080 局 C# 权威实测（14/14 配置、逐字段 0 差异）+ 新增 F23（§13.20）2026-09-11 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27（§13.21）2026-09-11 01:0x** / **F24 行为级实证：改该文件对 C# 输出零影响、改一张卡即变（四臂对照含阳性对照，§13.22）2026-09-11 01:2x** / **P0-3 残留探针（仓库外 S1–S7：批内延迟死亡机制成立但当前不可达）+ 新发现 F28（canonical v1.31 投影发布负 `currentHealth`、违反自身 schema）§13.23 2026-09-11 02:0x**

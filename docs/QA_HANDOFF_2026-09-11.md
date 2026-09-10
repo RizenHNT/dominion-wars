@@ -201,6 +201,17 @@ DeclareWinner(breakerHolds ? breaker : defender.PlayerIndex,  // 持有者胜；
    dotnet %TEMP%\dw-cs-sim\bin\Release\net8.0\DwSim.dll %TEMP%\qa-f24-cards2   250 decline 60  # C  只改一张卡（SHA 169AB81B…）
    ```
 
+6. ⚠️ **（02:0x 新增）主线现在会产出"违反自己契约"的快照（F28）⇒ 合入前应先定契约文本**：canonical v1.31 的**唯一生产者** `src/Adapters/RuntimeContractV131Snapshot.cs:160` 无条件 `CurrentHealth = card.Health`，而 `EffectRuntime.Combat.cs:333`（`DamageCard`）**不夹零** ⇒ **任意溢出击杀**都会让墓场卡 `currentHealth` 变负，违反 `design/runtime-kit-v1.31/contracts/schemas/game_snapshot.schema.json:57` 的 `minimum: 0`，而契约 `RUNTIME_CONTRACT_1.31.md:74` 要求无效消息 **fail-closed**，`:77` 又要求该字段**必须直投**权威血量 ⇒ **二者不可能同时满足**。**治疗组 vs 对照组**：施加一次 `DAMAGE ALL_ENEMY_MINIONS 5` 后 schema **2 errors**（−2 / −4），同工作台不施加效果 **0 errors**（JSON 由仓库自身 `RuntimeWireSerializer` 生成）。**为什么算合并硬理由**：① 修复 F25（用这份 schema 校验生产快照的测试）**今天实现就会红** ⇒ 这条门禁会被迫"带着已知失败"上线；② 修法有**四选一**，其中"引擎层夹零"**会改规则结果**（探针 S3：同批 `DAMAGE 5 + HEAL 2` 已能把 3 血单位从必死变存活）⇒ 属 owner/PL 的规则裁决，**不能由合并顺手决定**。
+
+   复现（**全部在仓库外，只读仓库**；探针只用 `src/` 公开 API）：
+
+   ```
+   dotnet build %TEMP%\qa-p03p04\qa-probe.csproj -c Release -p:MSBuildEnableWorkloadResolver=false
+   dotnet %TEMP%\qa-p03p04\bin\Release\net8.0\QaProbe.dll <repo>          # 打印 S1–S7 + 落盘两个快照
+   python %TEMP%\qa-p03p04\validate_snapshot.py design\runtime-kit-v1.31\contracts\schemas\game_snapshot.schema.json %TEMP%\qa-p03p04\bin\Release\net8.0\canonical-snapshot-1.json %TEMP%\qa-p03p04\bin\Release\net8.0\canonical-snapshot-2.json
+   # 预期：2 errors / 0 errors → RESULT: FAIL（脚本需先 schema.pop("$id")，jsonschema 4.17.3 才能加载 URN 型 $id）
+   ```
+
 ### 建议的合并路线
 
 ```
@@ -209,7 +220,7 @@ DeclareWinner(breakerHolds ? breaker : defender.PlayerIndex,  // 持有者胜；
 ③ 接线 Unity 惩罚激活链（ACTIVATE_PUNISH 进 wire contract）
 ④ 重采双引擎基线并建立可重复门禁（把预言机纳入 scripts/，需 owner 授权）
 ⑤ 完成 4 套预构筑迁移（RULES.md:292）
-⑥ owner / PL 决定数值（F1/F2/F15）与 `RULES.md` 文本定稿（F17 转文本改写、F19；**F18 属 Codex 可立刻修的潜伏缺陷，不需等定稿**）
+⑥ owner / PL 决定数值（F1/F2/F15）与 `RULES.md` 文本定稿（F17 转文本改写、F19；**F18 属 Codex 可立刻修的潜伏缺陷，不需等定稿**）；**F28 的契约文本同属此地（四选一，其中"引擎层夹零"会改规则结果 ⇒ 需 owner 拍板），且必须先于 F25 的实现**
 ⑦ 合并
 ```
 
@@ -229,9 +240,10 @@ DeclareWinner(breakerHolds ? breaker : defender.PlayerIndex,  // 持有者胜；
 - **我另做了一件超出"只读取证"但仍在 QA 边界内的事（00:5x）**：F22 那 1 402 行**不在任何分支/ref/stash 里**，等待落地期间有被静默销毁的风险，所以我在**仓库外**（QA 会话目录 `…\files\wip-snapshot-20260911\`）留了一份**可复原快照**：`git diff --binary -- src` 的原样补丁（`git apply --check --reverse` **exit 0**、SHA256 已记录）+ 9 个文件的逐字节副本（SHA256 **9/9 一致**）。**边界**：我只**复制**，没有提交、没有动 Git 指针、没有改生产/测试代码；快照**不是交付物**，也不改变"正解是把 WIP 落地为具名提交/分支"这一条；若写入方此后继续改代码，快照即过期。
 - **`unity-editmode-and-windows` 恒 BLOCKED**（设计行为）；`unity-editmode-unlock` = `HUMAN_REQUIRED`（Editor 项目锁）。
 - ⚠️ **PL 的 09-09 代码审核清单我已逐条复核（01:1x，报告 §13.21），其中三项请注意"不要照做"**：**P0-4 主结论不成立**（`EffectRuntime.Cards.cs:514` 确实读取阈值 ⇒ 破城方只差 1 次循环即胜，不是死局；只剩 `State.cs:214-217` 的窄分支 = F18）、**D-1 是误读**（`RULES.md:125-126` 与代码方向一致）、**D-2 已定稿**；**P0-3 已修复且已有回归测试**（只需补一条两段 AOE 用例）、**P2-11 死分支存在但清单举错了条件名**。复核基线是当前修订版 **603/603 全绿**（`dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBuildEnableWorkloadResolver=false`）⇒ 上表"仍成立"的条目**都是绿灯下存在但无覆盖**。**边界**：**P0-3 的 AOE 变体与 P0-4 的双持有分支属结构推断，我未跑探针**；**P1-1 / P2-7 / D-3 / D-4 / 清单第五节"测试盲点 12 条"本轮未逐条复检**，不代表"已修复"。
+- **F28 / P0-3 探针的边界（02:0x）**：① 探针在**仓库外**（`%TEMP%\qa-p03p04\`）运行，只调用 `src/` 的**公开 API**（`src/` 内无 `InternalsVisibleTo`），**未改任何生产/测试文件、未动 Git 指针、未启动 relay**；② 它从**合成摆盘**出发 ⇒ 证明的是"**机制与投影行为**"；卡池可达性另由 91 张卡全扫证明（当前无"同批两段伤害 AOE"、无"同批伤害 + 治疗"），但**"溢出击杀"本身每局都在发生**——这才是 F28 的现实性来源（不依赖那些不可达形态）；③ "Unity 检视视图会显示 −2"的依据是**源码路径**（`RuntimeCardDisplayModel.cs:106` + 检视视图枚举墓场卡），**未**做屏幕级验证；④ **负血量只在 v1.31 构成违规**：v1.30 的 `game_snapshot` schema 里 `players.items` 仅为 `{type: object}`、**无** health 约束 ⇒ 这也解释了它为何长期不被发现。
 - **F24 行为实测的两条边界（01:2x）**：① 5 个键是**成组**修改 ⇒ 行为实验证明"对该文件**整体**零敏感"，**逐键**归因靠源码硬编码行号（`MatchSetup.cs:47`/`:50`、`MatchRules.cs:9`、`GameState.cs:20`/`:21`/`:85`、`PlayCardActionHandler.cs:15`）；② 我的预言机自身也没有 balance 装载代码 ⇒ 行为实验覆盖的是"**host + engine 路径**"，而"**产品里没有任何宿主读它**"这一句依据的是**全仓库排除 `docs/`/`design/` 后的零命中取证**（含 `unity/Assets` 全部脚本）——两条证据合起来才是 F24 的完整结论。**另**：数据改动全部发生在仓库外的 `%TEMP%` 副本，仓库内数据/生产文件一字未改，Git 指针未动，未启动 relay。
 - 我**未**改动 `.gitignore`、**未**重置 `codex/p0-complete-match-loop-2026-09-06` 指针（避免运行期破坏性操作）、**未** push。
 
 ---
 
-— DeepSeek（测试负责人）· 2026-09-11 00:20 / 追加 00:26 / **更正 00:34（F17 撤回、新增 F21）** / **读数复现校验 + F21-② 收窄为"部分失效" 00:36** / **提交态独立重建对比、新增 F22 00:44** / **仓外取证快照 00:5x** / **PL 的 10 080 局 C# 实测独立复现（14/14 逐字段一致）+ 新增 F23 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27 01:1x** / **F24 行为级实证（四臂对照 + 阳性对照，改该文件 C# 输出零变化、改一张卡即变）§13.22 / 本文件 §5-5 01:2x**
+— DeepSeek（测试负责人）· 2026-09-11 00:20 / 追加 00:26 / **更正 00:34（F17 撤回、新增 F21）** / **读数复现校验 + F21-② 收窄为"部分失效" 00:36** / **提交态独立重建对比、新增 F22 00:44** / **仓外取证快照 00:5x** / **PL 的 10 080 局 C# 实测独立复现（14/14 逐字段一致）+ 新增 F23 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27 01:1x** / **F24 行为级实证（四臂对照 + 阳性对照，改该文件 C# 输出零变化、改一张卡即变）§13.22 / 本文件 §5-5 01:2x** / **P0-3 残留探针（仓库外 S1–S7）证实批内延迟死亡机制成立但当前不可达；并由同一探针端到端证实新缺陷 F28（canonical v1.31 快照在溢出击杀后发布负 `currentHealth`、违反自身 schema）§13.23 / 本文件 §5-6、§6 02:0x**

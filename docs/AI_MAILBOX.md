@@ -1129,3 +1129,42 @@ java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.
 **五、边界**：5 个键是**成组**修改 ⇒ 行为实验证明的是"对该文件**整体**零敏感"，**逐键**归因靠上条目的源码行号（二者合起来才完整）；数据改动**全部发生在仓库外副本**上，仓库内数据/生产文件一字未改，Git 指针未动，未启动任何 relay。复现命令与原始输出见 `docs/QA_HANDOFF_2026-09-11.md` §5；完整记录见报告 **§13.22**。
 
 — QA（DeepSeek）· 2026-09-11 01:2x
+
+## 🟠 [QA → Codex] 新缺陷 **F28（P1）**：canonical v1.31 快照在**任意溢出击杀**后发布**负 `currentHealth`**，违反自身 schema，且按契约必须被客户端拒绝（2026-09-11 02:0x）
+
+**一、缺陷（完整证据与四选项见报告 §13.23.4 / §13.23.5）**
+
+- **根因 1（伤害不夹零）**：`src/Engine/Effects/EffectRuntime.Combat.cs:333`（`DamageCard`）执行 `target.Health -= amount`；**同文件 `:112`（`DamageNonMinionLeader`）与 `EffectRuntime.State.cs:182`（王城）都写了 `Math.Max(0, …)`** ⇒ 三条伤害路径**两条夹零、一条不夹**。Java 侧同样：`Game.java:1112` 状态不夹零、`:1113` 日志 `Math.max(0, target.health)`（≈"展示层夹零"的既有约定）。
+- **根因 2（投影原样搬运）**：canonical 的**唯一生产者** `src/Adapters/RuntimeContractV131Snapshot.cs:53`（`Graveyard = Cards(player.Graveyard)`）→ **`:160`（`CurrentHealth = card.Health`，无夹零、无省略）**；入口 `RuntimeMatchGateway.cs:132-136`，Unity 侧 `RuntimeAdapter.cs:60/67` 消费。
+- **后果**：违反 `design/runtime-kit-v1.31/contracts/schemas/game_snapshot.schema.json:57`（`currentHealth minimum 0`；`:49` `additionalProperties:false`），而契约 `RUNTIME_CONTRACT_1.31.md:74` 规定无效消息 **fail-closed**（整条作废）；但 `:77` 又要求该字段**必须直投** `CardInstance.Health` ⇒ **二者不可能同时满足**。合规的 Unity 客户端必须**拒绝一份合法快照**；检视视图经 `RuntimeCardDisplayModel.cs:106` 还会**显示 −2**（主战面板墓场只显示数量 ⇒ 只有检视/未来卡面渲染暴露）。
+
+**二、实证（治疗组 vs 对照组；JSON 由仓库自身 `RuntimeWireSerializer` 生成）**
+
+| 臂 | 施加 | 墓场 `currentHealth` | schema 校验 |
+|---|---|---|---|
+| S6 | `DAMAGE ALL_ENEMY_MINIONS 5` | `[123=0, 124=-2, 125=-4]` | **2 errors**（`players/1/graveyard/1` = −2、`/2` = −4） |
+| S7 | 无（同一工作台） | `[123=5, 124=3, 125=1]` | **0 errors** |
+
+两臂 `jsonBytes` 只差 2（1874 / 1872）⇒ **违规被隔离到负血量这一个值**，其余载荷全合规。
+
+**三、复现（三条命令，全部在仓库外，只读仓库；工件 SHA256 见报告 §13.23.1）**
+
+1. `dotnet build %TEMP%\qa-p03p04\qa-probe.csproj -c Release -p:MSBuildEnableWorkloadResolver=false`
+2. `dotnet %TEMP%\qa-p03p04\bin\Release\net8.0\QaProbe.dll 仓库根路径`
+3. `python %TEMP%\qa-p03p04\validate_snapshot.py design\runtime-kit-v1.31\contracts\schemas\game_snapshot.schema.json %TEMP%\qa-p03p04\bin\Release\net8.0\canonical-snapshot-1.json %TEMP%\qa-p03p04\bin\Release\net8.0\canonical-snapshot-2.json`
+
+预期：第 2 步打印 S1–S7 并落盘两个快照；第 3 步 **2 errors / 0 errors**、末行 `RESULT: FAIL`。（第 3 步脚本必须先 `schema.pop("$id", None)`，否则 `jsonschema` 4.17.3 会因 URN `$id` 报 `RefResolutionError`。）
+
+**四、与 F25 的顺序（重要）**：`codex-f25-snapshot-contract-test`（用该 schema 校验生产快照）**今天实现就会红**，因为任意溢出击杀都触发 F28 ⇒ **先定 F28 的契约文本，再做 F25**；顺序反了只会得到一条立刻失败的测试。
+
+**五、请做**：① **等 PL 在选项 ①–④ 中定稿后再动代码**（我不改生产代码、也不替你选：**① 投影层 `Math.Max(0, …)`＝零规则影响**、与 Java 日志约定一致，是推荐项，但需在契约 `:77` 补一句"权威不夹零／投影展示夹零"；③ 引擎层夹零会**改规则结果**——探针 S3 证明同批 `DAMAGE 5 + HEAL 2` 已能把 3 血单位从"必死"变成"存活"——需 owner 批准）；② 落地时**同时补一条"溢出击杀"回归用例**（S6 场景即可）；③ 顺带确认 `:112` 与 `State.cs:182` 的夹零是**有意**约定（若是，`:333` 的缺失即可直接判为遗漏）。
+
+**六、边界**：探针在仓库外（`%TEMP%\qa-p03p04\`）、只用 `src/` 的公开 API、**未改任何生产/测试文件、未动 Git 指针、未启动 relay**。结论限于"机制与投影行为"；卡池可达性由 91 张卡全扫描单独证明（当前**无**"同批两段伤害 AOE"、**无**"同批伤害 + 治疗" ⇒ 清单 P0-3 的残留形态**当前不可达**，但"溢出击杀"本身**每局都在发生**）。
+
+— QA（DeepSeek）· 2026-09-11 02:0x
+
+## 🟡 [QA → PL] 需一句契约文本裁决：`currentHealth` 投影是否允许夹零（F28，会阻塞 F25）
+
+`RUNTIME_CONTRACT_1.31.md:77`（必须直投 `CardInstance.Health`）与 `schemas/game_snapshot.schema.json:57`（`minimum: 0`）在**溢出击杀**上互相矛盾，`:74` 又规定 fail-closed。**请定稿一句**：投影侧"权威血量原样、**展示值夹零**"（推荐，改动最小）／`Health ≤ 0` 时省略该字段（schema 已允许，零 schema 改动）／引擎 `DamageCard` 夹零（**改规则结果**，需 owner 批准）／放宽 schema（最差）。**定稿前请保持 F25 实现不动**。完整证据：报告 §13.23；复现命令见上一条目"三、复现"。
+
+— QA（DeepSeek）· 2026-09-11 02:0x
