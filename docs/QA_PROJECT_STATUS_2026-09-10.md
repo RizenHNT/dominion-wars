@@ -1,6 +1,6 @@
 # QA 项目整体状态审计 — 2026-09-10
 
-> 作者：DeepSeek（测试负责人）· 初始审计 2026-09-10 23:08–23:30；复核追加 2026-09-10 23:45；预言机与在飞复验追加 2026-09-11 00:06；跨预言机交叉验证追加 2026-09-11 00:12
+> 作者：DeepSeek（测试负责人）· 初始审计 2026-09-10 23:08–23:30；复核追加 2026-09-10 23:45；预言机与在飞复验追加 2026-09-11 00:06；跨预言机交叉验证追加 2026-09-11 00:12；进程取证更正 + 消融独立复核追加 2026-09-11 00:19
 > 触发：owner 报“Codex 到本周额度限制”，要求检查项目整体状态
 > 性质：只读审计。本报告不改任何生产文件。（唯一例外：§13.2 两处 test-only 断言修复已获 owner 授权）
 
@@ -21,10 +21,12 @@
 | 9 | **P1** | **（§13.10 追加）** 下载轴一旦被追求，机械 **95.7%**（`winParam = 6` 过廉价）；生产 AI 600 局只选 `PULL` 91 次 ⇒ "机械很弱"的方向是反的。 |
 | 10 | **P1** | **（§13.11 追加）** **两引擎规则分歧**：`ROYAL_CASTLE_BREAK` 在 C# 是"持有者胜，不问谁破城"（合 `RULES.md:105/137`），在 Java `Game.java:593-604` 只判破城方 ⇒ 同一枚举语义相反。 |
 | 11 | **P1** | **（§13.11 追加）** 跨引擎一致的唯一平衡结论：**深海偏强**（Java 80.3% / C# 74.0%，均超 40–60% 目标带）。§13.12.1 由 PL 独立预言机二次确认（84.4%）。 |
-| 12 | 正向 | **（§13.11 追加）** Codex 在飞的 Java 移植使 Java 平均回合由 25.0 回到 **14.79**（落在 10–20 目标带），测试数 38 → 52，编译干净。 |
+| 12 | 正向 | **（§13.11 追加）** 在飞的 Java 移植使 Java 平均回合由 25.0 回到 **14.79**（落在 10–20 目标带），测试数 38 → 52，编译干净。**归因已更正为 harness 会话而非 Codex，见 §13.13。** |
 | 13 | **P1（机制）** | **（§13.12 追加）** 古木封印机制自相矛盾：`EffectRuntime.Combat.cs:163-173` 的 `woodSource` **阵营**开关令每一张古木 buff 都成为增幅 ⇒ `:192-197` 封印并清零攻击，而 `AttackTargetPolicy.cs:17` 规定封印单位不能攻击。叠加 `wood_leader` 登场即 `ADD_RAMPANT 1`，**古木身边不存在"普通 buff"** ⇒ 512 轴实质不可用。**是机制问题，调数值无效。** |
 | 14 | **P2** | **（§13.12 追加）** `SET_AMBUSH` 在 `手牌−1 < punish` 时被广告但原子上不可满足（"广告 ⇒ 可解"契约违规）；有 `SKIP_AMBUSH` 恢复路径，故非死锁。精确位置 `TurnFlow.cs:204-213` vs `AmbushActionHandler.cs:126-136`。 |
 | 15 | 工具 | **（§13.12 追加）** 现有**两套**独立 C# 权威预言机（我的仓库外 `dw-cs-sim` + PL 的 `build-output/pl-csim`，后者已 gitignore）。两套交叉验证后的**唯一共同结论是"深海偏强"**；其余差异均由 harness 策略差异解释。 |
+| 16 | 澄清 | **（§13.13 追加）** **归因更正：仓库的实时写入者是 `dsh`（DeepSeek Harness）进程，不是 Codex。** `codex.exe`（PID 29668）是桌面应用的常驻 `app-server`，实测 20 秒 CPU 增量 **0.00s**（完全空闲），子进程里没有任何 `codex exec` 回合进程。§13.4/§13.9/§13.11 中"Codex 在飞"的措辞系**未经证实的推测**，现已由进程取证推翻。 |
+| 17 | **P1** | **（§13.13 追加）** 取证方法已用对照实验校验：`.文件.PID.guid.tmpdir\文件.tmp` 这一原子写模式是 **harness 独有**（我自己的 `create`/`edit` 写入只落最终文件、不产生 `.tmpdir`）；嵌入的 PID **就是写入进程**。100 秒窗口内 PID **21148** 同时写入 `src\main\java\...\Game.java` 与 **`build-output\pl-csim\SUMMARY.md`**（PL 自己的预言机目录）⇒ 写入者是**harness 上正在跑 PL 线的那条 DeepSeek 会话**。 |
 
 ---
 
@@ -417,13 +419,13 @@ Assert.That(
 | 时间 | 事件 |
 |---|---|
 | 23:11:02–23:20:24 | `data/cards/{machine,flame,neutral,wood,sea}.json` 被逐份改写（另一条卡牌设计线） |
-| 23:29:58 | **`codex` 进程启动**（当前仍在运行） |
+| 23:29:58 | **Codex 桌面应用启动**（`ChatGPT.exe` → `codex.exe app-server`，当前仍在运行但**空闲**；进程存活 ≠ 在跑回合，见 §13.13） |
 | 23:34:28 / 23:34:36 | `DataLoaderTests.cs` / `ProductionFactionIntegrationTests.cs` 被改写（引入 §13.2 的 #1/#3） |
 | 23:37:45 | `data/cards/sea.json` 再次被改写（哈希 `D0B280B65084` → `0FA7E4E33425`） |
 | 23:39:20 | `docs/DESIGN_SEA_PUNISH_MATH_2026-09-09.md` 被改写 |
 | 23:44 之后 | `docs/DESIGN_SEA_PUNISH_MATH_2026-09-09.md` 在我暂存之后**又**被改写一次 |
 
-即：用户所依据的"Codex 熄火"前提在 23:29 之后**已经不成立**——Codex 已恢复并在同一批文件上作业。因此本次 checkpoint 采用了**不干扰并发写入者**的做法：只在当前分支建提交、**不 push、不切分支、不改动异常文件树以外的任何内容**。
+即：用户所依据的"Codex 熄火"前提在 23:29 之后**已经不成立**——但**结论要反过来读**：23:29:58 启动的是 Codex **桌面应用**，它并未在编辑仓库；真正继续写入的是 **`dsh`（DeepSeek Harness）会话**（§13.13 已取证）。因此本次 checkpoint 采用了**不干扰并发写入者**的做法：只在当前分支建提交、**不 push、不切分支、不改动异常文件树以外的任何内容**。
 
 ### 13.5 checkpoint 与分支
 
@@ -497,11 +499,11 @@ Assert.That(
    - 无论走哪条，**在预言机可用之前不要依据 §13.3 的百分比改动数值**。
 5. ✅ **需要肯定的一点**：`data/schema/cards.schema.json` 已含 `LandmarkTier`（`:116`）、`isLandmark`（`:147`）、`landmarkTiers`（`:148`）、`WinCondition` 枚举含 `PULL_TOTAL_GE`（`:48`），`src/Data/CardCatalog.cs:27-28,247-279,442-480` **fail-closed 地解析**这些字段——**数据侧与 C# 侧的契约是通的**，缺口只在 Java 测试台。
 
-### 13.9 提交后的在飞写入（Codex 正在补 §13.8 的缺口）
+### 13.9 提交后的在飞写入（**归因已更正：写入者是 harness 会话，不是 Codex**，见 §13.13）
 
-`8bc0515` 提交完成后，`codex` 进程（PID 29668，23:29:58 启动）**继续写入**，`git status` 现为：
+`8bc0515` 提交完成后，仓库**继续被写入**。**最初我把写入者记为 `codex` 进程 PID 29668，这是未经证实的推测；§13.13 的取证推翻了它**——PID 29668 是 Codex 桌面应用的常驻 `app-server`，实测空闲。`git status` 现为：
 
-**2026-09-11 00:00 快照**（`codex` PID 29668 仍在运行）：
+**2026-09-11 00:00 快照**：
 
 ```
 M docs/AI_MAILBOX.md
@@ -523,7 +525,7 @@ M src/test/java/com/dominionwars/test/TestMain.java
 
 **`src/main/java/com/dominionwars/engine/**` 的改动正是 §13.8 缺口的补齐**：新增 `PlayerState.pullCount`/`commitQueue`/`cloudStack`、`CardInstance.sealed`/`landmarkPullCount`/`pendingLandmarkSummonCardId`/`committed`，`has()` 改为封印时失效，`checkSpecialWins()` 补 `GIANT_HEALTH_GE` 与 `PULL_TOTAL_GE` 两个 `case`。⇒ **§13.3 的 A/B 必须在这批移植落地并 `javac` 重编后重采**；§13.3 与 §13.10 的所有胜率数字的**有效期截至该批写入之前**。
 
-**⚠️ 新增（23:53–00:00，与 §13.10 的 F3 直接相关）**：Codex 同时在 `src/main/java/com/dominionwars/ai/AiAgent.java` 补了**Java 测试台的生命周期 AI**——新增 `chooseCommit` / `askPush` / `askPull` / `chooseRollbackTarget` 四个覆写 + `lifecycleBudget()` 预算（`3 + turnNumber/4`）+ 地标 `landmarkPullCount < 2` 优先下载。**注意作用域差别**：
+**⚠️ 新增（23:53–00:00，与 §13.10 的 F3 直接相关）**：同一写入者同时在 `src/main/java/com/dominionwars/ai/AiAgent.java` 补了**Java 测试台的生命周期 AI**——新增 `chooseCommit` / `askPush` / `askPull` / `chooseRollbackTarget` 四个覆写 + `lifecycleBudget()` 预算（`3 + turnNumber/4`）+ 地标 `landmarkPullCount < 2` 优先下载。**注意作用域差别**：
 
 - 修的是 **Java 侧 `AiAgent`（测试台选手）**；
 - §13.10 的 F3 指的是 **C# 侧 `RuntimeAiPolicy.cs`（Unity 发布路径的 AI）**，该文件**至今没有任何生命周期分支**（全文仅 `FirstNonType(legal, "END_TURN")`，`Select-String` 对 `Pull|Commit|Push|Rollback` 零命中）。
@@ -534,9 +536,9 @@ M src/test/java/com/dominionwars/test/TestMain.java
 1. **测试台与规则集尚未对齐**：§13.8 的缺口正在被补（在飞），补齐后需重采基线；此时合并等于把"未经任何有效预言机验证的数值"带入主线。
 2. **Unity 侧惩罚激活链仍未接线**（§13.7.1）：`ACTIVATE_PUNISH` 不在 wire contract，降临在发布运行时恒被放弃——这是**行为级缺口**，不是数值问题。
 3. **`data/decks/*.json` 仍是 2026-06-12 的旧构筑**（§13.3 第 7 条）：牌组未随 91 卡迁移，任何胜率都建立在"9 月卡牌 × 6 月牌组"上。
-4. **发布路径的 AI 仍不会打生命周期胜利条件（§13.10 F3）**：Codex 正在补的是 Java 测试台的 `AiAgent`，而 C# `RuntimeAiPolicy.cs` 至今零生命周期分支 ⇒ 即使 Java 移植全部落地，Unity 里的机械依然是 0% 胜率。合并前必须在 C# 侧补同样的策略，否则"机械的胜利条件"在发布玩法中不存在。
+4. **发布路径的 AI 仍不会打生命周期胜利条件（§13.10 F3）**：在飞补的是 **Java 测试台的 `AiAgent`**，而 C# `RuntimeAiPolicy.cs` 至今零生命周期分支 ⇒ 即使 Java 移植全部落地，Unity 里的机械依然是 0% 胜率。合并前必须在 C# 侧补同样的策略，否则"机械的胜利条件"在发布玩法中不存在。
 
-建议的合并路线：① Codex 完成 Java 移植与 Unity 惩罚链接线 → ② **在 C# `RuntimeAiPolicy` 侧补生命周期策略（F3）** → ③ 重采基线（`SimMain` 与 §13.10 的 `DwSim` 双方）并建立可重复门禁 → ④ 完成 4 套预构筑迁移（`docs/RULES.md:292`）→ ⑤ 再由 owner/PL 决定数值 → ⑥ 最后合并。分支 `qa/verify-2026-09-10`（指向 `8bc0515`）就是这条路线上的取证基线，**未经上述步骤不要直接 merge**。
+建议的合并路线：① 完成 Java 移植与 Unity 惩罚链接线 → ② **在 C# `RuntimeAiPolicy` 侧补生命周期策略（F3）** → ③ 重采基线（`SimMain` 与 §13.10 的 `DwSim` 双方）并建立可重复门禁 → ④ 完成 4 套预构筑迁移（`docs/RULES.md:292`）→ ⑤ 再由 owner/PL 决定数值 → ⑥ 最后合并。分支 `qa/verify-2026-09-10`（指向 `8bc0515`）就是这条路线上的取证基线，**未经上述步骤不要直接 merge**。
 
 ---
 
@@ -595,9 +597,9 @@ dotnet build -c Release -p:MSBuildEnableWorkloadResolver=false --nologo
 
 ---
 
-### 13.11 对 Codex 在飞 Java 移植的快照复验（2026-09-11 00:03–00:06，只读）
+### 13.11 对在飞 Java 移植的快照复验（2026-09-11 00:03–00:06，只读）
 
-Codex 仍在写（`TestMain.java` mtime 00:03:41）。我在**不触碰仓库 `build/classes`** 的前提下，把工作树源码编到 `%TEMP%` 独立目录后复跑，得到以下快照：
+写入方仍在写（该轮由 harness 会话执行，见 §13.13；当时我误记为 Codex）。我在**不触碰仓库 `build/classes`** 的前提下，把工作树源码编到 `%TEMP%` 独立目录后复跑，得到以下快照：
 
 **复现命令**
 ```powershell
@@ -616,16 +618,16 @@ java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -cp "$main;$tst" com.dominion
 java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -cp "$main;$tst" com.dominionwars.test.SimMain 300
 ```
 
-**结果 1：编译通过**（主 27 文件、测试 3 文件，`javac` 两次 exit 0）。Codex 的移植处于可编译的一致状态。
+**结果 1：编译通过**（主 27 文件、测试 3 文件，`javac` 两次 exit 0）。该移植处于可编译的一致状态。
 
-**结果 2：Java 回归 `TestMain` = 51 / 52（exit 1）**。测试总数由 `8bc0515` 时的 38 增至 **52**（Codex 新增 14 条生命周期/古木测试）。唯一失败：
+**结果 2：Java 回归 `TestMain` = 51 / 52（exit 1）**。测试总数由 `8bc0515` 时的 38 增至 **52**（新增 14 条生命周期/古木测试）。唯一失败：
 
 ```
 ✗ 机械：PULL 下载栈顶 → 惩罚/效果/墓地/计数/地标层数
   —— 下载效果 BUFF 1/1 落在唯一合法目标（载体地标）上：8+1：期望 9，实际 0
 ```
 
-**注意**：首次快照（00:04）为 **48/52**，含 3 条古木用例以 `Cannot read field "attack" because "<parameter1>" is null` 失败；**两分钟内 Codex 已自行修掉** ⇒ 这是**在飞状态**，不是稳定读数，本节不作为缺陷上报，仅作为"移植正在收敛"的证据。
+**注意**：首次快照（00:04）为 **48/52**，含 3 条古木用例以 `Cannot read field "attack" because "<parameter1>" is null` 失败；**两分钟内写入方已自行修掉** ⇒ 这是**在飞状态**，不是稳定读数，本节不作为缺陷上报，仅作为"移植正在收敛"的证据。
 
 **结果 3：Java 侧新平衡读数**（`SimMain 300`，3600 局，确定性种子）：
 
@@ -680,7 +682,9 @@ PL §4 指出古木的封印机制自相矛盾，我逐行核验**全部成立**
 | 封印单位不能攻击 | `src/Engine/Turns/AttackTargetPolicy.cs:17`：`&& !attacker.Sealed` |
 | 古木统领登场即为疯长供能 | `data/cards/wood.json` `wood_leader.leaderDef.enterEffects = [SUMMON ×2, **ADD_RAMPANT 1**]` |
 
-⇒ **古木统领一出场 `RampantStacks ≥ 1`，此后每一张古木来源的强化卡都被判为增幅 ⇒ 目标被封印且攻击力归 0。** 设计意图（`CARD_DESIGN_MODEL:174`"普通 buff 不封印，保留木的场面能力"）被**统领自身的疯长供给击穿**：古木身边不存在"普通 buff"。我的 A 变体里 `giant_health_ge` 仅裁决 6/600、`wood` 35.0%，与 PL 的 10.0% / A 配置 3 次转化**同向同构**，只是 harness 对手强度不同。**这不是数值问题，是机制问题；PL 的 W1（封印只认显式 `param:"root"/"rampant"`，取消阵营开关）与我 F5 的"先查机制再动数值"结论一致。**
+⇒ **古木统领一出场 `RampantStacks ≥ 1`，此后每一张古木来源的强化卡都被判为增幅 ⇒ 目标被封印且攻击力归 0。** 设计意图（`CARD_DESIGN_MODEL:174`"普通 buff 不封印，保留木的场面能力"）被**统领自身的疯长供给击穿**：古木身边不存在"普通 buff"。我的 A 变体里 `giant_health_ge` 仅裁决 6/600、`wood` 35.0%，与 PL 的 10.0% / A 配置 3 次转化**同向同构**，只是 harness 对手强度不同。**这是机制矛盾，不是数值问题；PL 的 W1（封印只认显式 `param:"root"/"rampant"`，取消阵营开关）与我 F5 的"先查机制再动数值"结论一致。**
+
+> **⚠️ 2026-09-11 00:15 追加（PL 自证伪，我未独立复跑）**：PL 的消融实测**推翻了"封印是古木弱的原因"**——移除 `wood_leader` 的 `ADD_RAMPANT` 后古木在 A 配置 **10.00% → 11.11%**、B 配置 **43.06% → 33.61%**（`build-output\pl-csim\SUMMARY.md §2`），且古木每回合可测输出攻击力几乎不变（0.595 → 0.619）。**因此第 3 条的定位需下调**：封印机制**客观矛盾且应修**（源码级事实，仍成立），但它**不是古木胜率低的成因**，修它也不应期待胜率回升。真正被 PL 测出的成因是第 5 条（`punishActivatable` 占比）。**告诫：不要拿"修封印"当作提升古木的手段。**
 
 **4. `PUNISH_DRAW` 洪流 —— 两套工具同向，PL 的量化更锐利。**
 PL 测得 **138 张惩罚抽牌 / 局 vs 10.2 次出牌 = 13:1**。我的 A 变体终局原因中 `opp_discard_total_ge` 96/600 次、`action.discard_selection_required` 630 次，同向。**PL 的 13:1 是本轮最有解释力的单个数字**，建议 PL 报告 §3 的 T1 结论直接进入 owner 决策清单。
@@ -701,6 +705,76 @@ PL §6 的判断**成立**，但位置需更正（其引用 `LegalActionGenerato
 
 我一度怀疑"`selectedEntityIds` 在适配层不可达 ⇒ 下载永远不可能成功"。**已证伪**：`src/Adapters/RuntimeMatchGateway.cs:382` 会从 payload 读取 `selectedEntityIds`、`:366-372` 传入 `GameActionRequest`；`LegalActionGenerator.cs:229-232` 也确实广告了该字段。⇒ **传输通道完整**，`RuntimeAiPolicy.ToGameAction:101` 原样转发 `Payload` 即足以执行带目标选择的下载（我的预言机 91 次成功 PULL 即为实证）。**F3 是策略缺口，不是管道缺口。**
 
+**13.12.5 PL 第二轮消融的独立复核（2026-09-11 00:16–00:18，只读）**
+
+PL 在 `build-output\pl-csim\SUMMARY.md`（00:15:15 更新）公布了新一轮控制变量消融。我做了两项独立验证：
+
+**（a）牌组数据事实——完全吻合。** 用 `data\decks\*.json` 的 `{cardId: count}`（每副 20 种 ×3 = **60 张**）加权，直接读 `data\cards\*.json`：
+
+| 阵营 | 牌组张数 | `punishActivatable` | 占比 | PL 报告值 | 判定 |
+|---|---|---|---|---|---|
+| 深海 | 60 | **36** | **60%** | 60% | ✅ |
+| 烈焰 | 60 | 9 | 15% | 15% | ✅ |
+| 机械 | 60 | 9 | 15% | 15% | ✅ |
+| 古木 | 60 | 6 | 10% | 10% | ✅ |
+
+⇒ PL 的"深海 60% vs 古木 10%，差 6 倍"**是真实数据事实**，不是测量伪影。**（b）PL 的 BUFF 列有误**：PL 报 `BUFF-bearing cards` 为 sea 6 / flame 3 / machine **0** / wood 24；实测（递归匹配 `action == "BUFF"`）为 sea **9** / flame 3 / machine **24** / wood 24。**machine 0 应为 24、sea 6 应为 9**（flame、wood 正确）。这是**报表缺陷（P3）**，不影响 `punishActivatable` 这条载荷结论，但 PL 的 `--no-buff-faction` 控制组的解释若引用了 machine 的 0，需要更正。
+
+**（c）我未独立复跑的部分（诚实边界）**：PL §1 的惩罚链分解（99,516 次 `PUNISH_DRAW` 中 **88% 是响应再入**、11.59 张/链、链深触到 20 上限）、§4 的 `non-activatable` 消融（深海 −61.4 点、古木 +53.6 点等）、§6 的 14 组配置 10,080 局零异常——**这些是 PL 工具的输出，我未复跑**（其 harness 在 `build-output\pl-csim\`，仓库外）。我只确认了 §7 的命令可读、§6 的自检字段存在、以及 §4 依赖的牌组事实（上表）。**在合并决策中应把 (c) 类数字标记为"单一工具来源"。**
+
+---
+
+### 13.13 进程取证：仓库的实时写入者是 `dsh`（DeepSeek Harness），不是 Codex（2026-09-11 00:13–00:19）
+
+**触发**：owner 问"Codex 额度已尽，为什么它还会诈尸？你确定看到的是 Codex 吗？" **结论：owner 的怀疑是对的，我此前的归因是错的。**
+
+**取证方法（已用对照实验校验）**：harness 的文件写入采用原子写——先建 `.<文件名>.<PID>.<guid>.tmpdir\`、写入 `<文件名>.tmp`，再落到目标文件。**嵌入的第二个字段就是写入进程的 PID。**
+
+| 校验 | 观测 |
+|---|---|
+| 我自己用 `create` 工具写 `%TEMP%\dwprobe-control.txt` | 只出现**最终文件**，**不产生** `.tmpdir`（watcher 75 秒）⇒ 该模式**不是**我的工具产生的 |
+| 观测窗口内 `Game.java` / `SUMMARY.md` 的写入事件 | 全部形如 `.Game.java.**21148**.536c4bdd-….tmpdir\Game.java.tmp` ⇒ 写入进程 PID = **21148** |
+
+**进程身份（`Get-CimInstance Win32_Process`）**：
+
+```
+21148  node.exe  node --import tsx/esm apps/cli/src/bin.ts "web" --patch web-browse-picker.overlay.yml
+   ↑ 监听  127.0.0.1:3080
+   └─ 28576  cmd.exe  /d /s /c node --import tsx/esm apps/cli/src/bin.ts "web" …
+        └─ 15728  node.exe  pnpm.mjs  dsh web --patch web-browse-picker.overlay.yml     ← **dsh = DeepSeek Harness**
+             └─ 10824  cmd.exe  /c pnpm dsh web --patch web-browse-picker.overlay.yml
+```
+
+**CPU 对照（20 秒采样，00:15:12–00:15:32）**：
+
+| PID | 进程 | 20 秒 CPU 增量 | 判定 |
+|---|---|---|---|
+| 29668 | `codex.exe app-server`（父 `ChatGPT.exe`） | **0.00 s** | **完全空闲** |
+| 21148 | `dsh` node（`dsh web`） | **+10.22 s**（≈单核 51%） | **满负荷作业** |
+| 28916 | `java.exe` | +0.03 s | 空闲 |
+
+**观测窗口（100 秒）内 PID 21148 的写入对象**：
+
+```
+src\main\java\com\dominionwars\engine\Game.java          （3 次暂存 + 落盘；mtime 00:14:17、00:17:18 仍在变）
+build-output\pl-csim\SUMMARY.md                          （3 次暂存 + 落盘；00:15:15）
+```
+
+`build-output\pl-csim\` 是 **PL 自己的预言机目录**（§13.12，已 gitignore），且 `docs\AI_MAILBOX.md:606-615` 的 PL 条目自称"**本会话已落地的改动（`src/main/java`）**"、"`scripts\build.bat` 编译通过"。**两条独立线索同向**：写入者就是 **harness 上正在跑 PL 线的那条 DeepSeek 会话**。
+
+**因此更正以下三处归因（均为我未经证实的推测）：**
+
+1. §13.4 表格"23:29:58 codex 进程启动 ⇒ Codex 已恢复并作业"——**错**。启动的是 Codex **桌面应用**（12 个 `ChatGPT.exe` 子进程，一次应用启动），它**没有**在编辑仓库。
+2. §13.9 的标题与正文把 Java 引擎/`AiAgent` 改动记为 Codex——**错**，应为 harness 上的 PL 会话。
+3. §13.11 的"Codex 在飞"——**错**，同上。
+
+**同时判定的两件事**：
+
+- `~/.codex` 下的 `.codex-global-state.json`（00:14:35）、`models_cache.json`（00:15:03）持续更新 ⇒ **Codex 桌面应用的 UI/状态在刷新**，但这**不等于在执行 agent 回合**（PID 29668 的 CPU 为 0、子进程里没有任何 `codex exec` 回合进程、也没有 java/javac）。**"进程活着"与"有人在跑回合"是两件事——这正是 owner 看到的"诈尸"幻象的来源。**
+- **本报告此前所有"Codex 在飞"的时段结论仍然成立**（Java 移植、`AiAgent` 生命周期策略、48/52→51/52 的收敛、`Game.java` 的持续改写），只是**作者身份要改**。缺陷归属路由（F3/F7/F11 发给 Codex）**不变**，因为那些是"谁该修"，不是"谁在写"。
+
+**⚠️ 对后续操作的直接影响**：写入方**仍在活动**（`Game.java` mtime 00:17:18 在我观测之后）。因此**不要在此时执行 `scripts\build.bat`**（会与写入方争抢 `build\classes`）；Java 侧的合并前基线复跑必须等写入方停止。
+
 ---
 
 ## 14. 本轮新增发现汇总与建议动作
@@ -720,9 +794,12 @@ PL §6 的判断**成立**，但位置需更正（其引用 `LegalActionGenerato
 | F11 | `SET_AMBUSH` 被广告但本引擎在 `手牌−1 < punish` 时无法满足（"广告 ⇒ 可解"契约违规） | **P2** | **Codex**：`TurnFlow.cs:204` 加 `&& candidates.Count >= punish`，补回归测试（详见 §13.12.3） |
 | F12 | **古木封印机制自相矛盾**：`woodSource` 阵营开关令每一张古木 buff 都成为增幅 ⇒ 目标被封印且攻击归 0，而封印单位不能攻击（`AttackTargetPolicy.cs:17`） | **P1（机制，非数值）** | **PL/owner**：PL 的 W1 方案（封印只认显式 `param`）与我 F5 同向；**应在 W1 落地后重测 F4/F5**（详见 §13.12.2-3） |
 | F13 | PL 独立建成第二套 C# 预言机（`build-output/pl-csim/`，已 gitignore）⇒ 两套工具交叉验证：**深海偏强**为唯一两引擎两工具共同确认的结论 | 正向 | 记录在案；`PUNISH_DRAW` 138:10.2 的洪流比是本轮最有解释力的单量（详见 §13.12） |
+| F14 | **归因更正**：仓库实时写入者是 `dsh`（DeepSeek Harness）会话，**不是 Codex**。`codex.exe` PID 29668 是桌面应用常驻 `app-server`，20 秒 CPU 增量 0.00s、无回合子进程 | 澄清 | 记录在案；**不改变任何缺陷的修复归属**（F3/F7/F11 仍发 Codex）（详见 §13.13） |
+| F15 | **`punishActivatable` 占比是当前最强的单一解释变量**：深海 60% vs 古木 10%（我独立按 `data/decks` 加权复核，与 PL 完全一致）；PL 消融显示清掉该标志可移动 8–62 点 | **P1** | **PL/owner**：这是"惩罚响应经济"的核心货币，应在设计层决策（PL 的 T1/惩罚链预算）；**先不要用数值微调去抵消它** |
+| F16 | PL 报告 §4 的 `BUFF-bearing cards` 列有 2 处数据错误：机械 **0 应为 24**、深海 **6 应为 9**（烈焰 3、古木 24 正确） | P3（报表） | **PL**：更正 `docs/PL_BALANCE_MEASUREMENT_2026-09-11.md`；不影响 `punishActivatable` 载荷结论（详见 §13.12.5-(b)） |
 
 **关于 `docs/AI_MAILBOX.md` 第 471-485 行旧条目的更正**：该条目第 3 条把机械 −31.2pp 归因为"数据改动"，**已作废**；正确归因见 §13.3（7 变体隔离实验：唯一 Java 可见成因是删除 `chant`+`chantEffects`）与 §13.8（能力覆盖差）。结论方向也需改写为 §13.10 的 F2/F3：**机械不是变弱了，而是在旧测试台上不可见、在生产 AI 下不可胜、在被正确驾驶时过强。**
 
 ---
 
-— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12
+— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19
