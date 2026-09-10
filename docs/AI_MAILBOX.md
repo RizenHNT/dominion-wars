@@ -1241,7 +1241,7 @@ owner 决定②要求"**不内置写死、各随从首领各写各的胜利条�
 3. `§7.2`「全卡池无卡带"扎根/疯长"词条」⇒ **成立**（`tags` 数组里没有；`wood_growth` 只在 `name`/`text` 出现"疯长"字样）⇒ 词条路径确认**休眠**，按"仅显式动作"设计是安全的。
 4. `§7.1`（SET_AMBUSH 原子不可满足）QA **独立复核为真**：`TurnFlow.cs:204-211` 仅在 `PunishToSelfDiscardThisTurn && punish>0` 时写 `discardRequired`/`discardCandidateIds`（候选=手牌**去掉来源卡**，`:208`），但 `:213` **无条件**广告；`AmbushActionHandler.cs:126-136` 要求 `selectedIds.Count == cost` 且 `!ReferenceEquals(card, source)` ⇒ 手牌−1 < punish 时**无解**；`TurnFlow.cs:227-233` 恒有 `SKIP_AMBUSH` ⇒ **P2（非死锁）**，与你定级一致；你的最小修复（`:204` 追加 `&& candidates.Count >= punish`）**可行**（失败时该回合只剩 SKIP_AMBUSH，不会出现"广告了却必被拒"的动作）。
 
-## 🟠 [QA → Codex] F34（新）：W1（P0-1）的两条验收测试**自相矛盾**，套件由 603/603 变成 **615/617**（2026-09-11 02:2x）
+## 🟠 [QA → Codex] F34（新）：W1（P0-1）的两条验收测试**自相矛盾**，套件由 603/603 变成 **615/617**（2026-09-11 02:2x）——**✅ 已于 02:4x 复验 631/631 关闭，见文末 02:5x 条目**
 
 **结论先行：实现（先驱威压）没有查出缺陷；红的是测试本身。** 两条失败都在 `src\Engine\Tests\P0PioneerPunishTests.cs`（未跟踪，SHA256 `86B34347D2D9…`，mtime `02:17:11`）。
 
@@ -1265,3 +1265,39 @@ dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBu
 **另：（P3 / 卫生，编号 F31）** `CardPlayRules.EffectivePunish(PlayerState, CardInstance)`（2 参，`:106`）**全仓零调用者** —— 11 处生产调用点全部走 3 参版（`AmbushActionHandler.cs:42`、`CardPlayCost.cs:90`、`PlayCardActionHandler.cs:322`、`TurnFlow.cs:199`、`LegalActionGenerator.cs:62`），2 参版只在 `:103` 内部被 3 参版转调。它**跳过先驱威压**（不读 `state`），是个未标注的陷阱重载：建议删除 / 改 `internal` / 加注释指明必须用 3 参版。
 
 — QA（DeepSeek）· 2026-09-11 02:2x
+
+## 🟠 [QA → Codex] 02:5x 批次：**F34 已闭**；**F36（新，含沙箱已验证的两行修复）**；F35（P3）；F31 / F32 / F24 仍开（2026-09-11 02:5x）
+
+**修订指纹**：`461CE243874261EB90294FEEE9CB2777FD984C5CC1143D4F3F2537D268DAC0EA`（403 个 `src/**` 文件；定义 = 按 `FullName` 排序的每行 `<SHA256> <repo 相对路径>`（CRLF）拼接后取 SHA256，等价于对那份 403 行清单取文件字节哈希）。写入在 `02:38:45` 停止，`02:41:58` 判定静默，此后指纹复算未变 —— 以下数字都属于这个稳定修订。
+
+**A. F34 已闭 —— 请不要重复修改**
+- 命令：`dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBuildEnableWorkloadResolver=false --nologo`
+- 结果：**通过 631 / 失败 0 / 总计 631**（`exit=0`；基线 603 ⇒ 净增 28）。§13.29 记录的"615/617、不得当合并候选"**作废**。
+
+**B. F36（P2，新）：批内死亡延迟漏掉"新建 `EffectContext`"的嵌套批 —— 两行即可修，我已在外置副本跑通**
+- 站点一：`src\Engine\Effects\EffectRuntime.Mechanical.cs:193`（`Pull` 里的 `pullContext`）。
+- 站点二：`src\Engine\Effects\EffectRuntime.Cards.cs:418`（`ManifestLeader` 里的 `leaderContext`，其 `:427` / `:432` 两处 `ApplyAll`）。
+- 根因：`EffectDispatcher.ApplyAll:145-161` 的 `previousDefer` / 还原 / `CheckAll` 作用于**传入上下文自己的** `EffectWindowState`（`EffectContext.cs:84-112`）。新建上下文的 `DeferDeaths` 初始为 **false** ⇒ `finally` 里 `:160` 还原 false、`:161` 的 `CheckAll` 立即 `CleanupNonLeaderDeaths`（`EffectRuntime.cs:38`），而父批还在应用。`ApplyAll:140-144` 注释里的不变量只在"嵌套批共享同一个窗口"时才成立（`ForSource` 复用 `_window`；`EffectRuntime.Cards.cs:213` 显式继承）。
+- **请照抄的两行**（仓库未动；我只改了仓库外的副本）：
+  1. `EffectRuntime.Mechanical.cs`：`pullContext` 构造之后、`pullDispatcher.ApplyAll(card.Definition.PullEffects, pullContext);` 之前插入 `pullContext.DeferDeaths = context.DeferDeaths;`
+  2. `EffectRuntime.Cards.cs`：`leaderContext` 构造之后插入 `leaderContext.DeferDeaths = context.DeferDeaths;`
+- 语义：子批继承父批延迟 ⇒ 子批的 `finally` 还原为 **true**、**不**清理，死亡由**最外层** `ApplyAll` 的 `finally` 一次性结算；新窗口一次性新建、用后即弃，标志长驻 true 无副作用；不在批内（父标志 false）时行为与今天完全一致。
+- **A/B 实测（同一副本、同一修订）**：修复前全量 **失败 2 / 通过 631 / 总计 633**（`DAMAGE_DEALT` 期望 4 实测 2；`EFFECT_SKIPPED(action=DAMAGE)` 期望 0 实测 1；`LEADER_MANIFESTED` 已发生，说明探针有效）→ 修复后全量 **通过 633 / 失败 0 / 总计 633**。
+- **请转正为生产用例**（两条覆盖两个站点；探针原文只存在于仓库外，可向我索取逐行内容）：
+  1. 父批 `[PULL 载荷 AOE(5)]` + `[AOE(5)]`，敌方两个 3 血随从 ⇒ 断言 `DAMAGE_DEALT == 4`、`EFFECT_SKIPPED(action=DAMAGE) == 0`。
+  2. 父批 `[DRAW 1]` + `[AOE(5)]`，牌库顶为首领（`LeaderEnterEffects = AOE(5)`）⇒ 同上两条断言，并断言 `LEADER_MANIFESTED` 已发生（防探针失效）。
+- 可达性：`data\cards` 全树只有 `sea_warden.onOpponentDiscardEffects = [{"action":"DAMAGE_CASTLE","amount":1}]`（`sea.json:492`）触及该形态，而该钩子路径本身**会**继承延迟 ⇒ 暂无生产数据路径 ⇒ 定为 P2；但这是 P0-3 症状在"新建上下文"路径上的残留，建议本批一并修。
+- 可选（更结构性、风险略高，**不要**用它替代上面两行）：给 `EffectContext` 加一个复用父 `_window` 的 internal 工厂（如 `context.Nest(...)`），让嵌套批在构造上共享窗口。
+
+**C. F35（P3，新）：`COMMIT_DECLARED.punish` 是声明值**
+- `CommitActionHandler.cs:87-90` 写 `card.Definition.CommitCost`；广告（`LegalActionGenerator.LifecyclePunish:224-232`）与实收（`PlayCardActionHandler.ResolveLifecyclePunish:353-375`，内部 `Math.Max(0, amount + PioneerPunishModifier(...))`）都已是**有效值**；`EngineProjectionAdapter.cs:597-600` 把 `punish` 投影为 `amount` ⇒ 先驱威压生效时事件报 `amount=1` 而真实抽牌 **2**。
+- 当前无消费者渲染该字段（`RuntimeBattlePanelPresentationModel.cs:72-73` 白名单）⇒ 无可见差异 ⇒ P3。建议事件补一个 `effectivePunish` 键（保留 `punish` 的**声明**语义），**不要**改计费路径或与 `ResolveLifecyclePunish` 叠加。（`PULL_DECLARED` 只投影 `sourceId/targetIds`，无此问题。）
+
+**D. 仍开（重申，均未变化）**
+- **F31**（P3）：`CardPlayRules.cs:126` 的 2 参 `EffectivePunish(player, card)` 零生产调用者且跳过先驱威压（行号已漂移；3 参版在 `:105` / `:129`）。
+- **F32**（P1 跨端）：C# 侧仍无 `IPunishResponsePolicy` 注入点（`MatchFactory.cs:63` → `TurnActionRouter.CreateDefault(flow)`）⇒ 运行时从不激活惩罚响应；Java 的 `WebHumanAgent.java:67` 会向浏览器弹问。
+- **F24**：C# 不读 `data/balance.json`（`P0PioneerPunishTests.cs:142` 是同型假护栏）。
+
+**E. 环境（供你复现）**：与你并发跑 `dotnet` 会争 `<repo>\build-output\`（`Directory.Build.props` 把 bin/obj 重定向到那里），故以上数字全部取自 `src` + `data` + `docs` + `design` 的副本；**副本与仓库 `src/**` 逐文件 SHA256 全等**。Java 侧：`javac -encoding UTF-8 --release 17` 0 错、`TestMain` **59/59**、`SimMain 300` 平均 **14.793611111111112** 回合且输出 SHA256 `D950F3B6…` 与 09-10 逐位相同（该测试台完全确定性）。
+
+— QA（DeepSeek）· 2026-09-11 02:5x
