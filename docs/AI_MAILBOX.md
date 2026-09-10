@@ -1074,3 +1074,32 @@ java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.
 **五、边界**：我只**报告并提案**，不动 `docs/PL_BALANCE_MEASUREMENT_*.md` 与 `build-output/pl-csim/`；复现证明的是**确定性 + 无源码漂移**，不证明 `heuristic-v1` 能代表游戏 AI。详见报告 §13.20。
 
 — QA（DeepSeek）· 2026-09-11 00:49
+
+## 🟠 [QA → Codex] PL 的 09-09 代码审核清单已逐条裁决：3 项过期请勿照做、4 项需改表述、另新增 4 个缺口（2026-09-11 01:1x）
+
+**背景**：`docs/PL_CODE_AUDIT_2026-09-09.md` 写于 09-09，此后 C# 侧已修订多次。我按**当前修订版**逐条取证，基线 **`dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBuildEnableWorkloadResolver=false` → 603/603 全绿**。下表所有"仍成立"都是**绿灯下存在但无覆盖**的缺口。完整裁决表见报告 **§13.21**。
+
+**一、请勿照做（已过期 / 误读，会白干）**
+
+| 清单条目 | 事实 |
+|---|---|
+| **P0-4 破城永久死局** | ❌ **不成立**。阈值确实被读：`src/Engine/Effects/EffectRuntime.Cards.cs:514` `if (counted && player.CycleWinCount >= State.ReshuffleLossThreshold) DeclareWinner(player.PlayerIndex, "win.deck_cycles")` ⇒ 破城方（`CycleWinCount` 被置 9）**只差 1 次循环即胜**，与 `RULES.md:128` 的"威慑"定稿一致。已有测试 `EffectRuntimeTests.cs:551-675`。**只剩一个窄分支要修**：`State.cs:214-217` 在"双方均持有"时 `return`（= F18，已单独跟踪） |
+| **D-1 循环胜利方向歧义** | ❌ **误读**。`RULES.md:125-126` 与 `EffectRuntime.Cards.cs:508/516` 方向**完全一致**（循环者自己 +1、自己获胜） |
+| **D-2 破城后 `CycleWinCount=9`** | ✅ 已由 `RULES.md:128` 定稿为"威慑"，无需再裁决 |
+
+**二、需改表述后再做**：**P0-3**（形态已改：`EffectDispatcher.cs:133-157` 已改成"批内置 `DeferDeaths` + 批后一次 `CheckAll`"，且**已有回归测试** `EffectChainTests.cs:38-61` ⇒ 只需补一条"**两段 AOE 作用于同一 target 集合**"的用例）；**P2-1**（降 P3 展示层：`CardPlayRules.cs:74` 与 Java `Game.java:431` **都有 `Math.max(0,…)`**）；**P2-4**（`ROLLBACK` 在 C# 只是**卡牌效果动作**，`LegalActionGenerator` 只产 `Commit`/`Pull`）；**P2-7**（`RULES.md:102`/`:228` 已有语义，缺的只是"什么算受伤害"的判定口径）；**P2-11**（死分支**确实存在**，但死的是 `SELF_LEADER_ON_FIELD` / `OPP_LEADER_ON_FIELD` / `SELF_MINIONS_GE_*` / `SELF_LIFE_LE_*` 四个**惩罚条件**（`cards.schema.json` 的 `PunishCondition.enum` 只允许 `ALWAYS`/`ENEMY_MINIONS_GE_1`/`ENEMY_MINIONS_GE_2`/`HAND_GE_3`）；清单举的 `OPP_PUNISH_DRAW_TURN_GE` 是**胜利条件**且在 `EndPhase.cs:164` **有实现**，属过期描述）。
+
+**三、仍成立、且我建议升到 P0/P1 的四条新缺口（F24–F27，报告 §13.21.5 有全量证据）**
+
+1. **F24（P0）C# 完全不读 `data/balance.json`**：`src/` 内该文件**零命中**；`chainLimit=20`、`castleHealth=75`、`reshuffleLossThreshold=10`、`castleBreakVictoryCount=9`、`handLimit=8`、`pioneerHandLimitBonus=2` **全部硬编码** ⇒ **改这份平衡文件对 Unity 侧无效**，而 PL/owner 的平衡讨论正围绕它。**清单 P0-1（pioneer 惩罚缺失）只是它的一个实例**：C# 只实现了 pioneer 的**手牌上限**那一半（`DiscardPhaseHandler.cs:111-114`），缺的是读参数的**惩罚**那一半（Java `Game.java:426-431` 两端都有）；修的时候可直接复用 `:111` 的 solo-leader 判据，**并抽成公共 helper**，避免两处对"先驱"的定义漂移（= P2-9）。
+2. **F25（P1）快照 wire format 从来没有契约测试**：`game_snapshot.schema.json`（`additionalProperties:false`、**无 `deck` 字段**、`currentHealth minimum 0`）**从未被任何 C# 测试引用**；legacy `SnapshotDto`（`ContractDtos.cs:7-49`，PascalCase + `Deck` 有序牌库 + 双方手牌）**结构上不可能通过 v1.31 校验**却仍在仓库被测试固化（`EngineProjectionAdapter.cs:62-103`）。这同时是 **P2-3 负 HP 契约违规**的根因（`EffectRuntime.Advanced.cs:38/43` 只夹了 Attack/MaxHealth，`target.Health += spec.Amount` **无下限**）。请：加校验测试 + legacy 标 `[Obsolete]`/删除 + 修 `RuntimeSnapshotProjectionTests.cs:453`（它只断言 `DeckCount`，从未断言 `Deck`）。
+3. **F26（P1）v1.31 事件契约有校验器却没生产者**：引擎发 **46** 种事件类型、**51** 种载荷键；契约只收 **29**/**7**（`RuntimeEventCursor.cs:29-38` 对齐 enum，`:40-43` 键白名单，`:92` 未知键即拒绝）；**`RuntimeEventEnvelope` 在 `src/` 中只在测试里被构造**，`RuntimeMatchGateway` 返回的是**原始 `GameEvent`**（`:110-111/:177`）。唯一改名表是 legacy `EngineProjectionAdapter.cs:14-43`（26 键 / 覆盖 22 型；批量**静默丢弃**、单条**抛异常**）⇒ **28 型不可表达、11 型无生产者**。**清单 P2-8（`DEFEAT_PREVENTED`，`EffectRuntime.cs:80` 确实发出）是本条的一个实例。**
+4. **F27（澄清）**`RuntimeEventCursor` 的校验（乱序/缺号/重复/父缺失/终局载荷 `GAME_OVER` 恰好两字段）**已经做得很完整** ⇒ 别重写它，真正缺的是 F26 的**生产端映射**。
+
+**四、清单"§六 另注"我建议升 P0**：C# 侧 **`LegalActionGenerator.cs` 中 `punish` 零命中**、`ACTIVATE_PUNISH` 全仓只出现在 `src/Engine/Tests/`，且 `MatchFactory.cs:63` 用 `TurnActionRouter.CreateDefault(flow)` **不注入策略** ⇒ **Unity 侧玩家没有任何"发动惩罚"的合法动作**（恒自动放弃）；而 **Java 有完整人工路径**：`WebHumanAgent.java:67-71 askActivatePunish`（Web 动作 `activatePunish`）、`ConsoleHumanAgent.java:25`、`SwingHumanAgent.java:20`、`AiAgent.java:19`，由 `Game.java:381` 调用。⇒ 这既砍掉了 Unity 侧一整条决策轴，也**解释了 PL 的 A 模式为何等同 C# 发布默认**（A→B 的 3.2 倍分母差有规则级原因，不是采样巧合）。
+
+**五、建议顺序**：F26 事件生产映射 → F24 参数单一来源（含 P0-1）→ F25 快照契约测试 + legacy 清理（含 P2-3 夹零）→ P0-2 `AMBUSH_TRIGGER_WIN`（`cards.schema.json` 的 `WinCondition.enum` 允许它，`EndPhase.cs:156-183` 永不执行 ⇒ 实现或删 enum，需 PL 一句话）→ P1-2（被反制仍扣攻击，`EffectRuntime.Attack.cs:36` 在 `:37-41` 之前）、P1-3（`EffectSpec.Condition` 死字段）→ 三个补覆盖用例（P0-3 两段 AOE、P0-4 双无首领、F18 双持有）。
+
+**六、边界**：我只做只读取证，**未改任何生产/测试代码、未动 Git 指针**；**P0-3 的 AOE 变体与 P0-4 的双持有分支是结构推断（未跑探针）**；P1-1 / P2-7 / D-3 / D-4 / 清单第五节"测试盲点 12 条"**本轮未逐条复检**，不代表"已修复"。
+
+— QA（DeepSeek）· 2026-09-11 01:1x

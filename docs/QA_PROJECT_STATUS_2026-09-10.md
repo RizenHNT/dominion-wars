@@ -1,6 +1,6 @@
 # QA 项目整体状态审计 — 2026-09-10
 
-> 作者：DeepSeek（测试负责人）· 初始审计 2026-09-10 23:08–23:30；复核追加 2026-09-10 23:45；预言机与在飞复验追加 2026-09-11 00:06；跨预言机交叉验证追加 2026-09-11 00:12；进程取证更正 + 消融独立复核追加 2026-09-11 00:19；破城胜利五场景分歧 + `SimMain` 采样缺陷 + 规范路径基线追加 2026-09-11 00:26；**定稿复核（F17 撤回）+ `BALANCE.md` 陈旧基线（F21）追加 2026-09-11 00:34**
+> 作者：DeepSeek（测试负责人）· 初始审计 2026-09-10 23:08–23:30；复核追加 2026-09-10 23:45；预言机与在飞复验追加 2026-09-11 00:06；跨预言机交叉验证追加 2026-09-11 00:12；进程取证更正 + 消融独立复核追加 2026-09-11 00:19；破城胜利五场景分歧 + `SimMain` 采样缺陷 + 规范路径基线追加 2026-09-11 00:26；**定稿复核（F17 撤回）+ `BALANCE.md` 陈旧基线（F21）追加 2026-09-11 00:34**；**PL 代码审核清单逐条复核（含 F24–F27）追加 2026-09-11 01:0x**
 > 触发：owner 报“Codex 到本周额度限制”，要求检查项目整体状态
 > 性质：只读审计。本报告不改任何生产文件。（唯一例外：§13.2 两处 test-only 断言修复已获 owner 授权）
 
@@ -41,7 +41,7 @@
 | 25 | **P1（流程 / 数据丢失）** | **（§13.19 追加）** **`HEAD` 与工作树是两个不同的引擎（F22）**：工作树里 `src/main/java/**` 9 个文件 + `TestMain.java` 共 **1 402 行插入未提交**，且**没有任何 ref / 分支 / stash 包含它们**。用 `git archive HEAD` 在仓外独立重建的**提交态**实测：`TestMain` **38/38**、`SimMain 300` 平均回合 **22.61**（**10–20 带外**）、深海 **90.9%**、古木 **35.7%**（均在 40–60 带外）；而工作树是 59/59、14.79、80.3%、55.3%（三项回到带附近）。⇒ **按 `HEAD` 评估合并会得到更差的基线**；同时任何 `checkout`/`reset --hard`/`clean -fd` 会静默销毁这 1 402 行。 |
 | 26 | 正向 + **P2/P3（报表）** | **（§13.20 追加）** **PL 的 C# 权威实测已被我独立复现**：从 **HEAD 源码重建 dll** 后覆盖 harness 副本，重跑全部 **14 组配置 / 10 080 局**，得**逐字段 0 差异**（config A 39 字段、其余各 50 字段），种子 **720/720 全唯一**（对照 F20 无采样偏置）、关键计数逐项对上 ⇒ **PL 的 C# 数字有修订版锚点、可复现**（§13.19 的"无锚点"只属于我先前的 Java 读数）。同时发现 **F23**：报告 §3 的链深直方图是**两件仪器逐档相加**（108 730 = 事件 48 060 + 决策 60 670 = 链数 7 541 的 **14.4 倍**）、§5 表 10.61 应为 **10.56**、§4"平均回合"列实为**烈焰的 `avgTurns`**、§4 清深海行 23.11 与产物 23.06 不符——**四处都不改变报告结论方向**。 |
 
-- 机器：Windows，仓库 `C:\Users\USER\Documents\dominion-wars-win64`
+| 27 | **P0×2 / P1×4（复核裁决）** | **（§13.21 追加）** **逐条复核 PL 的代码审核清单**（`docs/PL_CODE_AUDIT_2026-09-09.md`，110 行）：基线 **603/603 全绿**（`dotnet test … -c Release`，当前修订版）。**仍成立**：P0-1（先驱惩罚缺失，且 C# **只做了手牌上限那一半**）、P0-2（`AMBUSH_TRIGGER_WIN` **在 schema enum 里、引擎永不执行**）、P1-1/2/3、P2-2/3/8/9/10、§六"另注"（**升格 P0**：Unity 侧**没有任何"发动惩罚"的合法动作**，`LegalActionGenerator` 中 `punish` 零命中，而 Java `WebHumanAgent.askActivatePunish` 有完整人工路径）。**已过期/误读（建议删除）**：**P0-4 主体**（`EffectRuntime.Cards.cs:514` 确实读取阈值 ⇒ 破城方**只差 1 次循环即胜**，不是死局）、**D-1**（与 `RULES.md:125-126` 方向一致，无歧义）、**D-2**（已由 `:128` 定稿）。**需改表述**：P0-3（已修复 + 已有 `EffectChainTests.cs:38-61`，仅缺两段 AOE 用例）、P2-1（降 P3，两端玩法都有 `Math.max(0,…)`）、P2-4、P2-7、**P2-11**（死分支存在但清单举错了条件名）。**新增 F24–F27**：**F24 C# 完全不读 `data/balance.json`**（全参数硬编码 ⇒ 改平衡文件对 Unity 侧无效，P0-1 只是其一个实例）；**F25 快照 wire format 无契约测试**（canonical `game_snapshot.schema.json` **从未被任何 C# 测试引用**，legacy `SnapshotDto` 结构上不可能通过却仍在仓库）；**F26 v1.31 事件契约有校验器却无生产者**（引擎发 **46** 种事件类型 / **51** 种载荷键，契约只收 **29**/**7**，`RuntimeEventEnvelope` 只在测试中构造）；**F27** 澄清（`RuntimeEventCursor` 的校验质量高于清单假设） |
 - 分支：`codex/p0-complete-match-loop-2026-09-06`，`HEAD=880250c`（2026-09-06 之后无新提交）
 - .NET SDK：8.0.425
 - 数据快照：审计时刻 `machine.json` SHA256 前缀 `A7AD0E6F997E`、`wood.json` `240C42D6DAA1`、`sea.json` `4C86A410D0BD`、`flame.json` `2740725CA701`、`neutral.json` `CAE381377FBD`
@@ -1211,11 +1211,109 @@ java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.
 2. 与 Java `SimMain` 的跨引擎对比同时混入了"**引擎语义差异**"与"**策略差异**"（`heuristic-v1` vs `AiAgent`）⇒ PL 报告 §1「先前的 Java 读数方向是错的」**应限定为"对 `HEAD` 的 Java 读数成立"**——工作树 Java 已含机械字段 / 古木门控修复（F22），**WIP 落地后必须重测**；
 3. 唯一跨引擎、跨工具、跨修订版都成立的结论仍是 **F10 深海偏强**（Java 80.3% / C# 74.0%，PL harness 84.4%）。
 
+### 13.21 复核 PL 的代码审核清单（`docs/PL_CODE_AUDIT_2026-09-09.md`）——逐条裁决
+
+> 追加 2026-09-11 01:0x。**只读复核**：未改动任何生产/测试代码，未动 Git 指针，未启动任何 relay。
+> 目的：清单写于 09-09，此后 C# 侧有多次修订（`8bc0515` / `b4657e8`）。本节的产出是给 Codex 排期的**"仍成立 / 已修复 / 已过期 / 需改表述"裁决表**，避免照单全做时白干。
+
+**复核对象**：`docs/PL_CODE_AUDIT_2026-09-09.md`（PL 所有，**未跟踪**，**110 行 / 9 516 B**，mtime 2026-09-10 23:43 —— 比首版 84 行长，PL 仍在编辑）。结构：一、P0×4（+1 误报撤销）；二、P1×3；三、P2×11；四、设计待裁决 D-1..D-4；五、测试盲点 12 条；六、建议修复顺序 + 页脚"另注"。
+
+**基线读数（当前修订版）**
+
+```
+dotnet test src\Engine\Tests\DominionWars.Engine.Tests.csproj -c Release -p:MSBuildEnableWorkloadResolver=false
+已通过! - 失败: 0，通过: 603，已跳过: 0，总计: 603，持续时间: 3 s
+```
+
+⇒ **603/603 全绿**。所以下表所有「**仍成立**」**都不是测试失败，而是"测试套件看不到"**：这些缺口在 603 绿灯下照样存在。
+
+#### 13.21.1 P0 与 P1
+
+| 清单条目 | 清单结论 | 裁决 | 取证（当前修订版） |
+|---|---|---|---|
+| **P0-1** 先驱惩罚修正缺失 | 仍成立 | ✅ **仍成立，且应升级为 F24 的一个实例 + 跨引擎玩法分歧** | C# `src/Engine/Turns/CardPlayRules.cs:69-75` 的 `EffectivePunish` **只有** `Math.Max(0, base + player.PunishDeltaThisTurn)`，**无对手视野**；Java `Game.java:426-431` 有 `soloLeader(...)` 双向修正 ⇒ **这是玩法层差异，不是展示层**。C# **已实现** pioneer 的手牌上限那一半（`DiscardPhaseHandler.cs:111-114` `pioneerHandLimitBonus`）⇒ 现状是**半实现伪装成已实现**，比"完全没做"更难查。且 pioneer 的两个惩罚参数在 `data/balance.json` 里（Java 读）在 C# 侧**无任何消费者**（见 F24） |
+| **P0-2** `AMBUSH_TRIGGER_WIN` 无实现路径 | 仍成立 | ✅ **仍成立，且属契约级违规** | **数据/契约允许、引擎永不执行**：`data/schema/cards.schema.json` 的 `WinCondition.enum` **显式包含** `AMBUSH_TRIGGER_WIN`，而 `src/Engine/Effects/EffectRuntime.EndPhase.cs:156-183` 的 `switch` 5 个 case 中**没有它**，`default: continue`（丢弃）。当前唯一载体 `gate_of_fate`（`data/cards/neutral.json:34-44`）实际靠 `ambushEffects: WIN_GAME` 取胜 ⇒ **声明的胜利条件是死的，"广告 ⇒ 可解"契约在数据侧被破** |
+| **P0-3** `DeferDeaths` 半成品 | 仍成立 | ⚠️ **形态已改，判定为"已修复但缺专项覆盖"** | `src/Engine/Effects/EffectDispatcher.cs:133-157`：`ApplyAll` 置 `DeferDeaths = true` → 批内 `ApplyInternal(checkAll:false)` → `finally` 复位 → **批后一次** `CheckAll`；`CheckAll(` 的非测试调用点仅 `EffectDispatcher.cs:129/155` + `EffectRuntime.Attack.cs:39/51`；`EffectTargetResolver.cs:64/100/118` 允许在批内选中"已死未清理"目标。**且已有回归测试**：`src/Engine/Tests/EffectChainTests.cs:38-61`（`IntermediateDeathCanBeReversedBeforeBatchCheck` / `IntermediateDeathMovesCardAfterBatchCompletes`）⇒ 清单描述的"半成品"形态已不成立。**残留**：**AOE 的两段效果**在"清理被延后"下**结构上必然**第二段仍能命中批内已被标记死亡的单位（我方**结构推断，未跑探针**）⇒ 建议 Codex 补一条"两段 AOE 作用于同一 target 集合"的显式用例 |
+| **P0-4** 破城后永久死局 | 仍成立 | ❌ **不成立（已过期）——反证见下** | `EffectRuntime.State.cs:177-226 ApplyCastleDamage`：破城 → `CycleWinCount = max(…, 9)`（`:190-192`）→ `ForceLeaderOut(defender)`（`:194`）→ 双方首领皆随从 ⇒ `DeclareWinner(breaker, "win.castle_break_minion")`（`:200-207`）。**"幻影阈值"说法错误**：阈值确实被读——`src/Engine/Effects/EffectRuntime.Cards.cs:514` `if (counted && player.CycleWinCount >= State.ReshuffleLossThreshold) DeclareWinner(player.PlayerIndex, "win.deck_cycles")` ⇒ **破城方只差 1 次循环即胜**，与 `docs/RULES.md:128` 的"威慑"定稿一致；已有测试 `EffectRuntimeTests.cs:551-675`（含 `win.castle_break_minion` 与"破城方优先"）。**窄残留（= F18 同一点）**：`breakerHas == defenderHas` 时 `:214-217` `return`（无人获胜） |
+| **P1-2** 空发/被反制仍消耗攻击 | 仍成立 | ✅ **仍成立** | `src/Engine/Effects/EffectRuntime.Attack.cs:36` 的 `Commit(_ => attacker.AttacksUsed++)` 位于 `:37-41` 的 `if (context.Negated) { CheckAll; return; }` **之前** ⇒ 被反制的攻击照样扣攻击次数 |
+| **P1-3** `EffectSpec.Condition` 是死字段 | 仍成立 | ✅ **仍成立** | `EffectSpec.cs:12/19/28` 声明了属性；`src/Engine` 非测试代码**零消费点** ⇒ 带 `Condition` 的效果被**无条件结算**（比"忽略"更危险：静默放宽约束）|
+| **P1-1** 伏击 `cardId` 增量泄露 | 仍成立 | ⚠️ **在 canonical 路径上已由 viewer 过滤取代；残留只在 legacy 适配器** | `src/Adapters/RuntimeContractV131Snapshot.cs:49-50`：`Hand = isViewer ? … : Array.Empty`、`Ambush = isViewer ? … : empty`；`:60-66` 非当前行动方**不产出 legalActions** ⇒ 生产路径不泄露。泄露者为 legacy `EngineProjectionAdapter`（见 P2-5）|
+
+#### 13.21.2 P2 表
+
+| 清单条目 | 裁决 | 取证 / 建议 |
+|---|---|---|
+| **P2-1** `ApplyPunishDelta` 无下限 | ⚠️ **成立但降级为展示层（P3）** | `EffectRuntime.State.cs:144-150` 确实只做 `+=`；但**唯一玩法消费点**（`CardPlayRules.cs:74` 与 Java `Game.java:431`）**两端都有 `Math.max(0,…)` 夹零** ⇒ 玩法无负惩罚；只有快照字段 `PlayerState.cs:50` 可能显示负值，且 `TurnFlow.cs:243` 每回合清零。建议：显示层夹零或契约显式允许负值 |
+| **P2-2** 15 关键词中 11 个无实现 | ✅ **仍成立（与 P0-2 同族：schema 过宽）** | `EffectRuntime.Combat.cs:10-14` 是关键词白名单；那 11 个词在非测试引擎代码中**各仅 1 处命中（即白名单自身）** ⇒ **数据可以写、引擎不收** |
+| **P2-3** Enfeeble 可致负 HP | ✅ **仍成立，且是 canonical 契约违规 ⇒ 建议升 P1** | `EffectRuntime.Advanced.cs:38/43`：Attack 与 MaxHealth 有 `Math.Max(0,…)`，**HP 无下限**（`target.Health += spec.Amount`）；`design/runtime-kit-v1.31/contracts/schemas/game_snapshot.schema.json` 的 `card.currentHealth` 是 `{"minimum": 0}` 且 `additionalProperties:false` ⇒ **负 HP 快照无法通过 canonical 校验**，即会产生**非法 wire 数据** |
+| **P2-4** 纯玩家无法 ROLLBACK | ⚠️ **成立，但需改表述** | `ROLLBACK` 在 C# 侧**只是卡牌效果动作**（`EffectNames.cs:41` 白名单 + `RollbackEffect.cs`）；`LegalActionGenerator` 只产 `Commit`/`Pull` ⇒ 「无回合级回滚动作」成立，但「RollbackEffect 已注册」指的是**效果动作**，两件事不要混为一条 |
+| **P2-5** 隐藏信息泄露 | ❌ **生产路径已被 v1.31 架构取代；残留是 legacy 适配器 + 名不副实的测试** | 生产路径 `RuntimeMatchGateway.cs:134` → `RuntimeContractV131Snapshot.ToSnapshot`（按 viewer 过滤，见 P1-1）。泄露者为 `src/Adapters/EngineProjectionAdapter.cs:62-103`（文件注释自称 legacy 1.30）——它填 `Deck = ToCards(player.Deck)` **有序牌库** + 双方手牌，**调用者全是测试**。更值得修的是：`src/Engine/Tests/RuntimeSnapshotProjectionTests.cs:453 ProjectionIsStableAndDoesNotExposeDeckOrder` **只断言 `DeckCount` 与 Hand/Field/Graveyard 为空，从未断言 `Deck` 列表本身** ⇒ 测试名与断言不符（P2），且**快照 wire format 至今没有契约测试**（见 F25）|
+| **P2-6** `LeaderWinParam > 0` 前置跳过 | ✅ **成立（= P0-2 的代码侧根因）** | `EffectRuntime.EndPhase.cs:149` 对所有参数化胜利条件做门控 ⇒ 非参数化的 `AMBUSH_TRIGGER_WIN` / `ROYAL_CASTLE_BREAK` 永不在此求值。**但两者性质不同**：`ROYAL_CASTLE_BREAK` 的缺席是**有意的**（在 `ApplyCastleDamage` 内实现），`AMBUSH_TRIGGER_WIN` 的缺席是**无意的**（无任何实现）⇒ 建议加注释写明前者，并修后者（或在 schema 删该枚举）|
+| **P2-7** `DamagedThisCycle` 语义未入规则书 | ⚠️ **部分成立（降 P3 文本）** | 字段名在 `docs/RULES.md` **零命中**，但**规则语义有**：`RULES.md:102`「`NO_DAMAGE_TURNS_GE n`：己方连续 n 个回合未受任何伤害」，且 `:228` 提到"无伤回合"（疯长 +1）。真正缺的是**判定口径**（0 伤害 / 被治疗 / AOE 未命中是否算"受伤害"）⇒ 属文本补注 |
+| **P2-8** `DEFEAT_PREVENTED` 不在事件白名单 | ✅ **成立（见 F27 的普遍化）** | 引擎确实发出它（`src/Engine/Effects/EffectRuntime.cs:80 Emit("DEFEAT_PREVENTED", …)`，`EffectSafetyTests.cs:169` 有断言），但它**不在** canonical `ui_event.schema.json` 的 `type.enum`，也**不在** legacy `EventTypeMap` ⇒ 在**批量**投影中被**静默丢弃**（`EngineProjectionAdapter.cs:304-307 continue`），在**单条**投影中直接抛（`:254-258 NotSupportedException`）|
+| **P2-9** 先驱判定用单一 `Leader` | ✅ **仍成立，且是 P0-1 的现成修复模板** | `DiscardPhaseHandler.cs:111` `pioneer = player.Leader is not null && opponent.Leader is null` ⇒ C# **已经有**内联 solo-leader 判据（用于手牌上限）。建议把该判据抽成 `MatchRules`/`GameState` 级 helper，供 `EffectivePunish` 复用，**避免两处对"先驱"的定义漂移** |
+| **P2-10** `TurnFlow.CompleteTurn` 直写 `Events.Append` | ✅ **仍成立** | `src/Engine/Turns/TurnFlow.cs:258/259`（`TURN_CHANGED` / `PHASE_CHANGED` 回合交接）与 `:307`（相位推进）**绕过命令缓冲**直写事件流；对照 `EffectRuntime.cs:208` 走 `State.Events.Append` 也属同类 ⇒ 事件的"命令可回滚性"在回合/相位边界上不成立 |
+| **P2-11** 四个条件分支不可达 | ⚠️ **方向成立、举例过期，需改写后再给 Codex** | `data/schema/cards.schema.json` 的 `PunishCondition.enum` **只允许** `ALWAYS` / `ENEMY_MINIONS_GE_1` / `ENEMY_MINIONS_GE_2` / `HAND_GE_3`；`PunishConditionEvaluator` 另实现的 `SELF_LEADER_ON_FIELD` / `OPP_LEADER_ON_FIELD` / `SELF_MINIONS_GE_*` / `SELF_LIFE_LE_*` **在受校验数据中不可表达** ⇒ **确为死分支**。但清单举的"已无使用者"是**胜利条件**（`OPP_PUNISH_DRAW_TURN_GE` 等），它们在 `EndPhase.cs:164` 等**有实现**、属**过期描述**；而 `ENEMY_MINIONS_GE_1/2`、`HAND_GE_3` **确实被数据使用**（`data/cards/` 中 flame:124/275/330、machine:530、sea:276/353、wood:276）|
+
+#### 13.21.3 设计待裁决 D 项
+
+| 条目 | 裁决 | 取证 |
+|---|---|---|
+| **D-1** 循环胜利方向歧义 | ❌ **误读，建议从清单删除** | `docs/RULES.md:125-126`（自己计数 +1；**让对方循环 10 次即对方获胜**）与 `EffectRuntime.Cards.cs:508/516`（**循环者自己**计数 +1 且**循环者自己**获胜）**方向完全一致** |
+| **D-2** 破城后 `CycleWinCount = 9` | ✅ **已由 `RULES.md:128` 定稿为"威慑"（只差 1 次循环即胜）** | 这正是 P0-4 不成立的原因；不需要再裁决 |
+| **D-3 / D-4** | ⚪ **本轮未取证**（不构成"已修复"声明） | 见 13.21.6 边界声明 |
+
+#### 13.21.4 §六 页脚"另注"：惩罚响应恒被放弃 ⇒ ✅ **成立，且比清单更严重：这是跨引擎能力差距**
+
+| 引擎 | 实证 |
+|---|---|
+| **C#（Unity/发布路径）** | `punishResponses` 在 `PlayCardActionHandler` / `CommitActionHandler` / `PullActionHandler` / `TurnActionRouter` 中**全是可选参数**，回退 `DeclinePunishResponsePolicy`；`src/Adapters/MatchFactory.cs:63` 用 `TurnActionRouter.CreateDefault(flow)` **不注入策略** ⇒ **发布运行时永远自动放弃**。更硬的证据：**`src/Engine/Turns/LegalActionGenerator.cs` 中 `punish` 零命中**，`ACTIVATE_PUNISH` 全仓只出现在 `src/Engine/Tests/ContractBoundaryTests.cs` 与 `LegalActionGeneratorTests.cs` ⇒ **Unity 侧玩家没有任何"发动惩罚"的合法动作** |
+| **Java（Web/桌面）** | **完整的人工路径都在**：`src/main/java/com/dominionwars/server/WebHumanAgent.java:67-71 askActivatePunish`（Web 动作 `activatePunish`，`:20/:53` 还专门把它标为非可放弃）、`ConsoleHumanAgent.java:25`、`SwingHumanAgent.java:20`、`AiAgent.java:19`，由 `Game.java:381` 调用 |
+
+**两条后果（比原清单重要）**：
+
+1. **Unity 侧玩家被砍掉了一整条决策轴**（惩罚响应），而这条轴正是 PL 的 T1/惩罚链预算与我的 F15（`punishActivatable` 是最强单一解释变量）所依赖的货币；
+2. **PL 的 A 模式（`--decline-punish`）恰恰等于 C# 发布默认行为，B 模式才接近 Java/Web 现实** ⇒ 这给 F23-⑤ 的"A→B 分母差 3.2 倍"提供了**规则级解释**（不是采样巧合），也再次说明**两引擎的平衡读数不可直接比较**。
+
+#### 13.21.5 本轮新增发现（F24–F27）
+
+| # | 发现 | 严重度 | 归属 / 建议动作 |
+|---|---|---|---|
+| **F24** | **C# 引擎完全不读 `data/balance.json`（跨引擎参数单一来源缺失）**：`src/` 内 `balance.json` **零命中**（只有 Java `Balance.load`）。C# 把 `chainLimit = 20`（`PlayCardActionHandler` 的 `DefaultChainLimit`）、`castleHealth = 75`（`MatchSetup` / `GameState`）、`reshuffleLossThreshold = 10` / `castleBreakVictoryCount = 9`（`GameState`）、`handLimit = 8` / `pioneerHandLimitBonus = 2`（`MatchRules`）**全部硬编码**；Java 侧 `Balance.java` 还有"读盘失败回退并写 stderr"的保护。⇒ **改 `data/balance.json` 对 Unity 侧完全无效**，而 PL/owner 的平衡讨论正是围绕该文件进行的。**P0-1 只是该缺失的一个实例** | **P0（主线正确性）** | **Codex**：让 C# 从 `data/balance.json` 装载（或明确声明 C# 侧唯一来源到底是谁），并补一致性测试；**PL/owner**：需知晓"这份文件只管 Java 侧"这一现状 |
+| **F25** | **快照 wire format 没有契约测试**：canonical `game_snapshot.schema.json`（`additionalProperties:false`、required 含 `snapshotRevision`/`viewerPlayerId`/`pendingPrompt`、player 要求 `fieldCount`/`graveyardCount`/`ambushCount`、**无 `deck` 字段**、`card.currentHealth minimum 0`）**从未被任何 C# 测试引用**（`ContractBoundaryTests.cs:151` 只引 `game_action.schema.json`），且 legacy `SnapshotDto`/`PlayerDto`（`src/Adapters/ContractDtos.cs:7-49`，PascalCase `Id`/`FieldEntityIds`/`Deck`/一堆 `*ThisTurn`）**结构上不可能通过 v1.31 校验**却仍留在仓库被测试固化 ⇒ 这是 **P2-3 负 HP** 与 **P2-5 误导性测试名**能长期存活的共同根因。建议：加 `game_snapshot.schema.json` 校验测试 + 给 legacy DTO/适配器打 `[Obsolete]` 或删除 | **P1（契约）** | **Codex** |
+| **F26** | **v1.31 的"事件边界"有契约、有校验器，却没有生产者**：引擎实际发出 **46** 种事件类型、**51** 种 `Data()` 载荷键；canonical `ui_event.schema.json` 的 `type.enum` 只有 **29** 个，`RuntimeEventCursor`（`src/Adapters/RuntimeEventCursor.cs:29-38`）**逐个对齐这 29 个**，并把载荷键限制为 **7 个**（`:40-43` `amount/cardId/count/reasonKey/sourceId/targetIds/winnerPlayerIndex`，`:92` 未知键直接 `event.data_field_unknown`）。**但 `RuntimeEventEnvelope` / `RuntimeEventCursor` 在 `src/` 中只被 `src/Engine/Tests/RuntimeEventCursorTests.cs` 构造 ⇒ 没有生产适配器**；`RuntimeMatchGateway` 对外返回的是**原始引擎 `GameEvent`**（`:110-111/:177`）。仓库里唯一的类型改名表是 legacy 1.30 的 `EventTypeMap`（`EngineProjectionAdapter.cs:14-43`，26 键，只覆盖 22 种引擎类型；批量为**静默丢弃**、单条为**抛异常**）⇒ **28 个引擎事件类型在 canonical 契约中不可表达，11 个契约类型当前无生产者**。任何想按契约把事件扇出到 Web 的宿主都必须自己再写一遍映射 | **P1（集成缺口）** | **Codex**：补 `GameEvent → RuntimeEventEnvelope` 的生产映射（含改名表 + 载荷裁剪 + `snapshotRevision` 打戳），并覆盖全部 46 种类型（或与 PL 一起把 enum 收窄）；**PL/owner**：确认 `ui_event` 的 29 项 enum 是否即为最终意图 |
+| **F27** | **（正面记录）`RuntimeEventCursor` 的质量高于清单假设**：它已实现乱序/缺号/重复/父缺失/相位/版本/终局载荷（`GAME_OVER` 必须恰好两个字段且 `reasonKey` 齐备，`:95-115`）等拒绝原因 ⇒ 清单把 P2-8 描述为"白名单缺失"**低估了已有实现**，真正的缺口是 F26 的"没有生产者" | 澄清 | 记录在案，供 Codex 复用而非重写 |
+
+#### 13.21.6 建议排期与"不要照单全做"的部分
+
+**建议 Codex 立即做（按序）**：**F26 的事件生产映射** → **F24 参数的单一来源**（含 P0-1 的惩罚修正，可直接复用 `DiscardPhaseHandler.cs:111` 的判据）→ **F25 快照契约测试 + legacy 清理** → **P2-3 HP 夹零（契约违规）** → **P0-2 的 `AMBUSH_TRIGGER_WIN`**（实现或删 enum）→ **P1-2 攻击消耗 / P1-3 `Condition` 死字段** → 三个补覆盖用例（P0-3 的两段 AOE、P0-4 的"双无首领"、F18 的双持有）。
+
+**建议从清单删除或改写（避免白干）**：
+
+| 清单条目 | 处置 |
+|---|---|
+| **P0-4 主体** | **删除主结论**（阈值确被读、破城方只差 1 次循环，不是死局）；只保留 `:214-217` 的窄分支（= F18，已在 §14 跟踪）|
+| **P2-11 的条件名** | 保留"有死分支"的结论，**换掉举例**（死的是 `SELF_*` / `OPP_LEADER_ON_FIELD` 四个**惩罚条件**，不是胜利条件）|
+| **D-1** | **删除**（与 `RULES.md` 方向一致，无歧义）|
+| **D-2** | **删除**（已由 `RULES.md:128` 定稿）|
+| **P2-5 主体** | 改写为"legacy 1.30 适配器 + 名不副实的测试 + 缺快照契约测试"三件具体事（见 F25）|
+| **P2-1** | 降级 P3（显示层）|
+| **P2-7** | 改为"补判定口径文本"（P3）|
+| **P0-3** | 改写为"已修复，补一条两段 AOE 用例"|
+| **§六 另注** | **升格为 P0 排期**（Unity 侧缺失惩罚响应轴 + 它解释了两引擎读数为何不可比）|
+
+#### 13.21.7 边界声明（不得过度外推）
+
+1. 本轮为**只读**复核：所有裁决都基于**源码/数据/契约取证**，唯一执行的命令是 C# 测试套件（603/603）；
+2. **P0-3 的两段 AOE** 与 **P0-4 的双持有窄分支**是**结构推断**，**未跑探针实证**；
+3. **P1-1 的增量泄露路径、P2-7 的字段判定口径、D-3/D-4、清单第五节"测试盲点 12 条"本轮未逐条复检** ⇒ 下表/上文**不构成"已修复"**，只是"未复检"；
+4. F26 的"46 种事件类型 / 51 种载荷键"是按**字面量扫描**（`Emit(`/`Events.Append(`）得到，**由变量拼接产生的事件名不会被计入** ⇒ 该数字是**下界**；同理 legacy `EventTypeMap` 中 `CARDS_DRAWN` / `PUNISH_DRAW` 无字面量生产者，可能为 Java 语义残留。
+
 ---
 
 ## 14. 本轮新增发现汇总与建议动作
 
-> ⚠️ **F17 行已作废，以 §13.17 为准**（F17 撤回为"非引擎缺陷"；剩余工作是改 `RULES.md` 文本 + 修 F18 + 补一格覆盖用例）。**F18 / F19 / F20 行维持有效**，其中 F19 的性质由"需定稿裁决"变为"**需文本改写（owner 意图已明确）**"。新增 **F21**（`docs/BALANCE.md` 陈旧基线，见下与 §13.18）与 **F22**（**`HEAD` ≠ 工作树**：1 402 行未提交代码是唯一的"合并候选"风险，见 §13.19）。**本段再追加 F23**（PL 报告的 §3/§4/§5 **五处取值与表述问题**，**均不改变其结论方向**；并附 QA 独立追加的 **B 模式消融证据**，见 §13.20）。
+> ⚠️ **F17 行已作废，以 §13.17 为准**（F17 撤回为"非引擎缺陷"；剩余工作是改 `RULES.md` 文本 + 修 F18 + 补一格覆盖用例）。**F18 / F19 / F20 行维持有效**，其中 F19 的性质由"需定稿裁决"变为"**需文本改写（owner 意图已明确）**"。新增 **F21**（`docs/BALANCE.md` 陈旧基线，见下与 §13.18）与 **F22**（**`HEAD` ≠ 工作树**：1 402 行未提交代码是唯一的"合并候选"风险，见 §13.19）。**本段再追加 F23**（PL 报告的 §3/§4/§5 **五处取值与表述问题**，**均不改变其结论方向**；并附 QA 独立追加的 **B 模式消融证据**，见 §13.20）。**再追加 F24–F27**（PL 代码审核清单的逐条复核裁决与四项新发现，见 §13.21）。
 
 | # | 发现 | 严重度 | 归属 / 建议动作 |
 |---|---|---|---|
@@ -1235,13 +1333,17 @@ java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.
 | F14 | **归因更正**：仓库实时写入者是 `dsh`（DeepSeek Harness）会话，**不是 Codex**。`codex.exe` PID 29668 是桌面应用常驻 `app-server`，20 秒 CPU 增量 0.00s、无回合子进程 | 澄清 | 记录在案；**不改变任何缺陷的修复归属**（F3/F7/F11 仍发 Codex）（详见 §13.13） |
 | F15 | **`punishActivatable` 占比是当前最强的单一解释变量**：深海 60% vs 古木 10%（我独立按 `data/decks` 加权复核，与 PL 完全一致）；PL 消融显示清掉该标志可移动 8–62 点 | **P1** | **PL/owner**：这是"惩罚响应经济"的核心货币，应在设计层决策（PL 的 T1/惩罚链预算）；**先不要用数值微调去抵消它** |
 | F16 | PL 报告 §4 的 `BUFF-bearing cards` 列有 2 处数据错误：机械 **0 应为 24**、深海 **6 应为 9**（烈焰 3、古木 24 正确） | P3（报表） | **PL**：更正 `docs/PL_BALANCE_MEASUREMENT_2026-09-11.md`；不影响 `punishActivatable` 载荷结论（详见 §13.12.5-(b)） |
-| ~~F17（原文，已撤回）~~ | 见**本表末尾**同号修订行与 §13.17 —— **破城胜利在"双随从 + 仅防守方持有"时归属冲突**：`EffectRuntime.State.cs:200-207` 的 `IsMinion && IsMinion` 预判**只要求"双方统领都是随从"、不要求任何一方持有 `ROYAL_CASTLE_BREAK`**，因此在"仅防守方持有"时**抢走防守方（烈焰）的被动胜利**。**⚠️ 定性：C# 忠实实现了 `:138` 的*字面*文本 —— 根因是 `:138`（字面）与 `:105/:137`（不问谁破城）矛盾（= F19），不是 C# 代码错。定稿前不要动 C#。** 已实证可达（变体 B：`win.castle_break_minion`×9，前提是机械方晋升 `machine_alpha`），3 000 局内未造成可观测偏差；`BreakingCastle` 5 条用例当前 **5/5 全绿** | **P1（规范冲突）** | **PL/owner 定稿 → 再由 Codex 落地** | 见 §13.14-⑤：**两种读法各有一个修复方案**；(a) 收窄 ⇒ 删预判（含行为变更），(b) 保留字面 ⇒ C# 基本正确、仅需修 F18 + 给 `:137` 补例外条款。**两案都必须改 `EffectRuntimeTests.cs:604-642` 并新增那一格用例**（测试代码属 Codex） |
-| ~~F18（原文）~~ | 见**本表末尾**同号修订行与 §13.17 —— **同一函数的相反方向的过窄**：`EffectRuntime.State.cs:214-217` 在"双方均持有 `ROYAL_CASTLE_BREAK`"时 `return`（无人获胜），而 `RULES.md:138` **在此场景没有歧义**地要求**破城方胜**（Java 亦正确）⇒ **可无条件判定为缺陷、可立刻修，不需要等定稿**。今天不可达（仅 `flame_leader` 持有），但**下一个持有该条件的统领一落地即暴露** | **P2（潜伏，可立刻修）** | **Codex** | 改为 `if (!breakerHolds && !defenderHolds) return;` 再 `DeclareWinner(breakerHolds ? breaker : defender, "win.royal_castle_break")`。与 F17 方向相反 ⇒ C#/Java 在第 4/5 行场景上**恰好互换** |
+| ~~F17（原文，已撤回）~~ | 见**本表末尾**同号修订行与 §13.17 —— **破城胜利在"双随从 + 仅防守方持有"时归属冲突**：`EffectRuntime.State.cs:200-207` 的 `IsMinion && IsMinion` 预判**只要求"双方统领都是随从"、不要求任何一方持有 `ROYAL_CASTLE_BREAK`**，因此在"仅防守方持有"时**抢走防守方（烈焰）的被动胜利**。**⚠️ 定性：C# 忠实实现了 `:138` 的*字面*文本 —— 根因是 `:138`（字面）与 `:105/:137`（不问谁破城）矛盾（= F19），不是 C# 代码错。定稿前不要动 C#。** 已实证可达（变体 B：`win.castle_break_minion`×9，前提是机械方晋升 `machine_alpha`），3 000 局内未造成可观测偏差；`BreakingCastle` 5 条用例当前 **5/5 全绿** | **P1（规范冲突）** | **PL/owner 定稿 → 再由 Codex 落地**<br>见 §13.14-⑤：**两种读法各有一个修复方案**；(a) 收窄 ⇒ 删预判（含行为变更），(b) 保留字面 ⇒ C# 基本正确、仅需修 F18 + 给 `:137` 补例外条款。**两案都必须改 `EffectRuntimeTests.cs:604-642` 并新增那一格用例**（测试代码属 Codex） |
+| ~~F18（原文）~~ | 见**本表末尾**同号修订行与 §13.17 —— **同一函数的相反方向的过窄**：`EffectRuntime.State.cs:214-217` 在"双方均持有 `ROYAL_CASTLE_BREAK`"时 `return`（无人获胜），而 `RULES.md:138` **在此场景没有歧义**地要求**破城方胜**（Java 亦正确）⇒ **可无条件判定为缺陷、可立刻修，不需要等定稿**。今天不可达（仅 `flame_leader` 持有），但**下一个持有该条件的统领一落地即暴露** | **P2（潜伏，可立刻修）** | **Codex**<br>改为 `if (!breakerHolds && !defenderHolds) return;` 再 `DeclareWinner(breakerHolds ? breaker : defender, "win.royal_castle_break")`。与 F17 方向相反 ⇒ C#/Java 在第 4/5 行场景上**恰好互换** |
 | F19 | **`RULES.md:138` 规范文本自相矛盾**：触发条件写作"双方统领均为随从型"，理由写作"以避免**双方条件同时满足**时产生平局"。**owner 意图已由 §13.17 定稿**（主动破城须受奖 ⇒ 第 3/4 行破城方胜），故 F19 不再是"待裁决"而是**纯文本改写**：触发条件宽于其自述理由，且与 `:105/:137`「被动，不问谁破城」矛盾 | **P1（规范）** | **PL/owner**：改 `:105/:137/:138` 文本（理由与触发条件对齐 + `:137` 补例外指针 + `:105` 改为"其他随从型统领若声明了自己的胜利条件则以自己声明的为准"）；**不再需要裁决第 3/4 行**（详见 §13.17 / §13.18 / 邮箱 🟢 条目） |
 | F20 | **`SimMain` 读数强烈依赖 `N`，低 N 不可与 N=300 混用**：同一确定性构建下机械在 N=20 读 **19.2%**、N=300 读 **13.2%**（+6 pts）；因 `seed = a*1000+b*100+k` 使样本**嵌套**，低 N 是**偏置的早期分块**而非随机子样本。另：因 `k` 步长上限 100，**N>100 时种子范围跨对局重叠**（N=300 时 1 200/2 200 个 seed 被 ≥2 个对局共享） | **P2（测试台）** | **Codex**：`SimMain.java:39` 改 `seed = (a*decks.size()+b)*N + k`；摘要打印 N。**PL/owner**：勿引用 `SimMain < 200` 的阵营胜率（平均回合对 N 不敏感，可继续引用）（详见 §13.15） |
 | F21 | **`docs/BALANCE.md` 的平衡基线与复现命令早已失效**：① `:3-10` 标"**最新**模拟数据"却与 `:18` 给出的命令（`SimMain **8**`，96 局）**逐项不符**（表里机械 52.1% / 深海 41.7%，今天 N=8 实测 **18.8% / 79.2%**，差 33.3 / 37.5 pts）⇒ 表不是该命令的产物；② `:13`「所有阵营胜率落在 40%–60% 带内」**不再成立**（今天机械 18.8% 与深海 79.2% 都在带外，古木 56.3% 与烈焰 45.8% 仍在带内）；③ `:18` 用 `SimMain 8` 而 `:46` 要求「`SimMain 30` 以上」⇒ **同文档自相矛盾，且两者都不够**（按 F20，`N=30` 仍是嵌套偏置样本）；④ `:21` 把**系统性偏置**说成"可加大以降低方差"；⑤ `:73`「规则测试 **35/35**」现为 **38/38（提交态）/ 59/59（工作树）**。同一失效命令复制到 `docs/DESIGN.md:91`；`:54` 的基线无日期/引擎/N | **P2（文档权威性）** | **PL/owner**：改 `BALANCE.md §1`（带 N/日期/构建）与 `§4` 第 2 条（"阵营胜率 `N ≥ 200`"），更正 `DESIGN.md:91`；**Codex**：与 F20 的种子修复一并做（详见 §13.18） |
 | **F22** | **`HEAD` 与工作树是两个不同的引擎（⚠️ 本轮唯一的 P1）**：工作树里 `src/main/java/**` **9 个文件 + `TestMain.java` 共 1 402 行插入未提交**（`Game +240`、`Effects +197`、`AiAgent +143`、`CardDef +114`、`CardInstance +22`、`PlayerAgent +24`、`Balance +20`、`PlayerState +12`、`TestMain +658`），且 **`git branch -avv` 的全部落点与 `git stash list` 都不包含它们**。用 `git archive HEAD` 在仓外**独立重建提交态**：`build.bat` exit 0、`TestMain` **38/38**、`SimMain 300` 平均回合 **22.61**（**超出 10–20 带**）、烈焰 59.1% / 机械 14.3% / 深海 **90.9%** / 古木 **35.7%**（两项在 40–60 带外）；工作树则为 59/59、14.79、51.2/13.2/80.3/55.3 | **P1（流程 / 数据丢失）** | **Codex / harness**：把这批 WIP 落到明确命名的提交或分支（哪怕标 `WIP`）；**owner**：或明确决定归档/丢弃（丢弃不可恢复，需明确同意）。**在此之前：不要用 `HEAD` 评估合并、不要把工作树读数当"已交付"、任何"干净基线"验证必须先声明测的是哪个修订版**（详见 §13.19） |
 | **F23** | **PL 的 C# 实测：结论可复现、但有五处取值/表述问题**（⚠️ 全部为**表述层**，**结论方向不变**）**① §3 链深直方图是"两件仪器逐档相加"**：`Simulator.cs:375-376` 把引擎 `PUNISH_TRIGGERED` 事件与策略 `RecordingPunishPolicy.DepthHistogram`（按 `Decide` 调用计数）**合并进同一个字典**再输出（`:165-166` / `Program.cs:158`），合计 **108 730 = 事件 48 060 + 决策 60 670**，是链数 **7 541** 的 **14.4 倍**，仅 depth-1 桶（**9 855**）已 > 链数 ⇒ **没有任何一档可读作链数**（harness 自打的标签 `(depth:decides)` 亦与数值不符）；**"链被 20 档上限截断"仍成立，但依据应是** `data/balance.json:8 chainLimit = 20`（= `PlayCardActionHandler.DefaultChainLimit`，`:306` `chainDepth > _chainLimit` 截断）**且 8 组 A 配置的实测 `maxChainDepth` 全部恰好 = 20**；**② §5 表** "策略层面完全不打出 BUFF 卡"古木 **10.61%** 应为 **10.56%**（产物 `abl-A-woodNoBuffPlay.json` = 10.56，§5 正文自己写的也是 10.56 ⇒ 同文档自相矛盾）；**③ §4「平均回合」列**（5.79/14.14/6.92/8.41/7.49）与产物 `factions[烈焰帝国].avgTurns` **逐值完全相等（5/5，diff = 0）** ⇒ 实为"**烈焰所参与对局**的平均回合"，非全局（全局均值 ≈ **6.01**）；**④ §4「清掉深海」行** 90.60/48.60/**23.11**/37.80 与产物 90.56/48.61/**23.06**/37.78 不符（1 位小数下一致；−61.4 pts 不变，84.44 − 23.06 = **61.38**），同组 json/txt **文件名不一致**（`-non-activatable` vs `seaNonActivatable`）；**⑤ §3 的 88% 与 A→B 差**存在**分母不同**问题（`punishDrawInitial` A **12 126** vs B **45 248**；roots A **7 541** vs B **24 237**）⇒ 88% 只在 **A 内部**成立，**A→B 不是单变量消融**；B 模式 `maxChainDepth = 0` 是**未填充字段**。另：**5 组** A 配置各有 **1 次**非法动作被拒（`action.discard_selection_invalid`，**引擎正确拒绝**） | **P2（度量表述）+ P3（报表）** | **PL**：更正上述文字；harness 侧建议：**两个直方图分开输出**、统一产物文件名、B 模式 `maxChainDepth` 输出 `null`。**QA 追加证据（正面强化 S1）**：`abl-B-sea-non-activatable` ⇒ 深海 67.5% → **31.11%**（−36.4 pts）、烈焰 58.33 → 70.83、机械 31.11 → 40.56、古木 43.06 → 57.5 ⇒ **"可降临密度是决定性货币"在关闭响应回环后依然成立**（PL 的 B 模式只跑了 flame/sea 两组消融）。**QA 不改 PL 的文件，只提案**（详见 §13.20） |
+| **F24** | **C# 引擎完全不读 `data/balance.json`（跨引擎参数单一来源缺失）**：`src/` 内 `balance.json` **零命中**（只有 Java `Balance.load`；Java 侧还有"读盘失败回退 + 写 stderr"保护）。C# 把 `chainLimit=20`（`PlayCardActionHandler.DefaultChainLimit`）、`castleHealth=75`（`MatchSetup`/`GameState`）、`reshuffleLossThreshold=10` 与 `castleBreakVictoryCount=9`（`GameState`）、`handLimit=8` 与 `pioneerHandLimitBonus=2`（`MatchRules`）**全部硬编码** ⇒ **改这份文件对 Unity 侧完全无效**，而 PL/owner 的平衡讨论正围绕它进行。**清单 P0-1（先驱惩罚缺失）只是该缺失的一个实例**；C# 已实现 pioneer 的手牌上限那一半（`DiscardPhaseHandler.cs:111`），缺的正是读参数的惩罚那一半 | **P0（主线正确性）** | **Codex**：让 C# 从 `data/balance.json` 装载（或明确声明唯一来源），并补一致性测试；修复 P0-1 时可复用 `DiscardPhaseHandler.cs:111` 的 solo-leader 判据。**PL/owner**：需知晓"这份平衡文件目前只作用于 Java 侧" |
+| **F25** | **快照 wire format 从来没有契约测试**：canonical `design/runtime-kit-v1.31/contracts/schemas/game_snapshot.schema.json`（`additionalProperties:false`、required 含 `snapshotRevision`/`viewerPlayerId`/`pendingPrompt`、player 要 `fieldCount`/`graveyardCount`/`ambushCount`、**无 `deck` 字段**、`card.currentHealth minimum 0`）**从未被任何 C# 测试引用**（`ContractBoundaryTests.cs:151` 只引 `game_action.schema.json`，v1.31 目录虽有 valid/invalid fixtures）。legacy `SnapshotDto`/`PlayerDto`（`src/Adapters/ContractDtos.cs:7-49`：PascalCase `Id`/`FieldEntityIds`/`Deck`/一堆 `*ThisTurn`）**结构上不可能通过 v1.31 校验**却仍在仓库里被测试固化（`EngineProjectionAdapter.cs:62-103` 还投影**有序牌库**与双方手牌）。这正是 **P2-3 负 HP** 与 **P2-5 名不副实测试**能长期存活的共同根因 | **P1（契约）** | **Codex**：① 加用 `game_snapshot.schema.json` 校验生产快照的测试；② legacy 1.30 DTO/适配器打 `[Obsolete]` 或删除；③ 修 `RuntimeSnapshotProjectionTests.cs:453` 的断言（它只验 `DeckCount`，从未验 `Deck` 列表）。**详见 §13.21.5** |
+| **F26** | **v1.31 的"事件边界"有契约、有校验器，却没有生产者**：引擎实际发出 **46** 种事件类型、**51** 种 `Data()` 载荷键（字面量扫描，**下界**）；canonical `ui_event.schema.json` 的 `type.enum` 只有 **29** 个，`RuntimeEventCursor`（`:29-38`）**逐个对齐这 29 个**并把载荷键限制为 **7** 个（`:40-43`，`:92` 未知键即 `event.data_field_unknown`）。**但 `RuntimeEventEnvelope`/`RuntimeEventCursor` 在 `src/` 中只被 `src/Engine/Tests/RuntimeEventCursorTests.cs` 构造**；`RuntimeMatchGateway` 对外返回**原始引擎 `GameEvent`**（`:110-111/:177`）。唯一的类型改名表是 legacy 1.30 的 `EventTypeMap`（`EngineProjectionAdapter.cs:14-43`，26 键、仅覆盖 22 种引擎类型；批量为**静默丢弃**、单条为**抛异常**）⇒ **28 个引擎事件类型在 canonical 契约中不可表达、11 个契约类型无生产者**。任何要把事件按契约扇出到 Web 的宿主都得再写一遍映射 | **P1（集成缺口）** | **Codex**：补 `GameEvent → RuntimeEventEnvelope` 的生产映射（改名表 + 载荷裁剪 + `snapshotRevision` 打戳），覆盖全部 46 种（或与 PL 一起收窄 enum）；**PL/owner**：确认那 29 项 enum 是否为最终意图。**清单 P2-8（`DEFEAT_PREVENTED`）是本条的一个实例**（引擎发出但两端白名单都没有 ⇒ 批量静默丢弃） |
+| **F27** | **（澄清，防重写）** `RuntimeEventCursor` 的校验质量高于清单假设：已实现乱序 / 缺号 / 重复 / 父缺失 / 相位 / 版本 / 终局载荷（`GAME_OVER` 必须恰好两字段且 `reasonKey` 齐备，`:95-115`）等拒绝原因 ⇒ 清单把 P2-8 描述为"白名单缺失"**低估了已有实现**，真正的缺口是 F26 的"没有生产者" | 澄清 | 记录在案，供 Codex **复用而非重写**；**详见 §13.21.5** |
 | F17 | ~~"双随从 + 仅防守方持有 ⇒ C# 抢走防守方被动胜"~~ **⚠️ 本节结论已由 §13.17 整体撤回**：按 owner 2026-09-11 的定稿（「不然大家都不打王城了」+「alpha……所以不需要破城」），第 4 行的**应然结果就是破城方胜**，C# `:200-207` **结果正确**、`EffectRuntimeTests.cs:604-642` **编码的正是定稿规则应保留**；§13.14-⑤ 的**方案 (a) 作废**。剩余工作＝改 `RULES.md:105/:137/:138` 文本（PL/owner）+ 修 F18 + 补一格覆盖用例（Codex） | **~~P1~~ 撤回** | **PL/owner**（文本）+ **Codex**（F18 + Java 对齐 + 补用例）。**详见 §13.17** |
 | F18 | **F17 撤回后，本地唯一的真缺陷**：`EffectRuntime.State.cs:214-217` 在"双方均持有 `ROYAL_CASTLE_BREAK`"时 `return`（无人获胜），而 `RULES.md:138` 与 owner 的"打破平局"意图都要求**破城方胜**（Java 亦正确）⇒ **可无条件判定为缺陷、可立刻修，不需要等定稿**。今天不可达（仅 `flame_leader` 持有），且在第 3/4 行被 `:200-207` 抢先 `return` 掩盖；只在"双方均持有 **且** 至少一方非随从"时暴露 | **P2（潜伏，可立刻修）** | **Codex**：改为 `if (!breakerHolds && !defenderHolds) return;` 再 `DeclareWinner(breakerHolds ? breaker : defender, "win.royal_castle_break")`。**C# 的 `:200-207` 不要动**（见 §13.17） |
 
@@ -1249,4 +1351,4 @@ java -Dfile.encoding=UTF-8 -cp "$dst\build\classes;$dst\build\test-classes" com.
 
 ---
 
-— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19 / 破城胜利分歧与采样缺陷追加 2026-09-11 00:26 / **定稿复核：F17 撤回、F18 维持（§13.17）、`BALANCE.md` 陈旧基线 F21（§13.18）追加 2026-09-11 00:34** / **读数复现校验 + F21 范围更正（"部分失效"）+ F19 转纯文本改写 2026-09-11 00:36** / **提交态 vs 工作树独立重建对比、新增 F22（1 402 行未提交代码）2026-09-11 00:44** / **独立复现 PL 的 10 080 局 C# 权威实测（14/14 配置、逐字段 0 差异）+ 新增 F23（§13.20）2026-09-11 00:49**
+— DeepSeek（测试负责人）· 2026-09-10 / 复验追加 2026-09-11 00:06 / 交叉验证追加 2026-09-11 00:12 / 进程取证与消融复核追加 2026-09-11 00:19 / 破城胜利分歧与采样缺陷追加 2026-09-11 00:26 / **定稿复核：F17 撤回、F18 维持（§13.17）、`BALANCE.md` 陈旧基线 F21（§13.18）追加 2026-09-11 00:34** / **读数复现校验 + F21 范围更正（"部分失效"）+ F19 转纯文本改写 2026-09-11 00:36** / **提交态 vs 工作树独立重建对比、新增 F22（1 402 行未提交代码）2026-09-11 00:44** / **独立复现 PL 的 10 080 局 C# 权威实测（14/14 配置、逐字段 0 差异）+ 新增 F23（§13.20）2026-09-11 00:49** / **复核 PL 代码审核清单：逐条裁决 + 新增 F24（C# 不读 `data/balance.json`）/F25（快照无契约测试）/F26（事件契约无生产者）/F27（§13.21）2026-09-11 01:0x**
