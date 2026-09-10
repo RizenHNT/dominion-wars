@@ -343,6 +343,260 @@ Assert.That(
 - `sea_leviathan_young` 4/6、`sea_devour` punish 2；
 - 古木 512 轴的**真实对局可达性**（现有 512 断言是手工铺场 fixture，不代表对局中可达）。
 
+## 13. 复核补充与 checkpoint 封版（2026-09-10 23:45 追加）
+
+### 13.1 门禁全绿（本树复跑实测）
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| 卡牌 schema | `.\scripts\validate-cards.ps1` | `pass=91 fail=0 files=5` ✅ |
+| 牌组 | `.\scripts\validate-decks.ps1` | `pass=4 fail=0 cards=91`（四套各 60+1） ✅ |
+| design manifest | `.\scripts\validate-design-manifest.ps1` | `pass=1 rows=320 files=320` ✅ |
+| 对齐 | `python scripts/align_check.py` | 完成，无悬空 SUMMON ✅ |
+| 数据完整性 | `python scripts/sanity_check_v2.py` | `0 ERROR / 0 WARN / 0 INFO` ✅ |
+| .NET | `dotnet test DominionWars.sln -c Debug -p:MSBuildEnableWorkloadResolver=false --nologo` | **603/603 通过，0 失败** ✅ |
+| Java 回归 | `java "-Dfile.encoding=UTF-8" -cp "build/classes;build/test-classes" com.dominionwars.test.TestMain` | **38/38** ✅ |
+
+§3 记录的两处失败（601/603）已全部消除。§11.1 判定的"3 条失效断言"经落地后复核，实际需要改动的是 **2 条 + 1 处编译缺失**：见 §13.2。
+
+### 13.2 本轮修复的测试代码缺陷（3 处，均已验证）
+
+| # | 位置 | 缺陷 | 处置 |
+|---|---|---|---|
+| 1 | `src/Engine/Tests/DataLoaderTests.cs:2` | 新加的逐卡费用表使用 `Dictionary<,>` 但缺 `using System.Collections.Generic;` → `error CS0246`，**整个解决方案无法编译**（不只是该测试失败） | 补 using。修复后 603/603 |
+| 2 | `src/Engine/Tests/DataLoaderTests.cs:70-80` | 原为"普通机械随从一律 1/0/1"的全局断言，与 M1 差异化（golem/wall=2、blaster/titan=3、titan download=2）冲突 | 已被改为逐卡显式值表（8 张齐全）。实测通过，与 `data/cards/machine.json` 一致 |
+| 3 | `src/Engine/Tests/ProductionFactionIntegrationTests.cs:398` | 断言 `PUNISH_DRAW` 事件数 == **9**（"2 次 COMMIT + **7** 次 PULL"）——把"惩罚张数之和"当成了"事件条数" | 改为 **8**（2 次 COMMIT + 6 次 PULL），并加注释说明语义 |
+
+**Class 3 的判定依据（实测 + 源码双证）**：`Expected: 9, But was: 8`。`EffectRuntime.Cards.cs:293-347` 的 `DrawCards` 无论 `amount` 多大，只在循环结束后 `Emit` **一次**（`:344`），幅度只写入 `count` 载荷；`src/Adapters/EngineProjectionAdapter.cs:530-534` 也确实是"一条事件 + `count` 字段"的投影契约。因此 `machine_titan` 的 `downloadCost 1→2` 只改变该条事件的 `count`（使 `pullPunishes.Sum()==7`），**不产生第二条事件**。`Is.EqualTo(9)` 是按"每抽一张发一条"的误读写的，应改测试而非改引擎。同处 `pullPunishes.All(v => v is 1 or 2)`、`Sum()==7`、`pullDeclarations.Length==6` 三条断言均正确且通过。
+
+### 13.3 平衡 A/B 与机械 −30pp 的**确切成因**（已修正：含 7 变体隔离实验）
+
+> ⚠️ **本节已依据 2026-09-10 23:58 的隔离实验重写。初版把机械崩塌归因于"提交/下载代价被抬高"，该归因错误，请勿引用旧版数字与旧结论。**
+
+**方法**：`SimMain` 的所有数据路径都相对 cwd（`SimMain.java:21-23` 用 `Path.of("data/balance.json")` 等），因此在 `%TEMP%` 下复制 `data/` 即可做**仓库外**的数据变体实验（**未改动任何生产文件**）。`build/classes`、`build/test-classes`、`data/decks/*`、`data/balance.json` 全程固定，只切换 `data/cards/*.json`。每变体 `SimMain 300` = 3600 局。
+
+**变体读数**（同一份编译产物、同一时刻、同一牌组）：
+
+| 变体 | `data/cards/*` 来源 | flame | machine | sea | wood | 平均回合 |
+|---|---|---|---|---|---|---|
+| `old` | 全用 `880250c`（落地前） | 63.6% | **46.4%** | 55.3% | 34.7% | 20.42 |
+| `cur` | 全用本树（＝提交 `8bc0515` 内容） | 59.1% | **14.3%** | **90.9%** | 35.7% | 22.61 |
+| `B` | 本树，仅 `machine.json` 用 `880250c` | 48.7% | **35.9%** | 90.0% | 25.3% | 18.77 |
+| `C` | `880250c`，仅 `machine.json` 用本树 | 73.9% | **16.3%** | 66.2% | 43.6% | 24.66 |
+| `D1` | `cur` ＋ 仅还原 `machine_leader.chant=2`、`chantEffects=[SUMMON_LEADER machine_alpha]` | 48.7% | **35.9%** | 90.0% | 25.3% | 18.77 |
+| `D2` | `cur` ＋ 仅还原 `machine_alpha.leaderDef.winCondition=OPP_PUNISH_DRAW_TURN_GE`、`winParam=15` | 59.1% | **14.3%** | 90.9% | 35.7% | 22.61 |
+| `D3` | `cur` ＋ 同时还原 D1 与 D2 | 48.7% | **35.9%** | 90.0% | 25.3% | 18.77 |
+
+**结论（逐条可复现）**
+
+1. **机械 −32.1pp（46.4→14.3）几乎全部出自一处：新 `machine_leader` 去掉了 `chant: 2` + `chantEffects: [{SUMMON_LEADER, machine_alpha}]`。**
+   `D1` 只把这两个字段加回去，机械立刻 **14.3% → 35.9%（+21.6pp，647/1800）**，其余三方数据不动。
+2. **`winCondition` 的改动在这份 Java 引擎里完全无效（no-op）**：`D2`（只还原 alpha 的 `OPP_PUNISH_DRAW_TURN_GE 15`）与 `cur` **逐位完全相同**（59.1/14.3/90.9/35.7，22.6105555556）。原因见 §13.8：**提交 `8bc0515`** 的 `Game.java:970-975` 的 `switch` 只认 `OPP_DISCARD_TOTAL_GE` / `NO_DAMAGE_TURNS_GE` / `OPP_PUNISH_DRAW_TURN_GE`，`PULL_TOTAL_GE` 落进 `default: break;`（`:975`），且 `PlayerState` 里**不存在** `pullCount`/`sealed`/`commitQueue`/`cloudStack` ⇒ **新 `PULL_TOTAL_GE 6`（机械）与 `GIANT_HEALTH_GE 512`（古木）在该版本里永远不可能达成**。`D3 == D1` 再次证明 alpha 的胜利条件从未触发过（"单回合 15 次惩罚抽牌"在实际对局中不发生）。
+   ⚠️ **该缺口此刻正在被修复**：工作树里 Codex 已于 23:47 之后向 4 个 Java 文件加入 `pullCount`/`commitQueue`/`cloudStack`/`sealed`/`landmarkPullCount` 与两个 `case`，见 §13.9。**A/B 必须在这次 Java 移植落地并重新编译后重采。**
+3. **剩余 −10.5pp（46.4→35.9）来自其他三方的新数据**：把机械换回旧数据后机械仍只有 35.9%（`B`）。主要贡献者是**深海**——只要用新 `sea.json`，sea 就稳定在 **90.0–90.9%**（`cur`/`B`/`D1`/`D3`），用旧 `sea.json` 则只有 55.3%（`old`）/66.2%（`C`）。⇒ **新深海数据是当前最大的越带项（+35pp，远超 40–60% 带），量级高于机械。**
+4. **实验本身是确定性的，非方差**：`SimMain.java:38` 用 `(a*1000+b*100+k)` 作固定 seed，因此 `D1` 与 `B`、`D3` 与 `B` 的四项胜率与平均回合**逐位相同**（877/647/1620/456，18.77 回合）。变体之间可直接比对。
+5. ⚠️ **但这些数字不能当作平衡判决**——这份 Java 引擎不实现当前规则集的核心机制（见 §13.8），这是"**残缺规则下的读数**"：它既会**放大**（sea 的降临／惩罚激活 Java 认，而 Unity 运行时目前无法发动），也会**缩小**（机械新设计的下载轴与地标 Java 全不认）。**初版"机械代价抬高导致崩塌"的说法据此撤回**：`commitCost`／`uploadCost`／`downloadCost`／`commitEffects`／`pushEffects`／`pullEffects`／`isLandmark`／`landmarkTiers` 这 8 类字段在 **Java 的 `com/dominionwars/model/CardDef.java`** 里根本不存在（§13.8），对 `SimMain` 完全不可见——**但在 C# 权威引擎 `src/Engine` 里已完整实现**（同见 §13.8）。
+6. ❌ **旧版数字已作废**：初版记载的"本树 flame 72.7 / machine 15.2 / sea 68.3 / wood 43.9，25.01 回合"是在 `data/cards/sea.json` 被并发写入者重写的**中途**采样（sea.json 于 23:37:45 再次改变，哈希 `D0B280B65084`→`0FA7E4E33425`）。冻结在提交内容上的权威读数以 `cur` 行为准。
+7. ⚠️ 仍成立的前提：`data/decks/*.json` 的 mtime 为 **2026-06-12**，四套预构筑**从未**随 91 卡重设计与 59 张迁移更新（`docs/RULES.md:292` 自述"仍须完成数据迁移"）。全部读数都是"9 月卡牌 × 6 月牌组"。
+
+**建议路由（不自改数值）**：`balance.json`、卡牌数值、以及"是否保留 `machine_leader` 的 chant 升级路径"属 **owner/PL 权限**。请注意 `D1` 的含义：恢复 `chant 2 → 召唤 Alpha` 在 Java 里等价于 **+21.6pp**，但新设计已把该机制**搬进地标第 2 层（`landmarkTiers`）**——**机制没丢，只是 Java 认不出地标**。因此真正的决策不是"回调数值"，而是"**先让权威引擎具备地标／下载语义，再重采平衡数据**"。
+
+### 13.4 并发写入者（对"能否合并/何时提交"有直接影响）
+
+本轮观测到**在本会话之外还有实时写入者**，证据：
+
+| 时间 | 事件 |
+|---|---|
+| 23:11:02–23:20:24 | `data/cards/{machine,flame,neutral,wood,sea}.json` 被逐份改写（另一条卡牌设计线） |
+| 23:29:58 | **`codex` 进程启动**（当前仍在运行） |
+| 23:34:28 / 23:34:36 | `DataLoaderTests.cs` / `ProductionFactionIntegrationTests.cs` 被改写（引入 §13.2 的 #1/#3） |
+| 23:37:45 | `data/cards/sea.json` 再次被改写（哈希 `D0B280B65084` → `0FA7E4E33425`） |
+| 23:39:20 | `docs/DESIGN_SEA_PUNISH_MATH_2026-09-09.md` 被改写 |
+| 23:44 之后 | `docs/DESIGN_SEA_PUNISH_MATH_2026-09-09.md` 在我暂存之后**又**被改写一次 |
+
+即：用户所依据的"Codex 熄火"前提在 23:29 之后**已经不成立**——Codex 已恢复并在同一批文件上作业。因此本次 checkpoint 采用了**不干扰并发写入者**的做法：只在当前分支建提交、**不 push、不切分支、不改动异常文件树以外的任何内容**。
+
+### 13.5 checkpoint 与分支
+
+| 项 | 值 |
+|---|---|
+| 提交 | **`8bc0515`** `feat(engine): checkpoint card landing, AI wiring and QA green (2026-09-10)` |
+| 内容 | 151 files changed, 11617 insertions(+), 969 deletions(-) |
+| 父提交 | `880250c`（09-06，此前 4 天 0 提交） |
+| 当前分支 | `codex/p0-complete-match-loop-2026-09-06`（未切换） |
+| 新建分支 | **`qa/verify-2026-09-10`**（指向 `8bc0515`，未 checkout） |
+| 有意排除 | Unity Test Runner 产物：`Assets/QA/`、`Assets/QA.meta`、`Assets/InitTestScene*.unity(.meta)` —— 建议后续加入 `.gitignore`（现有 `.gitignore` 已有 `# Generated QA artifacts` 段，但未覆盖这两项） |
+| 提交后仍未提交 | 并发写入者在我暂存之后又改动了 `docs/DESIGN_SEA_PUNISH_MATH_2026-09-09.md`；本报告 §13 本身也是提交后才追加 |
+
+**未 push**。合并与否请在 Codex 停止写入后再决定（见 §13.4）。
+
+### 13.6 过度防御审计结论（子代理全仓库扫描，只读）
+
+总体判断：**存在系统性过度防御，但没有"规则双份实现"的架构性违规**。`LegalActionGenerator` 先 advertise、`PlayCardActionHandler` 再 authorize 属于**必要的**重复（广告 ≠ 授权），不应删。
+
+按严重度排序的**真实**过度防御：
+
+| # | 位置 | 问题 | 级别 |
+|---|---|---|---|
+| 1 | `RuntimeScreenFlow.cs:490-499`（读 `RuntimeAiTurnCoordinator.cs:48-49` 的 `Halted`/`LastReasonKey`） | AI 协调器一旦 halt 就**永久静默**：返回值被丢弃、`Halted`/`LastReasonKey` 除两个测试外**全仓库无人读取**，玩家永远不知道对手 AI 已死 | **HIGH** |
+| 2 | `web/app.js:117-129` | `catch (e) { /* 服务未就绪 */ }` 包住了整个轮询体（含 `render()`/`playEvents()`），任何真实 JS 异常都会变成"永久静默不刷新"，注释却把责任推给网络 | **HIGH** |
+| 3 | `Balance.java:37-39` | `catch (Exception) { return; }` 静默回落硬编码默认值，且默认值与 `data/balance.json` **不一致**：`royalCastleMaxHp` 60 vs 75、`royalCastleEnabled` false vs true → 一次加载失败就**改变规则** | **HIGH** |
+| 4 | `Game.java:363` (`chainDepth >= limit`) vs `PlayCardActionHandler.cs:306` (`chainDepth > _chainLimit`) | 同一 `chainLimit=20` 语义**差一**：Java 拒绝第 20 链节，C# 接受 → Unity 合法的连锁在 Java 权威下非法 | **HIGH** |
+| 5 | `DeckLoader.cs:45` / `MatchSetup.ValidateDeck` | **未校验** `deckMin/deckMax` 60–80，而 Java `CardLibrary.java:92-93` 校验 → Unity 接受 Java 会拒的牌组 | **HIGH** |
+| 6 | `RuntimeActionBoundary.Validate` 对**同一个 snapshot 对象**被调用 2–3 次（`RuntimeAiPolicy.cs:103`、`RuntimeAdapter.cs:113`、`RuntimeMatchGateway.cs:154`；人类点击再叠 `RuntimeBattlePanel.cs:2171`） | 纯冗余（同层重复，期间不重读 snapshot，第 2/3 次不可能新拒），不构成层边界 | MEDIUM |
+| 7 | `RuntimeBootstrap.cs:227-241`、`RuntimeScreenFlow.cs:159-164`、`RuntimeAdapter.cs:220-222`、`RuntimeAiTurnCoordinator.cs:114-115` | 死防御分支：上游已 throw/已保证非 null，这些分支**永不触发**；其中 `RuntimeScreenFlow.cs:159-164` 还**违反** `RuntimeMatchSetupOrchestrator.cs:29-32` 明文写的"此处不要再做第二次 post-commit 就绪检查" | MEDIUM |
+| 8 | `src/` 约 26 处 `catch (Exception)` / `catch {}`、Unity 侧约 16 处 | 宽泛吞异常；反例是 `RuntimeContentContext.cs`（7 处全用 `when` 过滤器）——建议以其为模板 | MEDIUM |
+
+另有 12 项 MEDIUM/LOW（`Json.java:216` 数字解析静默回落、`GameSession.java:97` 把 NPE 记成"指令错误"、`RuntimeBattlePanelActionFeedback.cs:429` 不可达 `catch (OverflowException)` 等）。完整清单见会话产物。
+
+### 13.7 主线完成度结论（子代理逐条读码核验）
+
+**判定：PARTIALLY complete。** 核心环（setup → START → AMBUSH/ACTION → END → victory → result/restart）**确实已实现**，且自动化 PlayMode 端到端通过，Windows 播放器能构建；但按项目自己的门禁**未算完成**：
+
+1. **Unity 从不接线惩罚响应策略** → 惩罚降临/响应降临在发布运行时**恒被自动放弃**：`MatchFactory.cs:62-64` 传 `punishResponses = null` → `TurnActionRouter.cs:34-48` 回落到 `PlayCardActionHandler.cs:45` 的 `DeclinePunishResponsePolicy`；且 `ACTIVATE_PUNISH` **根本不在线上契约里**（`ContractBoundaryTests.cs:74`），也未进入合法动作表（`LegalActionGeneratorTests.cs:184`）。**Java/Web 引擎有，Unity 没有。**
+2. **`OPP_PUNISH_TRIGGERED_GE n` 胜利条件未实现**（`EffectRuntime.EndPhase.cs:156-191` 无此 case），这正是 `shadow_of_fate` 停在 `NONE` 且"设计上不可赢"的原因。
+3. **原生 OS 鼠标输入从未被验收**（`ENV_BLOCKED` / `INPUT_NOT_ACCEPTED`）：只有 `EventSystem` 自动化覆盖，`.exe` 对真实玩家**未验证**。
+4. **深海印记/潮位语义未冻结也未实现**（全仓库无潮位计数器），`RULES.md:237-246,295` 自己标注未冻结 + `HUMAN_REQUIRED`。
+5. `battle_state_machine.json` **零代码引用**（契约文档，UI 实际由 snapshot 驱动）；`docs/DESIGN.md` 严重过时（只描述 Java/Swing，无 Unity、无 v1.31 契约）。
+6. `PULL`/`VICTORY_PROGRESS` 只有通用提示，尚无因果化的进度轨。
+7. `docs/CODEX_AI_CLOSEOUT_REPORT_2026-09-08.md` 自身状态仍是 **DRAFT / PENDING_EXTERNAL_PL_QA**，其 §21 的 `603/603`/`306/306`/`26/26` 均为卡牌落地**前**读数。
+
+14 条 P0 manifest 行的逐条判定：Implemented 9 / Partially 2（L3 Unity 端到端仅 PlayMode 证明；L11 惩罚因果链已铺数据但激活路径不可达）/ doc-claimed 1（L19）/ 其余为已实现。
+
+### 13.8 权威引擎 vs 测试台：能力覆盖差（**本次最高优先级发现**）
+
+问题：仓库里唯一的批量模拟器 `SimMain`（Java）跑的是**旧 Java 引擎**，而当前 91 卡规则集依赖的机制大多**只存在于 C# 权威引擎 `src/Engine`**。逐项核查（`git grep` 全仓库取证）：
+
+| 能力 | C# `src/Engine`（Unity/Web 走它，**权威**） | Java `src/main/java`（`TestMain`/`SimMain` 走它） |
+|---|---|---|
+| 提交/上传/下载 生命周期（COMMIT/UPLOAD/PULL、提交队列、云端栈） | ✅ `CardDefinition.CommitCost`/`UploadCost`/`DownloadCost`/`CommitEffects`/`PushEffects`/`PullEffects`；`src/Engine/Turns/CommitActionHandler.cs`、`PullActionHandler.cs`、`Effects/EffectRuntime.Mechanical.cs` | ❌ **提交 `8bc0515` 里零实现**：`CardDef.java` 无这些字段；`src/main/java` 全域对 `PULL\|pull\|upload\|download\|commit` **零命中** |
+| 地标与地标层（`isLandmark`/`landmarkTiers`） | ✅ `CardDefinition.IsLandmark`/`LandmarkTiers`、`CardInstance.LandmarkPullCount`、`EffectRuntime.Mechanical.cs:209-299`（`AdvanceLandmark`/`PromoteLandmark`）、`RuntimeContractV131Snapshot.cs:162` | ❌ 同上，字段被**静默忽略** |
+| `PULL_TOTAL_GE` 胜利 | ✅ `Effects/EffectRuntime.EndPhase.cs:152`（→ `PullCount`） | ❌ 提交 `8bc0515` 的 `Game.java:970-975` 无此 `case`（`PlayerState` 当时也没有 `pullCount`） |
+| `GIANT_HEALTH_GE` 胜利（古木 512） | ✅ `EffectRuntime.EndPhase.cs:155` | ❌ 提交 `8bc0515` 无此 `case`（当时 `CardInstance` 没有 `sealed`） |
+| `punishActivatable`/`punishCost`/`punishCondition`/`punishEffects` | ✅ | ✅ `Game.java:346,364,413`、`CardDef.java:158-160,213-215`、`CardCatalog.cs` 对应 | 
+| `ACTIVATE_PUNISH` 作为**线上动作** | ❌ **不在 wire contract**：`Tests/ContractBoundaryTests.cs:74` 断言 `Does.Not.Contain("ACTIVATE_PUNISH")`、`Tests/LegalActionGeneratorTests.cs:184` 断言该类型**不存在**于合法动作表；`src/Engine/Localization/Resources.cs:26` 只有本地化键 `action.activate_punish`。引擎虽定义了 `IPunishResponsePolicy`，但 Unity `MatchFactory.cs:62-64` 传 `punishResponses = null` ⇒ 恒回落 `PlayCardActionHandler.cs:45` 的 `DeclinePunishResponsePolicy` | ✅ Java 走自己的 UI/动作枚举，无 wire-contract 约束 |
+| **无头批量模拟器** | ❌ **不存在**：`src/` 下 4 个 csproj（Adapters/Data/Engine/Engine.Tests）**全部无 `static void Main`**，`src/Engine/Tests` 只有单元测试 | ✅ `src/test/java/.../SimMain.java` |
+
+**结论（直接影响"能否用模拟数据判定平衡"）**
+
+1. **仓库当前没有能评估现行规则集的平衡预言机。** `SimMain` 测的是一份它不认识的规则集；C# 侧那台**根本不存在**（603 个单元测试不能当胜率基线）。因此 §13.3 的胜率、尤其是"机械 14.3%"**不能作为设计回归结论**，正确表述是"**旧测试台对新数据的可见性效应**"。
+2. **机制没丢，测试台看不见。** 旧数据里机械靠 `chant 2 → SUMMON_LEADER machine_alpha` 升级（Java 认得，所以 `D1` 能回到 35.9%），新设计把同一件事搬进**地标第 2 层**（`landmarkTiers`，Java 认不得）⇒ 差别在**引擎覆盖**，不在数值。
+3. **深海 90.9% 是唯一"Java 看得见"的越带项**（降临/惩罚激活两个引擎都实现）⇒ 最需要跨引擎保真度核对的一项，量级 +35pp。但也必须计入 §13.7.1 的反向因素：**Unity 运行时目前永远走自动放弃**，降临在玩家实际对局里根本不会发动——两侧语义并不等价，两个读数都不能直接采信。
+4. **建议（属实现/规划权限，我只上报）**：
+   - 近期：为 **C# `src/Engine`** 建一个最小无头对局跑批入口（复用 `MatchController` + `RuntimeAiPolicy`），否则每一次数据落地都只能靠人工对局主观判断；
+   - 或者：把 `SimMain` 依赖的 Java 引擎补齐到与 `src/Engine` 同等能力后，再恢复"数据落地 → 重采胜率"的例行门禁；
+   - 无论走哪条，**在预言机可用之前不要依据 §13.3 的百分比改动数值**。
+5. ✅ **需要肯定的一点**：`data/schema/cards.schema.json` 已含 `LandmarkTier`（`:116`）、`isLandmark`（`:147`）、`landmarkTiers`（`:148`）、`WinCondition` 枚举含 `PULL_TOTAL_GE`（`:48`），`src/Data/CardCatalog.cs:27-28,247-279,442-480` **fail-closed 地解析**这些字段——**数据侧与 C# 侧的契约是通的**，缺口只在 Java 测试台。
+
+### 13.9 提交后的在飞写入（Codex 正在补 §13.8 的缺口）
+
+`8bc0515` 提交完成后，`codex` 进程（PID 29668，23:29:58 启动）**继续写入**，`git status` 现为：
+
+**2026-09-11 00:00 快照**（`codex` PID 29668 仍在运行）：
+
+```
+M docs/AI_MAILBOX.md
+M docs/DESIGN_SEA_PUNISH_MATH_2026-09-09.md
+M docs/QA_PROJECT_STATUS_2026-09-10.md
+M docs/effects.contract.md
+M src/main/java/com/dominionwars/ai/AiAgent.java                  (+163)  mtime 23:59:54
+M src/main/java/com/dominionwars/engine/CardInstance.java         (+18)
+M src/main/java/com/dominionwars/engine/Effects.java              (+196)
+M src/main/java/com/dominionwars/engine/Game.java                 (+233)
+M src/main/java/com/dominionwars/engine/PlayerAgent.java          (+24)
+M src/main/java/com/dominionwars/engine/PlayerState.java          (+9)
+M src/main/java/com/dominionwars/model/CardDef.java
+M src/test/java/com/dominionwars/test/TestMain.java
+?? docs/PL_CODE_AUDIT_2026-09-09.md
+?? unity/.../InitTestScene<guid>.unity(.meta)   ← Unity Test Runner 产物（有意未提交）
+?? unity/.../Assets/QA/ + QA.meta               ← 同上
+```
+
+**`src/main/java/com/dominionwars/engine/**` 的改动正是 §13.8 缺口的补齐**：新增 `PlayerState.pullCount`/`commitQueue`/`cloudStack`、`CardInstance.sealed`/`landmarkPullCount`/`pendingLandmarkSummonCardId`/`committed`，`has()` 改为封印时失效，`checkSpecialWins()` 补 `GIANT_HEALTH_GE` 与 `PULL_TOTAL_GE` 两个 `case`。⇒ **§13.3 的 A/B 必须在这批移植落地并 `javac` 重编后重采**；§13.3 与 §13.10 的所有胜率数字的**有效期截至该批写入之前**。
+
+**⚠️ 新增（23:53–00:00，与 §13.10 的 F3 直接相关）**：Codex 同时在 `src/main/java/com/dominionwars/ai/AiAgent.java` 补了**Java 测试台的生命周期 AI**——新增 `chooseCommit` / `askPush` / `askPull` / `chooseRollbackTarget` 四个覆写 + `lifecycleBudget()` 预算（`3 + turnNumber/4`）+ 地标 `landmarkPullCount < 2` 优先下载。**注意作用域差别**：
+
+- 修的是 **Java 侧 `AiAgent`（测试台选手）**；
+- §13.10 的 F3 指的是 **C# 侧 `RuntimeAiPolicy.cs`（Unity 发布路径的 AI）**，该文件**至今没有任何生命周期分支**（全文仅 `FirstNonType(legal, "END_TURN")`，`Select-String` 对 `Pull|Commit|Push|Rollback` 零命中）。
+- 因此**即使 Java 移植全部落地，发布运行时机械的胜利条件仍然是死的**；同一套生命周期策略需要**同样在 C# 侧落地**（`RuntimeAiPolicy` 或其上游动作选择器）。这是 §13.9 之外的**第 4 条暂不合并理由**，已并入 §14 的 F3。
+
+**合并建议：暂不合并到主线。** 四条理由：
+
+1. **测试台与规则集尚未对齐**：§13.8 的缺口正在被补（在飞），补齐后需重采基线；此时合并等于把"未经任何有效预言机验证的数值"带入主线。
+2. **Unity 侧惩罚激活链仍未接线**（§13.7.1）：`ACTIVATE_PUNISH` 不在 wire contract，降临在发布运行时恒被放弃——这是**行为级缺口**，不是数值问题。
+3. **`data/decks/*.json` 仍是 2026-06-12 的旧构筑**（§13.3 第 7 条）：牌组未随 91 卡迁移，任何胜率都建立在"9 月卡牌 × 6 月牌组"上。
+4. **发布路径的 AI 仍不会打生命周期胜利条件（§13.10 F3）**：Codex 正在补的是 Java 测试台的 `AiAgent`，而 C# `RuntimeAiPolicy.cs` 至今零生命周期分支 ⇒ 即使 Java 移植全部落地，Unity 里的机械依然是 0% 胜率。合并前必须在 C# 侧补同样的策略，否则"机械的胜利条件"在发布玩法中不存在。
+
+建议的合并路线：① Codex 完成 Java 移植与 Unity 惩罚链接线 → ② **在 C# `RuntimeAiPolicy` 侧补生命周期策略（F3）** → ③ 重采基线（`SimMain` 与 §13.10 的 `DwSim` 双方）并建立可重复门禁 → ④ 完成 4 套预构筑迁移（`docs/RULES.md:292`）→ ⑤ 再由 owner/PL 决定数值 → ⑥ 最后合并。分支 `qa/verify-2026-09-10`（指向 `8bc0515`）就是这条路线上的取证基线，**未经上述步骤不要直接 merge**。
+
+---
+
+### 13.10 新建 **C# 权威引擎平衡预言机** 并首次实测（本次交付，直接补 §13.8 的最大缺口）
+
+§13.8 指出"仓库当前没有能评估现行规则集的平衡预言机"。本节把这个缺口**在仓库外**补上并跑出第一份权威引擎读数。
+
+**工具**：`%TEMP%\dw-cs-sim\`（`DwSim`，net8.0 控制台程序，只 `Reference` `build-output\DominionWars.Engine\bin\Release\netstandard2.1\DominionWars.Engine.dll`、`DominionWars.Data.dll` 与 `Newtonsoft.Json.dll`，**不修改仓库内任何文件**）。
+
+> **源与原始读数存档**：`Program.cs`（17.2 KB）与 `dw-sim.csproj`（1.2 KB），以及 5 个变体的原始 stdout（`variant-{A..E}-*-600.txt`），已复存到**仓库外**的会话产物目录 `<session>\files\dw-cs-sim\`。它是**一次性 QA 工具**，未纳入 git（我不改 `.gitignore`，也未获授权向 `scripts/` 写文件）；如需转正为常设门禁，请 owner/Codex 决定落点。
+
+```powershell
+# 构建
+cd $env:TEMP\dw-cs-sim
+dotnet build -c Release -p:MSBuildEnableWorkloadResolver=false --nologo
+# 每对阵 100 局、生产默认王城配置、惩罚响应 = 自动放弃（Unity 现状）
+.\bin\Release\net8.0\DwSim.exe 'C:\Users\USER\Documents\dominion-wars-win64' 100 decline 60 quiet
+# 可选模式标记：pullfirst（AI 优先下载） / reverse（排序反转） / nocastle（CastleEnabled=false）
+```
+
+**方法**：`MatchSetup.Create` + `TurnFlow.CreateDefault` + `TurnActionRouter.CreateDefault`，生产默认 `MatchSetupOptions`（`OpeningHandSize=5`、`PlayerLife=20`、`CastleEnabled=true`、`CastleHealth=75`）；4 副 `data/decks/*.json` 全对局无序对（6 对），每对 100 局，先手按局号交替，`Seed = 20260910 + k`；动作选择镜像 `RuntimeAiPolicy`（`(ActionId, Type)` 稳定排序后取首个非 `END_TURN`；DISCARD 取 `DISCARD`）。**每变体 600 局，单次运行约 3–5 秒。**
+
+#### 结果（每变体 600 局）
+
+| 变体 | 动作选择 / 惩罚响应 / 王城 | 烈焰 | 机械 | 深海 | 古木 | 平均回合 | 无胜者 |
+|---|---|---|---|---|---|---|---|
+| **A 生产基线** | 排序取首个非 END_TURN / 放弃 / 开 | **91.0%** (273/300) | **0.0%** (0/300) | 74.0% (222/300) | 35.0% (105/300) | 10.17 | 0 |
+| **B 惩罚接受** | 同 A / 接受 / 开 | 84.3% (253/300) | 1.7% (5/300) | 82.0% (246/300) | 31.7% (95/300) | 6.21 | 1 |
+| **C 下载优先** | PULL>COMMIT>PLAY>ATTACK / 放弃 / 开 | 58.3% (175/300) | **95.7%** (287/300) | 43.7% (131/300) | 2.3% (7/300) | 8.37 | 0 |
+| **D 排序反转** | 反转 / 放弃 / 开 | 63.0% (189/300) | 52.3% (157/300) | 65.3% (196/300) | 19.3% (58/300) | 7.82 | 0 |
+| **E 无王城** | 同 A / 放弃 / **关** | 59.3% (178/300) | 0.0% (0/300) | 94.3% (283/300) | 46.3% (139/300) | 8.26 | 0 |
+
+终局原因（裁决该局的数量，每变体 600 局）：
+
+| 变体 | `royal_castle_break` | `pull_total_ge` | `enemy_leader_defeated` | `opp_discard_total_ge` | `deck_cycles` | `giant_health_ge` | 其它 |
+|---|---|---|---|---|---|---|---|
+| A | **273** | 0 | 167 | 96 | 58 | 6 | 0 |
+| B | **244** | 0 | 124 | 167 | 55 | 0 | `castle_break_minion` 9、`turn_limit` 1 |
+| C | 175 | **287** | 26 | 76 | 29 | 7 | 0 |
+| D | 0 | 157 | **352** | 27 | 0 | 10 | `enemy_life_zero` 54 |
+| E | 0 | 0 | **489** | 71 | 0 | 25 | `enemy_life_zero` 15 |
+
+生命周期动作被 AI 实际选择的次数（每 600 局）：`PULL` = A 91 / B 93 / C 1808 / D 1357 / E 16；`machine_leader` 全程 `maxPull` = A 3 / B 4 / C 10 / D 11 / E 1（胜利门槛 `winParam = 6`）。
+
+#### 结论
+
+1. **F1（P1，方向稳健）王城轴把烈焰推到 84–91%，而且是"双向"的。** `src/Engine/Effects/EffectRuntime.State.cs:209-224` 的判定是：当前活跃统领中**恰好一方**持有 `ROYAL_CASTLE_BREAK` 时，把胜利判给**持有者**——**无论王城是谁破的**。四套牌组里只有 `flame_leader` 持有该条件（`data/cards/flame.json:18`，`type = MINION`），所以**凡出现破城且有烈焰在场，烈焰必胜**，包括"对手破掉烈焰的王城"这一分支。唯一变量实验（A 91.0% ↔ E 59.3%，只差 `CastleEnabled`）与 A 变体 273/600 = **45.5% 的对局由 `win.royal_castle_break` 直接裁决**共同证明这条轴就是烈焰的胜率来源。
+   ⚠️ 文案与行为不一致：`flame_leader.leaderDef.winText = "击破王城即获胜"`（破城**者**胜），但代码在"对手破城"分支把胜利给**防守方**。这正是 owner 在 2026-09-10 讨论里要求的"分开"（"不建议内置写死 分开吧 别的随从首领有别的获胜方式"）——**目前一个 `ROYAL_CASTLE_BREAK` 同时承担了"我破城我胜"与"随从首领被破城我胜"两种语义，并未分开。** 属 PL/owner 规则决定（是否拆成两个条件），但文案或代码**至少有一处必须改**。
+2. **F2（P1）下载轴一旦被追求就是压倒性的：`winParam = 6` 过强。** C 变体与 A 的唯一区别是 AI 优先下载，机械立刻从 0.0% 变成 **95.7%（287/300），且 287 个胜局全部是 `win.pull_total_ge`**；同变体烈焰掉到 58.3%、古木 2.3%。结合 §13.8：这条轴在旧 Java 测试台上**完全不可见**，所以"机械只有 14.3% 所以很弱"的方向是**反的**——真实风险是它太强，只是没人打。
+3. **F3（P0，主线完成度）生产 AI 不会打自己的胜利条件，机械在发布路径上不可胜。** 每 600 局里 AI 只选 `PULL` 91 次（A），而 `COMMIT` 5069 次；`machine_leader` 的 `maxPull` 全程停在 3–4，远低于门槛 6。机制：`RuntimeAiPolicy` 的 ACTION 分支是"稳定排序后取第一个非 `END_TURN`"，对提交/下载生命周期**没有任何策略**，`PULL` 恰好稳定排在后位 ⇒ **提交出去就再不下载**。这不是数值问题，**改数值无效**；路由 Codex（`RuntimeAiPolicy.cs`）。
+4. **F4（P1）对局长度低于 `docs/BALANCE.md` 目标带。** 实测平均回合 A 10.17 / B 6.21 / C 8.37 / D 7.82 / E 8.26（中位 6–10），而 `docs/BALANCE.md:12` 要求 **10–20 回合**、`:13` 要求胜率落在 **40–60%**。除 A 勉强贴到下沿外全部偏低，B（惩罚接受）短到 6.21。**B 正是"降临会被接受"的语义，也就是 §13.7.1 之后 Unity 应该变成的形态 ⇒ 一旦把惩罚响应接线，对局长度会再掉近一半**，这是合并前必须先解决的风险。
+5. **F5（P1）古木 512 轴几乎不发生。** `win.giant_health_ge` 在 600 局里只裁决 6（A）/ 7（C）/ 10（D）/ 25（E）局（1–4%）；`wood_leader` 在所有变体里都最弱或次弱（35.0 / 31.7 / 2.3 / 19.3 / 46.3%）。由于 §13.8 已证明该轴**引擎可达**，问题是达成成本而非引擎缺口。
+6. **F6（工具）** 这就是 §13.8 建议的"为 C# `src/Engine` 建一个最小无头跑批入口"的可用版本，5 秒/600 局，可作为后续每次数据落地的例行门禁。**保真度限制必须与数字一起引用**：① 双方都由**无策略**选点驱动，绝对值对选点敏感（D 变体即证据），**只有方向性结论稳健**；② "弃 N 张手牌为额外费用"的 `PLAY_CARD` 不在合法动作表里广告选择，harness 做了有界重试：A 变体共 630 次 `action.discard_selection_required`，其中 535 次重试成功，未恢复 95 次（占 45690 次 `PLAY_CARD` 的 0.2%）；③ 牌组仍取自 `data/decks/*.json`（**2026-06-12 旧构筑**，与 §13.9 第 3 条同一保留）；④ A 变体单次运行的可复现读数：600 局、平均 10.17 回合、中位 10、最长 23、无胜者 0。
+
+---
+
+## 14. 本轮新增发现汇总与建议动作
+
+| # | 发现 | 严重度 | 归属 / 建议动作 |
+|---|---|---|---|
+| F3 | 生产 AI 无生命周期策略 ⇒ 机械（及任何生命周期轴统领）在发布路径上胜率恒 0，改数值无效 | **P0**（主线完成度） | **Codex**：**C# `RuntimeAiPolicy.cs`** 至今零 `Pull/Commit/Push/Rollback` 分支（Java `AiAgent` 已在 23:53–00:00 补上，但那是测试台）⇒ 需在 C# 侧补提交/下载/地标策略，或在合法动作表层面给出可用选择 |
+| F2 | `machine_leader.winParam = 6` 过强：一旦被追求，胜率 95.7%、8.4 回合结束 | **P1** | **PL/owner**：调 `winParam` 与提交/下载成本；**先修 F3 再调**，否则读数仍不可用 |
+| F1 | 王城轴双向裁决把烈焰推到 84–91%；`ROYAL_CASTLE_BREAK` 一个枚举承担两种语义；`winText` 与代码分支矛盾 | **P1** | **PL/owner** 定语义（拆两个条件 / 保留双向），**Codex** 改文案与判定 |
+| F4 | 平均回合 6.2–10.2，低于 `docs/BALANCE.md` 的 10–20；惩罚接受后只剩 6.2 | **P1** | **PL/owner**：确认目标带是否随新规则集调整；若不变，需在接线惩罚响应前补节奏 |
+| F5 | 古木 512 轴 600 局只发生 1–4%；古木最弱 | **P1** | **PL/owner**：降低达成成本或重设 `winParam` |
+| F6 | 权威引擎平衡预言机已可用（仓库外） | 工具 | **Codex**：如认可，可将其纳入 `scripts/` 作为例行门禁（需 owner 授权写入 `scripts/`） |
+
+**关于 `docs/AI_MAILBOX.md` 第 471-485 行旧条目的更正**：该条目第 3 条把机械 −31.2pp 归因为"数据改动"，**已作废**；正确归因见 §13.3（7 变体隔离实验：唯一 Java 可见成因是删除 `chant`+`chantEffects`）与 §13.8（能力覆盖差）。结论方向也需改写为 §13.10 的 F2/F3：**机械不是变弱了，而是在旧测试台上不可见、在生产 AI 下不可胜、在被正确驾驶时过强。**
+
 ---
 
 — DeepSeek（测试负责人）· 2026-09-10
