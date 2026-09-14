@@ -2,7 +2,7 @@
  {
   "id": "flame_leader",
   "name": "烈焰皇·焚天",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "统领"
@@ -37,13 +37,13 @@
    ]
   },
   "text": "登场：对所有敌方随从造成2点伤害。【惩罚】立即结束对方回合，并对所有敌方随从造成2点伤害。",
-  "flavor": "焚尽八荒，唯朕独尊。",
+  "flavor": "后世称他为「烈焰皇」。在赫萨廷的史书里，焚天首先是一位让整个时代记住其名的统领。",
   "guard": true
  },
  {
   "id": "flame_recruit",
   "name": "烈焰新兵",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "士兵"
@@ -52,12 +52,12 @@
   "attack": 2,
   "health": 1,
   "text": "",
-  "flavor": "帝国的火种，从不熄灭。"
+  "flavor": "赫萨廷旧称中的“新兵”并非军人，而是高热整备力量的新成员。"
  },
  {
   "id": "flame_imp",
   "name": "火舌小鬼",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "恶魔"
@@ -72,12 +72,13 @@
     "amount": 1
    }
   ],
-  "text": "登场：对敌方统领造成1点伤害。"
+  "text": "登场：对敌方统领造成1点伤害。",
+  "flavor": "“斗争性较强，但即便如此，我仍建议将其纳入整备力量。”——世界历2572年提案"
  },
  {
   "id": "flame_charger",
   "name": "冲锋骑兵",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "骑兵"
@@ -93,7 +94,7 @@
  {
   "id": "flame_guard",
   "name": "熔岩护卫",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "守卫"
@@ -109,7 +110,7 @@
  {
   "id": "flame_berserker",
   "name": "狂热战士",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "狂战"
@@ -132,7 +133,7 @@
  {
   "id": "flame_strike",
   "name": "火焰冲击",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "SPELL",
   "tags": [
    "破坏"
@@ -152,7 +153,7 @@
  {
   "id": "flame_rain",
   "name": "烈焰风暴",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "SPELL",
   "tags": [
    "风暴"
@@ -170,7 +171,7 @@
  {
   "id": "flame_bolt",
   "name": "飞火流星",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "SPELL",
   "tags": [
    "速攻"
@@ -187,8 +188,8 @@
  },
  {
   "id": "flame_warcry",
-  "name": "帝国战吼",
-  "faction": "烈焰帝国",
+  "name": "赫萨廷战吼",
+  "faction": "赫萨廷",
   "type": "SPELL",
   "tags": [
    "增强"
@@ -207,7 +208,7 @@
  {
   "id": "flame_double",
   "name": "二连斩令",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "SPELL",
   "tags": [
    "军令"
@@ -224,7 +225,7 @@
  {
   "id": "flame_ambush_counter",
   "name": "烈火反噬",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "AMBUSH",
   "tags": [
    "反击"
@@ -244,7 +245,7 @@
  {
   "id": "flame_ambush_seal",
   "name": "燃尽封咒",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "AMBUSH",
   "tags": [
    "反制"
@@ -262,7 +263,7 @@
  {
   "id": "flame_punish_wrath",
   "name": "焚天之怒",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "PUNISH",
   "tags": [
    "天罚"
@@ -283,7 +284,7 @@
  {
   "id": "flame_drake",
   "name": "赤焰幼龙",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "龙"
@@ -296,7 +297,7 @@
  {
   "id": "flame_giant",
   "name": "熔核巨人",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "巨人"
@@ -312,7 +313,7 @@
  {
   "id": "flame_assassin",
   "name": "灰烬刺客",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "刺客"
@@ -332,7 +333,7 @@
  {
   "id": "flame_forge",
   "name": "锻火祭坛",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "SPELL",
   "tags": [
    "仪式"
@@ -351,7 +352,7 @@
  {
   "id": "flame_elemental",
   "name": "火元素",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "MINION",
   "tags": [
    "元素"
@@ -367,7 +368,7 @@
  {
   "id": "flame_sacrifice",
   "name": "献祭烈阵",
-  "faction": "烈焰帝国",
+  "faction": "赫萨廷",
   "type": "SPELL",
   "tags": [
    "牺牲"
@@ -384,8 +385,8 @@
  },
  {
   "id": "flame_banner",
-  "name": "帝国军旗",
-  "faction": "烈焰帝国",
+  "name": "赫萨廷军旗",
+  "faction": "赫萨廷",
   "type": "SPELL",
   "tags": [
    "军势"
