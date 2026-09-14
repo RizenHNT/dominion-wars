@@ -2,7 +2,7 @@
  {
   "id": "sea_leader",
   "name": "深渊主宰·涛冥",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "统领"
@@ -28,12 +28,12 @@
    ]
   },
   "text": "登场：赋予你25点生命（归零落败），抽2张牌。胜利：对方累计弃牌≥18张（效果与惩罚转化弃牌才计入）。【惩罚】对方当回合的惩罚值不再使你抽牌，而是转化为弃置其自己的手牌。",
-  "flavor": "深渊不索取，深渊只是收回。"
+  "flavor": "纳维恩诸邑的史料从不一致，只有一点几乎无人否认：涛冥曾让深层世界第一次拥有共同的声音。"
  },
  {
   "id": "sea_crab",
   "name": "铁甲蟹",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "甲壳"
@@ -49,7 +49,7 @@
  {
   "id": "sea_siren",
   "name": "暗礁海妖",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "海妖"
@@ -76,7 +76,7 @@
  {
   "id": "sea_leviathan_young",
   "name": "幼年利维坦",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "巨兽"
@@ -89,7 +89,7 @@
  {
   "id": "sea_mistwalker",
   "name": "迷雾行者",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "幽影"
@@ -105,7 +105,7 @@
  {
   "id": "sea_tide",
   "name": "退潮",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "弃牌"
@@ -122,7 +122,7 @@
  {
   "id": "sea_whirl",
   "name": "灭顶漩涡",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "风暴"
@@ -140,7 +140,7 @@
  {
   "id": "sea_devour",
   "name": "深渊吞噬",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "AMBUSH",
   "tags": [
    "弃牌"
@@ -159,7 +159,7 @@
  {
   "id": "sea_current",
   "name": "海流加速",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "抽牌"
@@ -176,7 +176,7 @@
  {
   "id": "sea_pressure",
   "name": "深压猛击",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "破坏"
@@ -195,7 +195,7 @@
  {
   "id": "sea_ink",
   "name": "墨幕",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "AMBUSH",
   "tags": [
    "反制"
@@ -213,7 +213,7 @@
  {
   "id": "sea_kraken",
   "name": "克拉肯触手",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "巨兽"
@@ -230,7 +230,7 @@
  {
   "id": "sea_abyss_call",
   "name": "深渊召令",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "召唤"
@@ -248,7 +248,7 @@
  {
   "id": "sea_tentacle",
   "name": "深渊之触",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "触手"
@@ -259,12 +259,13 @@
   "keywords": [
    "嘲讽"
   ],
-  "text": ""
+  "text": "",
+  "flavor": "“深渊触手仍然会干扰正常生产。”——世界历2316年生产记录"
  },
  {
   "id": "sea_sink",
   "name": "沉没",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "湮灭"
@@ -281,7 +282,7 @@
  {
   "id": "sea_punish_tsunami",
   "name": "灭世海啸",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "PUNISH",
   "tags": [
    "天灾"
@@ -302,7 +303,7 @@
  {
   "id": "sea_priest",
   "name": "潮汐祭司",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "祭司"
@@ -322,7 +323,7 @@
  {
   "id": "sea_barrier",
   "name": "水盾结界",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "守护"
@@ -340,7 +341,7 @@
  {
   "id": "sea_eel",
   "name": "电鳗游袭",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "速攻"
@@ -356,7 +357,7 @@
  {
   "id": "sea_depths",
   "name": "海渊凝视",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "SPELL",
   "tags": [
    "仪式"
@@ -374,7 +375,7 @@
  {
   "id": "sea_warden",
   "name": "深海狱卒",
-  "faction": "深海联盟",
+  "faction": "纳维恩诸邑",
   "type": "MINION",
   "tags": [
    "守卫"
