@@ -11,7 +11,7 @@ namespace DominionWars.Data
 {
     public sealed class CardCatalog
     {
-        private static readonly HashSet<string> Factions = new HashSet<string>(new[] { "烈焰帝国", "机械遗迹", "深海联盟", "古木圣地", "无阵营" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> Factions = new HashSet<string>(new[] { "赫萨廷", "克莱恩书院", "纳维恩诸邑", "依兰维索", "无阵营" }, StringComparer.Ordinal);
         private static readonly HashSet<string> CardTypes = new HashSet<string>(new[] { "MINION", "SPELL", "AMBUSH", "PUNISH" }, StringComparer.Ordinal);
         private static readonly HashSet<string> Keywords = new HashSet<string>(new[] { "嘲讽", "圣盾", "扰魔", "突袭" }, StringComparer.Ordinal);
         private static readonly HashSet<string> WinConditions = new HashSet<string>(new[] { "NONE", "ROYAL_CASTLE_BREAK", "AMBUSH_TRIGGER_WIN", "OPP_DISCARD_TOTAL_GE", "OPP_PUNISH_DRAW_TURN_GE", "NO_DAMAGE_TURNS_GE" }, StringComparer.Ordinal);
@@ -78,8 +78,7 @@ namespace DominionWars.Data
             var isMinion = type == "MINION";
             if (isMinion && (!TryGetProperty(element, "attack", out _) || !TryGetProperty(element, "health", out _))) throw Invalid(source, "MINION cards require attack and health");
             if (type == "PUNISH" && (!TryGetProperty(element, "punish", out var punishValue) || !TryReadInt64(punishValue, out var punishAmount) || punishAmount < 1)) throw Invalid(source, "PUNISH cards require punish >= 1");
-            if (TryGetProperty(element, "leader", out var leaderValue) &&
-                (leaderValue.Type != JTokenType.Boolean || !leaderValue.Value<bool>())) throw Invalid(source, "leader must be true when present");
+            if (TryGetProperty(element, "leader", out var leaderValue) && (leaderValue.Type != JTokenType.Boolean || !leaderValue.Value<bool>())) throw Invalid(source, "leader must be true when present");
             var isLeader = OptionalBool(element, "leader", false, source);
             var attack = OptionalInt(element, "attack", 0, 0, 99, source);
             var health = OptionalInt(element, "health", isMinion ? 1 : 1, 1, 99, source);
@@ -129,13 +128,7 @@ namespace DominionWars.Data
                 ValidateLeaderDef(leaderDef, source);
                 grantLife = OptionalInt(leaderDef, "grantLife", 0, 1, 99, source);
                 leaderDurability = OptionalInt(leaderDef, "durability", 0, 1, 999, source);
-                leaderWinParam = OptionalInt(
-                    leaderDef,
-                    TryGetProperty(leaderDef, "winParam", out _) ? "winParam" : "winAmount",
-                    0,
-                    0,
-                    999,
-                    source);
+                leaderWinParam = OptionalInt(leaderDef, TryGetProperty(leaderDef, "winParam", out _) ? "winParam" : "winAmount", 0, 0, 999, source);
                 leaderEnterEffects = MapEffects(leaderDef, "enterEffects", source);
                 leaderPunishEffects = MapEffects(leaderDef, "punishEffects", source);
             }
