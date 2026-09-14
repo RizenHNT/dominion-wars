@@ -18,7 +18,7 @@ namespace DominionWars.Data
 
     public static class DeckLoader
     {
-        private static readonly HashSet<string> Factions = new HashSet<string>(new[] { "烈焰帝国", "机械遗迹", "深海联盟", "古木圣地", "无阵营" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> Factions = new HashSet<string>(new[] { "赫萨廷", "克莱恩书院", "纳维恩诸邑", "依兰维索", "无阵营" }, StringComparer.Ordinal);
         public static IReadOnlyList<DeckDefinition> LoadDirectory(string directory, Action<string>? warning = null)
         {
             if (!Directory.Exists(directory)) throw new DirectoryNotFoundException(directory);
