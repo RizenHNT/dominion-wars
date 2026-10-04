@@ -187,6 +187,92 @@ public sealed class AdapterContractTests
         });
     }
 
+    /// <summary>
+    /// A face-down ambush is hidden information: the ambush owner may see the
+    /// card in the viewer-scoped snapshot, but the ambush <c>cardId</c> must
+    /// never be published to a viewer who is not the ambush owner.  The
+    /// projection drops it and the runtime gateway redacts it from the raw
+    /// event delta, so no wire shape carries it and the transport cursor
+    /// rejects an envelope that still does.
+    /// </summary>
+    private static readonly string[] HiddenIdentityEventTypes =
+    {
+        "AMBUSH_SET", "AMBUSH_TRIGGERED",
+    };
+
+    [TestCaseSource(nameof(HiddenIdentityEventTypes))]
+    public void HiddenAmbushEventsNeverPublishTheAmbushCardId(string eventType)
+    {
+        var engineEvent = new GameEvent(
+            11,
+            null,
+            eventType,
+            new Dictionary<string, object?>
+            {
+                ["player"] = 1,
+                ["source"] = 5L,
+                ["cardId"] = "ambush.secret",
+                ["kind"] = "NORMAL",
+                ["punish"] = 2,
+            });
+
+        var projected = EngineProjectionAdapter.ToEvent(engineEvent, 1, "AMBUSH");
+        var viewerSafe = HiddenInformationRedaction.ToViewer(new[] { engineEvent }, 0)[0];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(projected.Data.Keys, Does.Not.Contain("cardId"));
+            Assert.That(projected.Data.Keys, Does.Not.Contain("sourceId"));
+            Assert.That(projected.SourceId, Is.Null);
+            Assert.That(viewerSafe.Data.Keys, Does.Not.Contain("cardId"));
+            Assert.That(viewerSafe.Data.Keys, Does.Not.Contain("source"));
+            Assert.That(
+                System.Text.Json.JsonSerializer.Serialize(viewerSafe),
+                Does.Not.Contain("ambush.secret"));
+            // The owner keeps the truth; only the viewer-scoped copy is redacted.
+            Assert.That(
+                HiddenInformationRedaction.ToViewer(new[] { engineEvent }, 1)[0].Data["cardId"],
+                Is.EqualTo("ambush.secret"));
+        });
+    }
+
+    [TestCaseSource(nameof(HiddenIdentityEventTypes))]
+    public void EventTransportCursorRejectsHiddenAmbushIdentityKeys(string eventType)
+    {
+        var cursor = new RuntimeEventCursor();
+        var leaked = new RuntimeEventEnvelope
+        {
+            EventId = "evt_000000000001",
+            Type = eventType,
+            Turn = 1,
+            Phase = "AMBUSH",
+            SnapshotRevision = 1,
+            Data = new Dictionary<string, object?>
+            {
+                ["cardId"] = "ambush.secret",
+            },
+        };
+        var clean = new RuntimeEventEnvelope
+        {
+            EventId = "evt_000000000001",
+            Type = eventType,
+            Turn = 1,
+            Phase = "AMBUSH",
+            SnapshotRevision = 1,
+            Data = new Dictionary<string, object?>
+            {
+                ["amount"] = 2,
+            },
+        };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(cursor.Accept(leaked).Accepted, Is.False);
+            Assert.That(cursor.Accept(leaked).ReasonKey, Is.EqualTo("event.hidden_field_forbidden"));
+            Assert.That(cursor.Accept(clean).Accepted, Is.True);
+        });
+    }
+
     [Test]
     public void ProjectedChildCanTraverseToProjectedRoot()
     {

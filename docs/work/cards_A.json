@@ -1,0 +1,543 @@
+[
+  {
+    "id": "wood_heartseed",
+    "name": "拓荒者之种",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["树灵"],
+    "punish": 0,
+    "attack": 1,
+    "health": 3,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 1 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 1, "param": "root" }
+    ],
+    "text": "登场：扎根1，并强化一个友方随从+1/+1。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rootfall",
+    "name": "落地生根",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["恢复"],
+    "punish": 0,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 2, "param": "root" }
+    ],
+    "text": "扎根2，并强化一个友方随从+2/+2。",
+    "source": "A"
+  },
+  {
+    "id": "wood_sapling_grove",
+    "name": "新芽园丁",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["树灵"],
+    "punish": 1,
+    "attack": 1,
+    "health": 3,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 1 },
+      { "action": "SUMMON", "target": "SELF", "amount": 1, "param": "wood_sapling" }
+    ],
+    "text": "登场：扎根1，并召唤一个新芽树灵。",
+    "source": "A"
+  },
+  {
+    "id": "wood_moss_warden",
+    "name": "苔庭守卫",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["守卫"],
+    "punish": 1,
+    "attack": 1,
+    "health": 5,
+    "keywords": ["嘲讽"],
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 1 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 1, "param": "root" }
+    ],
+    "text": "嘲讽。登场：扎根1，并强化一个友方随从+1/+1。",
+    "source": "A"
+  },
+  {
+    "id": "wood_trueroot",
+    "name": "扎根",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": [],
+    "punish": 1,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 3 }
+    ],
+    "text": "扎根3，你抽1张牌。",
+    "source": "A"
+  },
+  {
+    "id": "wood_deeproot_burial",
+    "name": "古根屯积",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["古树", "树灵"],
+    "punish": 3,
+    "attack": 2,
+    "health": 4,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "ADD_ROOT", "amount": 3, "condition": "SELF_ROOT_GE_6" }
+    ],
+    "text": "登场：扎根2；若己方扎根≥6，再扎根3。",
+    "source": "A"
+  },
+  {
+    "id": "wood_mycelium_weaver",
+    "name": "菌根织网者",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["菌根"],
+    "punish": 2,
+    "attack": 2,
+    "health": 3,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "GRANT_KEYWORD", "target": "ALL_FRIENDLY_MINIONS", "amount": 0, "param": "嘲讽" }
+    ],
+    "text": "登场：扎根2，所有友方随从获得【嘲讽】。",
+    "source": "A"
+  },
+  {
+    "id": "wood_yearly_rings",
+    "name": "年轮",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": [],
+    "punish": 2,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 2, "condition": "SELF_ROOT_GE_1" }
+    ],
+    "text": "若己方扎根≥1，你抽2张牌。",
+    "source": "A"
+  },
+  {
+    "id": "wood_stumper",
+    "name": "苔藓卫士",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["守卫"],
+    "punish": 2,
+    "attack": 1,
+    "health": 6,
+    "keywords": ["嘲讽"],
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 1 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 2, "param": "root", "condition": "SELF_ROOT_GE_2" }
+    ],
+    "text": "嘲讽。登场：扎根1；若己方扎根≥2，强化一个友方随从+2/+2。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rootcutter",
+    "name": "断根猎手",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["荆棘"],
+    "punish": 2,
+    "attack": 3,
+    "health": 3,
+    "keywords": ["突袭"],
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 1 },
+      { "action": "BUFF", "target": "SELF", "amount": 4, "param": "both", "condition": "SELF_ROOT_GE_4" }
+    ],
+    "text": "突袭。登场：扎根1；若己方扎根≥4，自身+4/+4（此强化受扎根增幅并被封印）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_amber_root",
+    "name": "琥珀之根",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["菌根"],
+    "punish": 2,
+    "effects": [
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "OPP_ATTACKED_CASTLE_THIS_TURN" },
+      { "action": "ADD_RAMPANT", "target": "SELF", "amount": 1, "param": "rampant", "condition": "OPP_ATTACKED_CASTLE_THIS_TURN" },
+      { "action": "DRAW", "target": "SELF", "amount": 1, "condition": "OPP_ATTACKED_CASTLE_THIS_TURN" }
+    ],
+    "text": "若【对方本回合攻击过王城】，则扎根2、疯长1，并抽1张牌；否则本卡空发，不产生任何效果。",
+    "source": "A"
+  },
+  {
+    "id": "wood_spring_eye",
+    "name": "泉眼德鲁伊",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["德鲁伊"],
+    "punish": 3,
+    "attack": 2,
+    "health": 4,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 1 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 1, "param": "root", "condition": "SELF_ROOT_GE_2" },
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 6, "condition": "SELF_ROOT_GE_2" }
+    ],
+    "text": "登场：扎根1；若己方扎根≥2，强化一个友方随从+1/+1，然后恢复一个友方随从6点生命。",
+    "source": "A"
+  },
+  {
+    "id": "wood_thornbind",
+    "name": "藤根缠绕",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["荆棘"],
+    "punish": 3,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "DAMAGE", "target": "ENEMY_MINION", "amount": 3, "condition": "SELF_ROOT_GE_3" }
+    ],
+    "text": "扎根2；若己方扎根≥3，对一个敌方随从造成3点伤害。",
+    "source": "A"
+  },
+  {
+    "id": "wood_big_antler",
+    "name": "巨角牡鹿",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["野兽"],
+    "punish": 4,
+    "attack": 4,
+    "health": 5,
+    "keywords": ["突袭"],
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "BUFF", "target": "SELF", "amount": 3, "param": "both", "condition": "SELF_ROOT_GE_4" }
+    ],
+    "text": "突袭。登场：扎根2；若己方扎根≥4，自身+3/+3（受增幅并被封印）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_yearring_colossus",
+    "name": "年轮巨像",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["古树"],
+    "punish": 5,
+    "attack": 4,
+    "health": 10,
+    "keywords": ["嘲讽"],
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 3 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 6, "param": "root", "condition": "SELF_SEALED_HEALTH_GE_128" }
+    ],
+    "text": "嘲讽。登场：扎根3；若己方封印随从生命≥128，强化一个友方随从+6/+6。",
+    "source": "A"
+  },
+  {
+    "id": "wood_mosshide_beast",
+    "name": "苔皮巨兽",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["野兽", "苔藓"],
+    "punish": 6,
+    "attack": 5,
+    "health": 9,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 3 },
+      { "action": "BUFF", "target": "ALL_FRIENDLY_MINIONS", "amount": 2, "param": "both", "condition": "SELF_ROOT_GE_8" }
+    ],
+    "text": "登场：扎根3；若己方扎根≥8，所有友方随从+2/+2（每个都受增幅并被封印）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rootvein_colossus",
+    "name": "根脉巨像",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["古树"],
+    "punish": 7,
+    "attack": 4,
+    "health": 12,
+    "keywords": ["嘲讽"],
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 4, "param": "root", "condition": "SELF_ROOT_GE_10" }
+    ],
+    "text": "嘲讽。登场：扎根2；若己方扎根≥10，强化一个友方随从+4/+4。",
+    "source": "A"
+  },
+  {
+    "id": "wood_worldseed_shoot",
+    "name": "世界树幼苗",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["世界树"],
+    "punish": 6,
+    "attack": 3,
+    "health": 8,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "BUFF", "target": "SELF", "amount": 6, "param": "both", "condition": "OPP_HAND_GE_4" },
+      { "action": "BUFF", "target": "SELF", "amount": 6, "param": "both", "condition": "OPP_HAND_GE_4" }
+    ],
+    "text": "登场：扎根2；若对方手牌≥4，自身+6/+6，再自身+6/+6（每条都受增幅并被封印）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rampant_root",
+    "name": "疯长之根",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["增强"],
+    "punish": 5,
+    "effects": [
+      { "action": "ADD_RAMPANT", "amount": 1 },
+      { "action": "ADD_ROOT", "amount": 3 },
+      { "action": "ADD_RAMPANT", "amount": 1, "condition": "SELF_RAMPANT_GE_1" },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 3, "param": "both", "condition": "SELF_RAMPANT_GE_1" }
+    ],
+    "text": "疯长1，扎根3；若打出时己方已有疯长，再疯长1，并强化一个友方随从+3/+3。",
+    "source": "A"
+  },
+  {
+    "id": "wood_nurture",
+    "name": "古木滋养",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": [],
+    "punish": 2,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 3, "param": "both" }
+    ],
+    "text": "扎根2，并强化一个友方随从+3/+3（受扎根增幅）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rootbrace",
+    "name": "扶根",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["恢复"],
+    "punish": 2,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 1 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 4, "param": "both" }
+    ],
+    "text": "扎根1，并强化一个友方随从+4/+4（受扎根增幅）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_layered_bark",
+    "name": "厚积",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["守护"],
+    "punish": 3,
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 6, "param": "both" },
+      { "action": "GRANT_KEYWORD", "target": "FRIENDLY_MINION", "amount": 0, "param": "圣盾" }
+    ],
+    "text": "扎根2，强化一个友方随从+6/+6，并使其获得【圣盾】。",
+    "source": "A"
+  },
+  {
+    "id": "wood_yearly_ritual",
+    "name": "年轮秘仪",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["仪式"],
+    "punish": 4,
+    "effects": [
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 2, "param": "both" },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 3, "param": "both", "condition": "SELF_ROOT_GE_1" },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 5, "param": "both", "condition": "SELF_ROOT_GE_4" },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 5, "param": "both", "condition": "SELF_ROOT_GE_8" }
+    ],
+    "text": "强化一个友方随从+2/+2；若己方扎根≥1，再强化一个友方随从+3/+3；若己方扎根≥4，再强化一个友方随从+5/+5；若己方扎根≥8，再强化一个友方随从+5/+5（每段各选一次目标，可都选同一个）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_moss_communion",
+    "name": "苔藓圣餐",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["苔藓"],
+    "punish": 5,
+    "effects": [
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 4, "param": "both", "condition": "SELF_SEALED_HEALTH_GE_64" },
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 10, "condition": "SELF_SEALED_HEALTH_GE_64" },
+      { "action": "ADD_ROOT", "amount": 2, "condition": "SELF_SEALED_HEALTH_GE_64" }
+    ],
+    "text": "若己方封印随从生命≥64，强化一个友方随从+4/+4，恢复它10点生命，扎根2。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rootvein_surge",
+    "name": "根脉涌流",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["增强"],
+    "punish": 5,
+    "effects": [
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 8, "param": "both", "condition": "SELF_SEALED_HEALTH_GE_128" },
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 10, "condition": "SELF_SEALED_HEALTH_GE_128" },
+      { "action": "ADD_ROOT", "amount": 3, "condition": "SELF_SEALED_HEALTH_GE_128" }
+    ],
+    "text": "若己方封印随从生命≥128，强化一个友方随从+8/+8（受增幅），恢复它10点生命，扎根3。",
+    "source": "A"
+  },
+  {
+    "id": "wood_gaia_boon",
+    "name": "盖亚之赐",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["恢复"],
+    "punish": 6,
+    "effects": [
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 8, "param": "both", "condition": "SELF_SEALED_HEALTH_GE_256" },
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 12, "condition": "SELF_SEALED_HEALTH_GE_256" },
+      { "action": "ADD_ROOT", "amount": 3, "condition": "SELF_SEALED_HEALTH_GE_256" }
+    ],
+    "text": "若己方封印随从生命≥256，强化一个友方随从+8/+8（受增幅），恢复它12点生命，扎根3。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rampant_bloom",
+    "name": "疯长盛放",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": [],
+    "punish": 4,
+    "effects": [
+      { "action": "ADD_RAMPANT", "amount": 1, "condition": "ENEMY_MINIONS_GE_3" },
+      { "action": "ADD_ROOT", "amount": 2, "condition": "ENEMY_MINIONS_GE_3" },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 3, "param": "both", "condition": "ENEMY_MINIONS_GE_3" }
+    ],
+    "text": "若对方随从≥3，疯长1，扎根2，强化一个友方随从+3/+3（受增幅）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rootless_green",
+    "name": "无根返青",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": [],
+    "punish": 3,
+    "effects": [
+      { "action": "SUMMON", "target": "SELF", "amount": 1, "param": "wood_sapling" },
+      { "action": "SUMMON", "target": "SELF", "amount": 1, "param": "wood_sapling" },
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "BUFF", "target": "ALL_FRIENDLY_MINIONS", "amount": 2, "param": "both" }
+    ],
+    "text": "召唤两个新芽树灵，扎根2，所有友方随从+2/+2（每个都受增幅并被封印）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_silent_grove",
+    "name": "封场护佑",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["结界"],
+    "punish": 4,
+    "effects": [
+      { "action": "NEGATE_ENEMY_EFFECTS_TURN" },
+      { "action": "ADD_ROOT", "amount": 2 }
+    ],
+    "text": "本回合对方场上卡牌的效果全部无效；扎根2。",
+    "source": "A"
+  },
+  {
+    "id": "wood_bare_renewal",
+    "name": "新芽再生",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["恢复"],
+    "punish": 3,
+    "effects": [
+      { "action": "SUMMON", "target": "SELF", "amount": 1, "param": "wood_sapling" },
+      { "action": "SUMMON", "target": "SELF", "amount": 1, "param": "wood_sapling" },
+      { "action": "SUMMON", "target": "SELF", "amount": 1, "param": "wood_sapling" }
+    ],
+    "text": "召唤三个新芽树灵。",
+    "source": "A"
+  },
+  {
+    "id": "wood_ancient_bough",
+    "name": "古根垂护",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["守护"],
+    "punish": 6,
+    "effects": [
+      { "action": "GRANT_KEYWORD", "target": "ALL_FRIENDLY_MINIONS", "amount": 0, "param": "圣盾", "condition": "SELF_SEALED_GE_2" },
+      { "action": "ADD_ROOT", "amount": 2, "condition": "SELF_SEALED_GE_2" }
+    ],
+    "text": "若己方有2个或更多封印随从，所有友方随从获得【圣盾】，扎根2。",
+    "source": "A"
+  },
+  {
+    "id": "wood_worldtree_bloom",
+    "name": "藤心绽放",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["仪式"],
+    "punish": 6,
+    "effects": [
+      { "action": "ADD_RAMPANT", "amount": 1, "condition": "SELF_SEALED_GE_2" },
+      { "action": "BUFF", "target": "ALL_FRIENDLY_MINIONS", "amount": 4, "param": "both", "condition": "SELF_SEALED_GE_2" }
+    ],
+    "text": "若己方有2个或更多封印随从，疯长1，所有友方随从+4/+4（每个都受增幅并被封印）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_thousand_root",
+    "name": "千根结界",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["结界"],
+    "punish": 7,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 2, "condition": "SELF_SEALED_GE_1" },
+      { "action": "OPP_DRAW", "target": "ENEMY_FACE", "amount": 1, "condition": "SELF_SEALED_GE_1" },
+      { "action": "ADD_ROOT", "amount": 4, "condition": "SELF_SEALED_GE_1" },
+      { "action": "NEGATE_ENEMY_EFFECTS_TURN", "condition": "SELF_SEALED_GE_1" }
+    ],
+    "text": "若己方有封印随从，你抽2张牌，对方抽1张牌，扎根4；本回合对方场上卡牌的效果全部无效。",
+    "source": "A"
+  },
+  {
+    "id": "wood_rootveil_veil",
+    "name": "古根垂荫",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["世界树"],
+    "punish": 7,
+    "effects": [
+      { "action": "PROTECT_TURN", "target": "FRIENDLY_MINION" },
+      { "action": "ADD_ROOT", "amount": 3 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 5, "param": "both" }
+    ],
+    "text": "本回合己方卡牌不会被破坏与反制；扎根3，强化一个友方随从+5/+5（受增幅）。",
+    "source": "A"
+  },
+  {
+    "id": "wood_apex_grove",
+    "name": "世界树之环",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["世界树", "古树"],
+    "punish": 8,
+    "attack": 2,
+    "health": 14,
+    "keywords": ["嘲讽"],
+    "effects": [
+      { "action": "ADD_ROOT", "amount": 2 },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 8, "param": "both", "condition": "SELF_SEALED_HEALTH_GE_256" }
+    ],
+    "text": "嘲讽。登场：扎根2；若己方封印随从生命≥256，强化一个友方随从+8/+8（受增幅）。",
+    "source": "A"
+  }
+]

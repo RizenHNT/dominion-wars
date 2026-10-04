@@ -45,7 +45,24 @@ public sealed class MatchSetupOptions
     public int FirstPlayerIndex { get; set; }
     public ulong Seed { get; set; } = 1;
     public int OpeningHandSize { get; set; } = 5;
-    public int PlayerLife { get; set; } = 20;
+
+    /// <summary>
+    /// THE PLAYER LIFE POOL, WHICH IS OFF BY DEFAULT.
+    ///
+    /// `null` means the match starts with NO life pool: the player is not a damageable
+    /// resource and life is not a victory or defeat condition. That is the shipped rule
+    /// (docs/RULES.md §1: the only two victory paths are a leader's declared winCondition
+    /// and the deck-cycle counter; §7: the life pool does not constitute a win or loss).
+    ///
+    /// A leader that declares `grantLife` opens the pool for its controller when it
+    /// manifests (EffectRuntime.Cards.cs, the GrantLife path), so a match can acquire a
+    /// life pool mid-game. Nothing needs to set this option for that to work.
+    ///
+    /// Setting a value here is therefore only meaningful for a test that deliberately
+    /// wants a life pool present from the start, or for a future rule that re-enables it.
+    /// </summary>
+    public int? PlayerLife { get; set; }
+
     public bool CastleEnabled { get; set; } = true;
     public int CastleHealth { get; set; } = 75;
     public MatchRules Rules { get; set; } = new MatchRules();
@@ -108,7 +125,7 @@ public static class MatchSetup
             throw new ArgumentOutOfRangeException(nameof(options.FirstPlayerIndex));
         if (options.OpeningHandSize < 0)
             throw new ArgumentOutOfRangeException(nameof(options.OpeningHandSize));
-        if (options.PlayerLife < 0)
+        if (options.PlayerLife.HasValue && options.PlayerLife.Value < 0)
             throw new ArgumentOutOfRangeException(nameof(options.PlayerLife));
         if (options.CastleHealth < 1)
             throw new ArgumentOutOfRangeException(nameof(options.CastleHealth));

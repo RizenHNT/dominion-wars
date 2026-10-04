@@ -1,0 +1,475 @@
+[
+  {
+    "id": "wood_ash_barrier",
+    "name": "灰烬防线",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["荆棘"],
+    "punish": 2,
+    "effects": [
+      { "action": "DAMAGE", "target": "ALL_ENEMY_MINIONS", "amount": 3, "condition": "ENEMY_MINIONS_GE_2" },
+      { "action": "HEAL", "target": "ALL_FRIENDLY_MINIONS", "amount": 2, "condition": "ENEMY_MINIONS_GE_2" }
+    ],
+    "text": "若敌方场上≥2个随从，则对所有敌方随从造成3点伤害，并使己方所有随从恢复2点生命；若敌方随从不足2个，则本卡空发。",
+    "source": "B"
+  },
+  {
+    "id": "wood_cloud_reaper",
+    "name": "伐云者",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["古树"],
+    "punish": 1,
+    "effects": [
+      { "action": "EMPTY_CLOUD_STACK", "target": "ENEMY_SINGLE", "amount": 0, "param": "cloudStack", "condition": "OPP_CLOUD_GE_2" },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "OPP_CLOUD_GE_2" }
+    ],
+    "text": "若对方云端栈≥2，则将对方云端栈的牌全部置入其墓地，并扎根2。",
+    "source": "B"
+  },
+  {
+    "id": "wood_root_prison",
+    "name": "根须牢狱",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["藤蔓"],
+    "punish": 1,
+    "effects": [
+      { "action": "ENEMY_COMMIT_MINIONS", "target": "ALL_ENEMY_MINIONS", "amount": 0, "param": "commitQueue", "condition": "ENEMY_MINIONS_GE_3" },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "ENEMY_MINIONS_GE_3" }
+    ],
+    "text": "若对方场上≥3个随从，则将这些随从全部提交进**对方的**提交队列（离场，不触发提交效果与提交惩罚），并扎根2。",
+    "source": "B"
+  },
+  {
+    "id": "wood_reflux",
+    "name": "逆流还根",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["菌根"],
+    "punish": 2,
+    "effects": [
+      { "action": "CONVERT_DISCARD_TO_GROWTH", "target": "SELF", "amount": 1, "param": "root", "condition": "OPP_DISCARD_GE_10" },
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 3, "condition": "OPP_DISCARD_GE_10" }
+    ],
+    "text": "若对方累计受效果弃牌≥10张，则按每3张已弃牌获得扎根1，并恢复一个友方随从3点生命。",
+    "source": "B"
+  },
+  {
+    "id": "wood_godtree_sentinel",
+    "name": "神木哨卫",
+    "faction": "古木圣地",
+    "type": "PUNISH",
+    "tags": ["世界树"],
+    "punish": 4,
+    "punishActivatable": true,
+    "punishCost": 2,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 2, "condition": "OPP_DISCARD_GE_8" },
+      { "action": "GAIN_LIFE", "target": "SELF", "amount": 3, "condition": "OPP_DISCARD_GE_8" }
+    ],
+    "text": "惩罚牌：无法主动使用。打印惩罚值4。【惩罚】若对方累计受效果弃牌≥8张，则以惩罚2发动：抽2张牌，并开启3点生命池；否则本卡无法发动。",
+    "source": "B"
+  },
+  {
+    "id": "wood_arbor_mark",
+    "name": "林冠标定",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["古树"],
+    "punish": 2,
+    "effects": [
+      { "action": "DAMAGE", "target": "ENEMY_MINION", "amount": 3, "condition": "ENEMY_MINIONS_GE_2" },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "ENEMY_MINIONS_GE_2" }
+    ],
+    "text": "若敌方场上≥2个随从，则对一个敌方随从造成3点伤害并扎根2；否则本卡空发，不产生任何效果。",
+    "source": "B"
+  },
+  {
+    "id": "wood_moss_offset",
+    "name": "苔痕抵偿",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["苔藓"],
+    "punish": 1,
+    "attack": 2,
+    "health": 4,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 1, "condition": "SELF_LEADER_ON_FIELD" },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "SELF_LEADER_ON_FIELD" }
+    ],
+    "text": "若己方统领在场，则登场时抽1张牌并扎根2；否则本随从仅以2/4登场。",
+    "source": "B"
+  },
+  {
+    "id": "wood_tide_screen",
+    "name": "潮屏结界",
+    "faction": "古木圣地",
+    "type": "AMBUSH",
+    "tags": ["结界"],
+    "punish": 2,
+    "ambushKind": "NORMAL",
+    "ambushTrigger": "OPPONENT_ATTACKS",
+    "effects": [
+      { "action": "PROTECT_TURN", "target": "FRIENDLY_MINION", "amount": 0 },
+      { "action": "DRAW", "target": "SELF", "amount": 1 }
+    ],
+    "effectHook": "ambushEffects",
+    "text": "伏击·普通：对方攻击时，本回合己方卡牌不会被破坏与反制，并抽1张牌。",
+    "source": "B"
+  },
+  {
+    "id": "wood_punish_pact",
+    "name": "天罚契约",
+    "faction": "古木圣地",
+    "type": "PUNISH",
+    "tags": ["天罚"],
+    "punish": 4,
+    "punishActivatable": true,
+    "punishCost": 2,
+    "effects": [
+      { "action": "DAMAGE", "target": "ALL_ENEMY_MINIONS", "amount": 4, "condition": "OPP_HAND_GE_3" }
+    ],
+    "text": "惩罚牌：无法主动使用。打印惩罚值4。【惩罚】若对方手牌≥3张，则以惩罚2发动：对所有敌方随从造成4点伤害；否则本卡无法发动。",
+    "source": "B"
+  },
+  {
+    "id": "wood_cloud_mirror",
+    "name": "云端镜池",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["结界"],
+    "punish": 2,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 2, "condition": "OPP_HAND_GE_4" },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "OPP_HAND_GE_4" },
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 2, "condition": "OPP_HAND_GE_4" }
+    ],
+    "text": "若对方手牌≥4张，则抽2张牌、扎根2，并恢复一个友方随从2点生命；否则本卡空发，不产生任何效果。",
+    "source": "B"
+  },
+  {
+    "id": "wood_seed_bank",
+    "name": "种库稽核",
+    "faction": "古木圣地",
+    "type": "PUNISH",
+    "tags": ["菌根"],
+    "punish": 4,
+    "punishActivatable": true,
+    "punishCost": 2,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 1, "condition": "OPP_HAND_GE_2" },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "OPP_HAND_GE_2" }
+    ],
+    "text": "惩罚牌：无法主动使用。打印惩罚值4。【惩罚】若对方手牌≥2张，则以惩罚2发动：抽1张牌并扎根2；否则本卡无法发动。",
+    "source": "B"
+  },
+  {
+    "id": "wood_mire_lash",
+    "name": "泥沼缚击",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["藤蔓"],
+    "punish": 2,
+    "effects": [
+      { "action": "DISCARD_OPP_RANDOM", "target": "ENEMY_FACE", "amount": 1, "condition": "OPP_HAND_GE_6" },
+      { "action": "DRAW", "target": "SELF", "amount": 2, "condition": "OPP_HAND_GE_6" }
+    ],
+    "text": "若对方手牌≥6张，则对方随机弃置1张手牌，你抽2张牌；否则本卡空发，不产生任何效果。",
+    "source": "B"
+  },
+  {
+    "id": "wood_driftwood_snare",
+    "name": "漂木缠缚",
+    "faction": "古木圣地",
+    "type": "AMBUSH",
+    "tags": ["藤蔓"],
+    "punish": 2,
+    "ambushKind": "NORMAL",
+    "ambushTrigger": "OPPONENT_ATTACKS",
+    "effects": [
+      { "action": "NEGATE", "target": "ENEMY_TARGET", "amount": 0 },
+      { "action": "DAMAGE", "target": "ENEMY_MINION", "amount": 2 },
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 2 }
+    ],
+    "effectHook": "ambushEffects",
+    "text": "伏击·普通：对方攻击时，反制该次攻击，对一个敌方随从造成2点伤害，并恢复一个友方随从2点生命。",
+    "source": "B"
+  },
+  {
+    "id": "wood_marsh_ward",
+    "name": "沼泽守卫",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["守卫"],
+    "punish": 2,
+    "attack": 2,
+    "health": 6,
+    "effects": [
+      { "action": "GRANT_KEYWORD", "target": "SELF", "amount": 0, "param": "嘲讽" },
+      { "action": "BUFF", "target": "SELF", "amount": 2, "param": "both", "condition": "OPP_DISCARD_GE_4" }
+    ],
+    "text": "嘲讽。若对方累计受效果弃牌≥4张，则登场时本随从获得+2/+2。",
+    "source": "B"
+  },
+  {
+    "id": "wood_hand_scale",
+    "name": "手牌天秤",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["苔藓"],
+    "punish": 1,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 1, "condition": "OPP_DISCARD_GE_6" },
+      { "action": "BUFF", "target": "ALL_FRIENDLY_MINIONS", "amount": 1, "param": "both", "condition": "OPP_DISCARD_GE_6" }
+    ],
+    "text": "若对方累计受效果弃牌≥6张，则抽1张牌，并使己方所有随从获得+1攻/+1生命；否则本卡空发，不产生任何效果。",
+    "source": "B"
+  },
+  {
+    "id": "wood_harvest_rite",
+    "name": "收成之仪",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["仪式"],
+    "punish": 1,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 2 },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root" }
+    ],
+    "text": "你抽2张牌，并扎根2。",
+    "source": "B"
+  },
+  {
+    "id": "wood_leaf_storm",
+    "name": "落叶风暴",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["荆棘"],
+    "punish": 3,
+    "effects": [
+      { "action": "DAMAGE", "target": "ALL_ENEMY_MINIONS", "amount": 2 }
+    ],
+    "text": "对所有敌方随从造成2点伤害。",
+    "source": "B"
+  },
+  {
+    "id": "wood_sap_drain",
+    "name": "汲汁",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["菌根"],
+    "punish": 2,
+    "effects": [
+      { "action": "DAMAGE", "target": "ENEMY_MINION", "amount": 3 },
+      { "action": "GAIN_LIFE", "target": "SELF", "amount": 2 }
+    ],
+    "text": "对一个敌方随从造成3点伤害，并开启2点生命池。",
+    "source": "B"
+  },
+  {
+    "id": "wood_burrow_arrival",
+    "name": "破土而出",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["树灵"],
+    "punish": 1,
+    "attack": 2,
+    "health": 3,
+    "effects": [
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "SELF_LEADER_ON_FIELD" },
+      { "action": "BUFF", "target": "FRIENDLY_MINION", "amount": 2, "param": "root", "condition": "SELF_LEADER_ON_FIELD" }
+    ],
+    "text": "若己方统领在场，则扎根2并强化一个友方随从+2/+2；否则仅以2/3登场。",
+    "source": "B"
+  },
+  {
+    "id": "wood_waiting_copse",
+    "name": "待时林",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["增强"],
+    "punish": 2,
+    "effects": [
+      { "action": "BUFF", "target": "ALL_FRIENDLY_MINIONS", "amount": 1, "param": "both" },
+      { "action": "DRAW", "target": "SELF", "amount": 1 }
+    ],
+    "text": "所有友方随从获得+1/+1，你抽1张牌。",
+    "source": "B"
+  },
+  {
+    "id": "wood_still_moment",
+    "name": "静默时刻",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["结界"],
+    "punish": 2,
+    "effects": [
+      { "action": "NEGATE_ENEMY_EFFECTS_TURN", "target": "SELF", "amount": 0 }
+    ],
+    "text": "对方场上所有卡牌的效果在本回合被变更为无效。",
+    "source": "B"
+  },
+  {
+    "id": "wood_thousand_roots",
+    "name": "千根盘结",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["古树"],
+    "punish": 3,
+    "attack": 4,
+    "health": 8,
+    "effects": [
+      { "action": "GRANT_KEYWORD", "target": "SELF", "amount": 0, "param": "嘲讽" },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "SELF_LEADER_ON_FIELD" }
+    ],
+    "text": "嘲讽。若己方统领在场，则登场时额外扎根2。",
+    "source": "B"
+  },
+  {
+    "id": "wood_barkskin",
+    "name": "树肤硬化",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["守护"],
+    "punish": 1,
+    "effects": [
+      { "action": "GRANT_KEYWORD", "target": "FRIENDLY_MINION", "amount": 0, "param": "圣盾" },
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 2 }
+    ],
+    "text": "使一个友方随从获得【圣盾】，并恢复其2点生命。",
+    "source": "B"
+  },
+  {
+    "id": "wood_rune_ward",
+    "name": "根纹护壁",
+    "faction": "古木圣地",
+    "type": "AMBUSH",
+    "tags": ["结界"],
+    "punish": 2,
+    "ambushKind": "FOCUS",
+    "ambushTrigger": "OPPONENT_PLAYS_SPELL",
+    "effects": [
+      { "action": "NEGATE", "target": "ENEMY_TARGET", "amount": 0 }
+    ],
+    "effectHook": "ambushEffects",
+    "text": "伏击·专注：反制对方发动的咒文。触发回合内你的其他伏击被压制。",
+    "source": "B"
+  },
+  {
+    "id": "wood_vine_lash",
+    "name": "藤鞭缠击",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["藤蔓"],
+    "punish": 1,
+    "effects": [
+      { "action": "DAMAGE", "target": "ENEMY_MINION", "amount": 2, "condition": "HAND_GE_3" },
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 2, "param": "root", "condition": "HAND_GE_3" }
+    ],
+    "text": "若你手牌≥3张，则对一个敌方随从造成2点伤害并扎根2；否则本卡空发，不产生任何效果。",
+    "source": "B"
+  },
+  {
+    "id": "wood_life_pact",
+    "name": "生命契约",
+    "faction": "古木圣地",
+    "type": "PUNISH",
+    "tags": ["恢复"],
+    "punish": 4,
+    "punishActivatable": true,
+    "punishCost": 2,
+    "effects": [
+      { "action": "ADD_SELF_PUNISH_TURN", "target": "SELF", "amount": 2 },
+      { "action": "GAIN_LIFE", "target": "SELF", "amount": 5 }
+    ],
+    "text": "惩罚牌：无法主动使用。打印惩罚值4。【惩罚】以惩罚2发动，效果**变更为**：本回合己方所有卡牌惩罚值-2，并开启5点生命池。",
+    "source": "B"
+  },
+  {
+    "id": "wood_eternal_vigil",
+    "name": "永续守望",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["世界树"],
+    "punish": 4,
+    "effects": [
+      { "action": "PROTECT_TURN", "target": "FRIENDLY_MINION", "amount": 0 },
+      { "action": "NEGATE", "target": "ENEMY_TARGET", "amount": 0 }
+    ],
+    "text": "本回合己方卡牌不会被破坏与反制，并反制对方本回合的下一次攻击。",
+    "source": "B"
+  },
+  {
+    "id": "wood_rotting_branch",
+    "name": "枯枝残木",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["树灵"],
+    "punish": 0,
+    "attack": 1,
+    "health": 1,
+    "effects": [
+      { "action": "ADD_ROOT", "target": "SELF", "amount": 1, "param": "root", "condition": "ENEMY_MINIONS_GE_4" }
+    ],
+    "text": "若敌方场上≥4个随从，则登场时扎根1；否则本随从仅以1/1登场。",
+    "source": "B"
+  },
+  {
+    "id": "wood_bark_cicada",
+    "name": "树皮蝉",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["苔藓"],
+    "punish": 0,
+    "attack": 1,
+    "health": 2,
+    "effects": [
+      { "action": "DRAW", "target": "SELF", "amount": 1, "condition": "OPP_CASTLE_HP_LE_75" }
+    ],
+    "text": "若【王城血量≤75】，则登场时抽1张牌；否则仅以1/2登场。",
+    "source": "B"
+  },
+  {
+    "id": "wood_dry_seed",
+    "name": "休眠干种",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["仪式"],
+    "punish": 1,
+    "effects": [
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 3, "condition": "SELF_LIFE_LE_3" },
+      { "action": "DRAW", "target": "SELF", "amount": 1, "condition": "SELF_LIFE_LE_3" }
+    ],
+    "text": "若己方生命池≤3，则恢复一个友方随从3点生命并抽1张牌；否则本卡空发，不产生任何效果。",
+    "source": "B"
+  },
+  {
+    "id": "wood_short_cycle",
+    "name": "断根残绪",
+    "faction": "古木圣地",
+    "type": "SPELL",
+    "tags": ["恢复"],
+    "punish": 1,
+    "effects": [
+      { "action": "HEAL", "target": "FRIENDLY_MINION", "amount": 2, "condition": "OPP_DISCARD_GE_2" }
+    ],
+    "text": "若对方累计受效果弃牌≥2张，则恢复一个友方随从2点生命；否则本卡空发，不产生任何效果。",
+    "source": "B"
+  },
+  {
+    "id": "wood_late_guard",
+    "name": "迟来的守卫",
+    "faction": "古木圣地",
+    "type": "MINION",
+    "tags": ["守卫"],
+    "punish": 1,
+    "attack": 1,
+    "health": 5,
+    "effects": [
+      { "action": "GRANT_KEYWORD", "target": "SELF", "amount": 0, "param": "嘲讽", "condition": "OPP_CLOUD_GE_3" }
+    ],
+    "text": "若对方云端栈≥3，则本随从登场时获得【嘲讽】；否则本随从以1/5无关键词登场。",
+    "source": "B"
+  }
+]

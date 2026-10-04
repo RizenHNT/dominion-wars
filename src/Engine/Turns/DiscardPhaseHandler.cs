@@ -108,7 +108,7 @@ public sealed class DiscardPhaseHandler : IPhaseHandler, ITurnActionHandler
 
     public static int RequiredDiscardCount(GameState state, PlayerState player)
     {
-        var pioneer = player.Leader is not null && state.GetOpponent(player.PlayerIndex).Leader is null;
+        var pioneer = CardPlayRules.IsSoloLeader(state, player.PlayerIndex);
         var limit = state.Rules.HandLimit + (pioneer ? state.Rules.PioneerHandLimitBonus : 0);
         return Math.Max(0, player.Hand.Count - limit);
     }

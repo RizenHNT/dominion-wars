@@ -140,6 +140,34 @@ public sealed class RuntimeDataStreamingBuildSafetyEditModeTests
     }
 
     [Test]
+    public void SynchronousCleanupRequiresTheCurrentBuildBaselineAndExistingSuccessDecision()
+    {
+        Assert.That(
+            RuntimeDataStreamingBuildSafety.ShouldCleanupAfterSynchronousBuild(
+                BuildResult.Succeeded, 0, hasMatchingCurrentBuildBaseline: true, outputChanged: false),
+            Is.True,
+            "A completed successful build may clean its owned staging even when Unity reused unchanged output bytes.");
+        Assert.That(
+            RuntimeDataStreamingBuildSafety.ShouldCleanupAfterSynchronousBuild(
+                BuildResult.Succeeded, 0, hasMatchingCurrentBuildBaseline: false, outputChanged: true),
+            Is.False,
+            "Without the exact preprocess baseline, cleanup must preserve generated data.");
+        Assert.That(
+            RuntimeDataStreamingBuildSafety.ShouldCleanupAfterSynchronousBuild(
+                BuildResult.Unknown, 0, hasMatchingCurrentBuildBaseline: true, outputChanged: true),
+            Is.True,
+            "An Unknown Unity callback still needs a changed output fingerprint from this build.");
+        Assert.That(
+            RuntimeDataStreamingBuildSafety.ShouldCleanupAfterSynchronousBuild(
+                BuildResult.Unknown, 0, hasMatchingCurrentBuildBaseline: true, outputChanged: false),
+            Is.False);
+        Assert.That(
+            RuntimeDataStreamingBuildSafety.ShouldCleanupAfterSynchronousBuild(
+                BuildResult.Failed, 0, hasMatchingCurrentBuildBaseline: true, outputChanged: true),
+            Is.False);
+    }
+
+    [Test]
     public void UnknownCleanupRejectsUnchangedOutputAndAcceptsChangedOutput()
     {
         var root = CreateTemporaryDirectory();

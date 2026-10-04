@@ -1,0 +1,17 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 7,
+  "actionId": "play_60_legacy",
+  "type": "PLAY_CARD",
+  "actor": 0,
+  "sourceId": 60,
+  "targetId": null,
+  "cardId": "played",
+  "payload": {
+    "punish": 2,
+    "discardRequired": 2,
+    "discardCandidateIds": [61, 62, 63],
+    "selectedEntityIds": [61, 62]
+  }
+}

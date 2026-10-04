@@ -29,6 +29,7 @@ public sealed class LegalActionGenerator
     public const string Attack = "ATTACK";
     public const string Commit = "COMMIT";
     public const string Pull = "PULL";
+    public const string Rollback = "ROLLBACK";
     public const string EndTurn = "END_TURN";
 
     public IReadOnlyList<LegalAction> Generate(GameState state, int playerIdx)
@@ -59,7 +60,7 @@ public sealed class LegalActionGenerator
                 continue;
             }
 
-            var effectivePunish = CardPlayRules.EffectivePunish(player, card);
+            var effectivePunish = CardPlayRules.EffectivePunish(state, player, card);
             var playPayload = new Dictionary<string, object?>
             {
                 ["punish"] = effectivePunish,
@@ -142,6 +143,19 @@ public sealed class LegalActionGenerator
             }
         }
 
+        foreach (var queued in player.CommitQueue)
+        {
+            // ROLLBACK is the 9th player action (RUNTIME_CONTRACT_1.31.md,
+            // 1.31-player-rollback). The chosen queue card is carried by the
+            // action id and SourceId, so no selectedEntityIds payload is
+            // needed. Its punish value is deliberately 0: per RULES.md §12.4
+            // "不能回溯已经发生的惩罚抽牌" plus the glossary's "费用不返还",
+            // the earlier COMMIT's commitCost is neither re-charged nor
+            // refunded, so this path produces no punish draw and opens no
+            // punish response window.
+            actions.Add(CreateRollbackAction(queued, playerIdx));
+        }
+
         foreach (var source in player.Field)
         {
             if (EffectRuntime.IsMechanicalCard(source)
@@ -216,6 +230,19 @@ public sealed class LegalActionGenerator
             CardId = card.Definition.Id,
             ReasonKey = "action.play_card",
             Payload = payload,
+        };
+    }
+
+    private static LegalAction CreateRollbackAction(CardInstance queued, int playerIdx)
+    {
+        return new LegalAction
+        {
+            ActionId = RollbackActionHandler.CreateActionId(queued.InstanceId),
+            Type = Rollback,
+            Actor = playerIdx,
+            SourceId = queued.InstanceId,
+            CardId = queued.Definition.Id,
+            ReasonKey = "action.rollback",
         };
     }
 

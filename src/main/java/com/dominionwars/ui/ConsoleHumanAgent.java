@@ -103,6 +103,24 @@ public class ConsoleHumanAgent implements PlayerAgent {
         return candidates.get(k - 1);
     }
 
+    @Override
+    public CardInstance chooseRollbackTarget(Game g, int playerIdx, List<CardInstance> queued) {
+        if (queued.isEmpty()) return null;
+        System.out.println();
+        System.out.println("★ 选择一张提交队列中的卡回滚回手：");
+        for (int i = 0; i < queued.size(); i++)
+            System.out.println("  " + (i + 1) + ". " + queued.get(i));
+        System.out.print("> ");
+        String raw = readLine();
+        try {
+            int k = Integer.parseInt(raw);
+            if (k < 1 || k > queued.size()) return null;
+            return queued.get(k - 1);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private int parse(String s, int def) {
         try { return Integer.parseInt(s.trim()); } catch (Exception e) { return def; }
     }

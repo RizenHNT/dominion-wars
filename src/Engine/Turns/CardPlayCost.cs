@@ -87,7 +87,7 @@ public sealed class PunishOnlyCostModel : ICardCostModel
             throw new ArgumentNullException(nameof(card));
         }
 
-        return CardPlayCost.PunishOnly(CardPlayRules.EffectivePunish(player, card));
+        return CardPlayCost.PunishOnly(CardPlayRules.EffectivePunish(state, player, card));
     }
 }
 }

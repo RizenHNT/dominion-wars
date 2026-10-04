@@ -1,0 +1,14 @@
+@font-face{font-family:DWDisplay;src:url('vendor/SourceHanSansSC-Heavy.otf') format('opentype');font-weight:900;font-display:swap}
+:root{--blue:#1254e6;--red:#ed382b;--paper:#f4f1e5;--ink:#121310}
+.background canvas{width:100%;height:100%;display:block}
+.grain{background:radial-gradient(ellipse at 50% 42%,transparent 35%,#173e4652 90%),radial-gradient(ellipse at 8% 4%,#b8e9df44,transparent 35%),radial-gradient(ellipse at 96% 94%,#263e6c55,transparent 45%);z-index:1;box-shadow:inset 0 0 95px 20px #1b485e30}
+#content{z-index:2}.brand h1,.menu-item .label,.settings-panel h2,.boot-banner h1,#wipeWord{font-family:DWDisplay,'Microsoft YaHei',sans-serif;font-weight:900;text-shadow:none}
+.brand{width:660px;right:94px;top:265px;padding:48px 36px 40px 45px;isolation:isolate;transform:rotate(-5deg)}
+.brand:before{content:'';position:absolute;inset:-6px -26px -16px -9px;background:var(--paper);clip-path:polygon(4% 8%,95% 0,100% 85%,0 100%);z-index:-1}
+.brand:after{content:'';position:absolute;inset:18px -45px -35px 13px;background:var(--ink);clip-path:polygon(4% 8%,95% 0,100% 85%,0 100%);z-index:-2}
+.brand h1{font-size:109px;letter-spacing:-5px}.brand .slash{top:158px;left:54px;width:558px}.brand .english{font-family:DWDisplay,sans-serif;font-size:23px;letter-spacing:6px;margin-top:25px}.brand p{font-size:17px;letter-spacing:4px;margin-top:19px;font-weight:600}
+.menu-stack{top:241px;left:87px}.menu-item .label{font-size:39px;letter-spacing:1px}.menu-item.active .label{font-size:54px;top:20px}
+.edition,.foot{background:#f4f1e5eb;padding:10px 16px;width:max-content;box-shadow:5px 5px var(--ink);letter-spacing:2px}.edition{top:37px;left:55px;font-size:13px}.foot{left:55px;bottom:38px;right:auto;font-size:13px;gap:55px}
+.title .brand{left:97px;top:155px;width:1010px;padding:49px 47px 43px 58px}.title .brand h1{font-size:169px;letter-spacing:-8px}.title .brand .slash{top:219px;left:65px;width:840px;height:13px}.title .brand .english{font-size:30px;letter-spacing:12px;margin-top:31px}.title .brand p{font-size:17px;margin-top:20px}.title-ribbon{width:180px;right:-65px;opacity:.94}.title-button{bottom:115px}
+.settings .brand{padding:20px 25px;width:410px;right:95px;top:55px}.settings .brand h1{font-size:59px;letter-spacing:-3px}.settings .brand .slash{top:81px;left:33px;width:300px}.settings .brand .english{font-size:15px;letter-spacing:3px;margin-top:17px}.settings .brand:after{inset:12px -22px -18px 8px}.settings-panel{top:270px;right:88px;width:934px;height:485px;padding-top:36px}.settings-panel h2{font-size:39px;margin-bottom:20px}.settings-side{top:205px}.settings-back{bottom:145px}.setting-row{padding:18px 0}.setting-help{font-size:18px;color:#3b453c}
+.boot-index{display:none}.boot-banner{top:200px;width:1050px;height:355px;padding-top:63px}.boot-banner h1{font-size:86px}.boot-banner p{font-size:22px}.boot-continue{bottom:150px}.reviewbar{font-family:'Microsoft YaHei',sans-serif}

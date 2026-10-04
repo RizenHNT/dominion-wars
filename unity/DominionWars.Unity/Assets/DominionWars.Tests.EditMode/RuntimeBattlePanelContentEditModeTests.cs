@@ -58,7 +58,7 @@ public sealed class RuntimeBattlePanelContentEditModeTests
             panel.BindContentResolver(resolver, cardCatalog);
 
             var ownCard = panelObject.transform.Find(
-                "RuntimeBattlePanelContent/RuntimeBattlePanelBoard/RuntimeBattlePanelMainBattle/RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0");
+                "RuntimeBattlePanelContent/RuntimeBattlePanelBoard/RuntimeBattlePanelMainBattle/RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0");
             Assert.That(ownCard, Is.Not.Null);
             Assert.That(ownCard!.GetComponent<UnityEngine.UI.Image>(), Is.Not.Null);
             var cardArt = ownCard.Find("CardArtPanel/CardArt")?.GetComponent<UnityEngine.UI.RawImage>();
@@ -93,7 +93,7 @@ public sealed class RuntimeBattlePanelContentEditModeTests
             panel.BindContentResolver(resolver);
 
             var ownCard = panelObject.transform.Find(
-                "RuntimeBattlePanelContent/RuntimeBattlePanelBoard/RuntimeBattlePanelMainBattle/RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0");
+                "RuntimeBattlePanelContent/RuntimeBattlePanelBoard/RuntimeBattlePanelMainBattle/RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0");
             Assert.That(ownCard, Is.Not.Null);
             var cardArt = ownCard!.Find("CardArtPanel/CardArt")?.GetComponent<UnityEngine.UI.RawImage>();
             Assert.That(cardArt, Is.Not.Null);
@@ -132,7 +132,7 @@ public sealed class RuntimeBattlePanelContentEditModeTests
             Assert.DoesNotThrow(() => panel.BindContentResolver(resolver));
             Assert.That(panel.ContentResolver, Is.SameAs(resolver));
             var ownCard = panelObject.transform.Find(
-                "RuntimeBattlePanelContent/RuntimeBattlePanelBoard/RuntimeBattlePanelMainBattle/RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0");
+                "RuntimeBattlePanelContent/RuntimeBattlePanelBoard/RuntimeBattlePanelMainBattle/RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0");
             Assert.That(ownCard, Is.Not.Null);
             var cardArt = ownCard!.Find("CardArtPanel/CardArt")?.GetComponent<UnityEngine.UI.RawImage>();
             Assert.That(cardArt, Is.Not.Null);

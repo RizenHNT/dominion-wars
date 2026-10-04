@@ -19,6 +19,11 @@ namespace DominionWars.Unity.UI
 public sealed class RuntimeScreenFlow : MonoBehaviour
 {
     public const string DefaultObjectName = "DominionWarsRuntimeScreenFlow";
+    // Keep the Unity presentation cadence aligned with data/ui.json's existing
+    // 620 ms aiStepMs without moving timing into the authoritative engine. The
+    // value is deliberately local and serialized so a future UX pass can tune
+    // it without changing AI policy, legality, or turn progression.
+    public const float DefaultCpuActionIntervalSeconds = 0.62f;
     public const string ReadyLogMessage =
         "Dominion Wars runtime screen flow ready: TITLE shell active.";
 
@@ -36,6 +41,9 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
     private RuntimeAiTurnCoordinator _aiTurnCoordinator;
     private bool _initialized;
     private bool _readyLogIssued;
+    [SerializeField, Min(0f)]
+    private float cpuActionIntervalSeconds = DefaultCpuActionIntervalSeconds;
+    private float _nextCpuPumpTime;
 
     public RuntimeScreenId CurrentScreen { get; private set; } = RuntimeScreenId.Boot;
     public RuntimeScreenShellView View => _view;
@@ -45,6 +53,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
     public string SelectedPlayer0DeckId => _selectedPlayer0DeckId;
     public string SelectedPlayer1DeckId => _selectedPlayer1DeckId;
     public bool SelectedCpuOpponent => _selectedCpuOpponent;
+    public float CpuActionIntervalSeconds => Mathf.Max(0f, cpuActionIntervalSeconds);
     public bool IsPresentationReady =>
         _initialized &&
         _view != null &&
@@ -156,13 +165,11 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
             return;
         }
 
-        if (_bootstrap == null || _bootstrap.Adapter == null ||
-            _bootstrap.Adapter.Presentation.Snapshot == null)
-        {
-            StayOnMatchSetupWithError("Match snapshot is unavailable.");
-            return;
-        }
-
+        // The orchestrator's success contract is post-commit readiness: its
+        // bootstrap candidate has already published a snapshot before it can
+        // return true. Do not perform a second adapter/snapshot check here;
+        // treating a successful commit as a failed start would leave the new
+        // session alive behind the setup shell.
         if (_battlePanel == null)
             _battlePanel = FindRuntimeBattlePanel();
         WireBattleRecovery();
@@ -223,13 +230,9 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
             return;
         }
 
-        if (_bootstrap.Adapter == null ||
-            _bootstrap.Adapter.Presentation.Snapshot == null)
-        {
-            StayOnMatchSetupWithError("Match snapshot is unavailable.");
-            return;
-        }
-
+        // TryStartMatch has the same post-commit snapshot contract on restart;
+        // route the committed replacement directly into Battle instead of
+        // turning a successful replacement into a stale setup error.
         if (_battlePanel == null)
             _battlePanel = FindRuntimeBattlePanel();
         if (_battlePanel == null && Application.isPlaying)
@@ -267,6 +270,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
     private void StopRuntimeSession()
     {
         _aiTurnCoordinator = null;
+        ResetCpuPumpSchedule();
         var runtimeBootstrap = _bootstrap;
         if (runtimeBootstrap == null)
             runtimeBootstrap = UnityEngine.Object.FindFirstObjectByType<RuntimeBootstrap>();
@@ -460,6 +464,7 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
     private void ConfigureCpuOpponent()
     {
         _aiTurnCoordinator = null;
+        ResetCpuPumpSchedule();
         if (!_selectedCpuOpponent || _bootstrap == null || _bootstrap.Adapter == null)
             return;
 
@@ -485,17 +490,88 @@ public sealed class RuntimeScreenFlow : MonoBehaviour
         if (_aiTurnCoordinator == null || CurrentScreen != RuntimeScreenId.Battle)
             return;
         if (_battlePanel != null && _battlePanel.IsPauseMenuOpen)
+        {
+            ApplyCpuHaltStatus();
             return;
+        }
+        if (_aiTurnCoordinator.Halted)
+        {
+            ApplyCpuHaltStatus();
+            return;
+        }
+        if (Time.unscaledTime < _nextCpuPumpTime)
+        {
+            ApplyCpuHaltStatus();
+            return;
+        }
+
+        // Let the existing feedback queue finish its current animated suffix
+        // before another CPU submission. Reduced Motion intentionally skips
+        // only the pulse; it still uses the bounded action interval below so
+        // event copy does not flash past the player in a single frame.
+        var feedback = _battlePanel == null ? null : _battlePanel.ActionFeedback;
+        if (feedback != null && !feedback.ReducedMotion &&
+            (feedback.IsAnimating || feedback.PendingCueCount > 0))
+        {
+            ApplyCpuHaltStatus();
+            return;
+        }
 
         try
         {
-            _aiTurnCoordinator.Pump();
+            if (_aiTurnCoordinator.Pump())
+                _nextCpuPumpTime = Time.unscaledTime + CpuActionIntervalSeconds;
         }
         catch (Exception exception)
         {
             _aiTurnCoordinator.Halt("ai.coordinator_failed");
             if (Application.isEditor || Debug.isDebugBuild)
                 Debug.LogException(exception, this);
+        }
+
+        ApplyCpuHaltStatus();
+    }
+
+    private void ResetCpuPumpSchedule()
+    {
+        _nextCpuPumpTime = 0f;
+    }
+
+    private void ApplyCpuHaltStatus()
+    {
+        if (_aiTurnCoordinator == null || !_aiTurnCoordinator.Halted ||
+            _battlePanel == null)
+            return;
+
+        var snapshot = _bootstrap == null || _bootstrap.Adapter == null
+            ? null
+            : _bootstrap.Adapter.Presentation.Snapshot;
+        if (IsAuthoritativeOutcome(snapshot))
+            return;
+
+        // LastReasonKey is a transport/diagnostic value. Only this allowlist
+        // reaches the player-facing status bar; unknown values stay generic
+        // and never echo protocol tokens or exception text.
+        _battlePanel.SetPresentationStatus(
+            ToSafeCpuHaltStatus(_aiTurnCoordinator.LastReasonKey));
+    }
+
+    public static string ToSafeCpuHaltStatus(string reasonKey)
+    {
+        switch (reasonKey)
+        {
+            case "ai.action_limit_reached":
+                return "CPU action limit reached. Return to menu to recover.";
+            case "action.rejected":
+                return "CPU action was rejected. Return to menu to recover.";
+            case "ai.no_legal_actions":
+                return "CPU has no legal actions. Return to menu to recover.";
+            case "ai.coordinator_failed":
+                return "CPU could not continue. Return to menu to recover.";
+            case "ai.match_over":
+                return "CPU match complete.";
+            default:
+                return "CPU stopped safely. Return to menu to recover.";
         }
     }
 

@@ -174,8 +174,10 @@ $$A = f \cdot e^{-\lambda f} \cdot (1 + CV) \cdot (1 - f_{frust}), \quad \lambda
 | 深海降临差异化（12/20 可降临，三档收益） | ✅ 已落地 `data/cards/sea.json` |
 | 深海 P 曲线微调（内部再平衡，均值 2.20） | ✅ 已落地 |
 | schema / deck 校验 | ✅ 91/91、4/4 |
-| 引擎级验证（降临链路是否真能结算） | ⏳ 待扩展 pl-verify 场景 3 |
+| **引擎级验证（三场景全绿）** | ✅ 古木 512（625 血）／机械 6 次下载（`win.pull_total_ge`）／**深海降临链路（`PUNISH_TRIGGERED=4`、弃牌结算）** |
 | T1（限 1 张反制）/ T2（潮汐） | ⏳ 待你批准后交 Codex |
+
+> 验证程序：`build-output/pl-verify/`（`dotnet build-output\pl-verify\bin\Release\net8.0\PlVerify.dll` 可复跑）
 
 ---
 

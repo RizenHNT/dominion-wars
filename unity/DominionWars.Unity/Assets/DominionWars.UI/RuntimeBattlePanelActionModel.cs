@@ -817,6 +817,19 @@ public static class RuntimeBattlePanelActionModel
 
     public static RuntimeGameAction ToGameAction(RuntimeLegalAction legal, string matchId)
     {
+        return ToGameAction(legal, matchId, null);
+    }
+
+    /// <summary>
+    /// Copies one complete advertised action and attaches an explicit card
+    /// choice in the request-only channel. The advertised payload reference
+    /// and every one of its fields remain unchanged.
+    /// </summary>
+    public static RuntimeGameAction ToGameAction(
+        RuntimeLegalAction legal,
+        string matchId,
+        IReadOnlyList<long>? selectedEntityIds)
+    {
         if (legal is null) throw new ArgumentNullException(nameof(legal));
         if (string.IsNullOrWhiteSpace(matchId)) throw new ArgumentException("A match id is required.", nameof(matchId));
 
@@ -832,7 +845,36 @@ public static class RuntimeBattlePanelActionModel
             TargetId = legal.TargetId,
             CardId = legal.CardId,
             Payload = legal.Payload,
+            SelectedEntityIds = selectedEntityIds is null
+                ? null
+                : Array.AsReadOnly(new List<long>(selectedEntityIds).ToArray()),
         };
+    }
+
+    /// <summary>Returns the engine-declared card-selection contract, if any.</summary>
+    public static bool TryGetSelectionSpec(
+        RuntimeLegalAction legal,
+        out RuntimeActionSelectionSpec? spec,
+        out string reasonKey)
+    {
+        return RuntimeActionSelection.TryGetSpec(legal, out spec, out reasonKey);
+    }
+
+    /// <summary>
+    /// Validates a user-selected set without changing the advertised action.
+    /// The panel calls this before enabling its confirm path; the gateway
+    /// repeats the same validation against the current revision.
+    /// </summary>
+    public static bool TryValidateSelection(
+        RuntimeLegalAction legal,
+        IReadOnlyList<long>? selectedEntityIds,
+        out string reasonKey)
+    {
+        return RuntimeActionSelection.TryValidate(
+            legal,
+            selectedEntityIds,
+            requireSelection: true,
+            out reasonKey);
     }
 
     private static bool IsExplicitlyRequired(

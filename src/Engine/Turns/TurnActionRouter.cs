@@ -42,6 +42,7 @@ public sealed class TurnActionRouter
             new PlayCardActionHandler(targetPolicy, punishResponses),
             new CommitActionHandler(punishResponses),
             new PullActionHandler(punishResponses),
+            new RollbackActionHandler(),
             new AttackActionHandler(),
             new DiscardPhaseHandler(),
         });
@@ -63,6 +64,7 @@ public sealed class TurnActionRouter
             new PlayCardActionHandler(targetPolicy, punishResponses, PlayCardActionHandler.DefaultChainLimit, costModel),
             new CommitActionHandler(punishResponses),
             new PullActionHandler(punishResponses),
+            new RollbackActionHandler(),
             new AttackActionHandler(),
             new DiscardPhaseHandler(),
         });

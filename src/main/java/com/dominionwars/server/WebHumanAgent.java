@@ -17,7 +17,7 @@ public class WebHumanAgent implements PlayerAgent {
     /** 待 UI 应答的决策 */
     public static class Pending {
         public final long id;
-        public final String kind;       // activatePunish / target / discard / ambush / singleDamage / coreTarget
+        public final String kind;       // activatePunish / target / discard / ambush / rollback / singleDamage / coreTarget
         public final String prompt;
         public final boolean optional;
         public final List<Object> raw;  // 引擎原始选项（CardInstance / SingleDamageTarget / CoreTarget）
@@ -90,6 +90,13 @@ public class WebHumanAgent implements PlayerAgent {
         if (candidates.isEmpty()) return null;
         int c = ask("ambush", "对方行动：" + actionDesc + "。是否触发伏击？", true, new ArrayList<>(candidates));
         return c < 0 ? null : candidates.get(c);
+    }
+
+    @Override
+    public CardInstance chooseRollbackTarget(Game g, int playerIdx, List<CardInstance> queued) {
+        if (queued.isEmpty()) return null;
+        int c = ask("rollback", "请选择一张提交队列中的卡回滚回手", false, new ArrayList<>(queued));
+        return c < 0 || c >= queued.size() ? null : queued.get(c);
     }
 
     @Override

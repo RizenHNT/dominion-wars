@@ -28,5 +28,7 @@
 
 ## 权威入口
 
+- [`menu-kit-2026-10-04/README.md`](../menu-kit-2026-10-04/README.md)：沿认可方向制作的启动、标题、菜单、设置可操作预览；新背景已入 Unity 素材目录，正式菜单尚未替换。
+
 - [`docs/VISUAL_PRODUCTION_GOAL_2026-09-08.md`](../../docs/VISUAL_PRODUCTION_GOAL_2026-09-08.md)：本轮视觉生产目标、阶段门禁和生产边界；状态为 `PROPOSED`，不激活开发接力。
 - [`2026-09-08-review/REFERENCE_DECISIONS.md`](2026-09-08-review/REFERENCE_DECISIONS.md)：本轮探索决策和整体预览顺序。

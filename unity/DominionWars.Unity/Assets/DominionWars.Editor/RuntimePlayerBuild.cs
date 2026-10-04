@@ -51,6 +51,8 @@ public static class RuntimePlayerBuild
                 ", warnings=" + report.summary.totalWarnings + ".");
         }
 
+        RuntimeDataStreamingBuildPreprocessor.CompleteSuccessfulCommandLineBuildCleanup(report);
+
         Debug.Log("Dominion Wars non-development Windows build succeeded: " + outputPath);
     }
 

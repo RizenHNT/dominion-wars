@@ -69,6 +69,7 @@
    "守卫"
   ],
   "punish": 2,
+  "punishActivatable": false,
   "attack": 2,
   "health": 7,
   "keywords": [
@@ -97,6 +98,7 @@
    "恢复"
   ],
   "punish": 2,
+  "punishActivatable": false,
   "onPlayEffects": [
    {
     "action": "HEAL",
@@ -116,6 +118,7 @@
    "德鲁伊"
   ],
   "punish": 2,
+  "punishActivatable": false,
   "attack": 2,
   "health": 4,
   "onPlayEffects": [
@@ -146,6 +149,7 @@
    "野兽"
   ],
   "punish": 4,
+  "punishActivatable": false,
   "attack": 5,
   "health": 6,
   "keywords": [
@@ -174,6 +178,7 @@
    "荆棘"
   ],
   "punish": 2,
+  "punishActivatable": false,
   "onPlayEffects": [
    {
     "action": "DAMAGE",
@@ -192,6 +197,7 @@
    "增强"
   ],
   "punish": 2,
+  "punishActivatable": false,
   "onPlayEffects": [
    {
     "action": "ADD_RAMPANT",
@@ -215,6 +221,7 @@
    "守护"
   ],
   "punish": 1,
+  "punishActivatable": false,
   "onPlayEffects": [
    {
     "action": "GRANT_KEYWORD",
@@ -233,6 +240,7 @@
    "荆棘"
   ],
   "punish": 1,
+  "punishActivatable": false,
   "ambushKind": "NORMAL",
   "ambushTrigger": "OPPONENT_SUMMONS",
   "ambushEffects": [
@@ -253,6 +261,7 @@
    "结界"
   ],
   "punish": 3,
+  "punishActivatable": false,
   "ambushKind": "LOCKDOWN",
   "ambushTrigger": "OPPONENT_ATTACKS",
   "ambushEffects": [
@@ -291,6 +300,7 @@
    "树灵"
   ],
   "punish": 5,
+  "punishActivatable": false,
   "attack": 4,
   "health": 8,
   "keywords": [
@@ -342,6 +352,7 @@
    "月光"
   ],
   "punish": 2,
+  "punishActivatable": false,
   "onPlayEffects": [
    {
     "action": "DAMAGE",
@@ -361,6 +372,7 @@
    "巡守"
   ],
   "punish": 2,
+  "punishActivatable": false,
   "attack": 3,
   "health": 4,
   "keywords": [
@@ -389,6 +401,7 @@
    "仪式"
   ],
   "punish": 1,
+  "punishActivatable": false,
   "chant": 2,
   "chantEffects": [
    {
@@ -412,6 +425,7 @@
    "野兽"
   ],
   "punish": 3,
+  "punishActivatable": false,
   "attack": 4,
   "health": 3,
   "keywords": [
@@ -440,6 +454,7 @@
    "结界"
   ],
   "punish": 4,
+  "punishActivatable": false,
   "onPlayEffects": [
    {
     "action": "GRANT_KEYWORD",
@@ -458,6 +473,7 @@
    "恢复"
   ],
   "punish": 2,
+  "punishActivatable": false,
   "onPlayEffects": [
    {
     "action": "HEAL",

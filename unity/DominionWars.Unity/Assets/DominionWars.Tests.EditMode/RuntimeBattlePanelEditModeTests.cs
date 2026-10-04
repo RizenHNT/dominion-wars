@@ -118,6 +118,42 @@ public sealed class RuntimeBattlePanelEditModeTests
     }
 
     [Test]
+    public void PlayerCounterValuesRemainVisibleUntilThreeLanguageLabelsAreApproved()
+    {
+        var player = new RuntimePlayerSnapshot
+        {
+            RootStacks = 1,
+            RampantStacks = 2,
+            CommitQueueCount = 3,
+            CloudStackCount = 4,
+            PullCount = 5,
+        };
+
+        var text = RuntimeBattlePanelPresentationModel.BuildPlayerSection(player, true);
+
+        Assert.That(text, Does.Contain("root 1"));
+        Assert.That(text, Does.Contain("rampant 2"));
+        Assert.That(text, Does.Contain("commit 3"));
+        Assert.That(text, Does.Contain("cloud 4"));
+        Assert.That(text, Does.Contain("pull 5"));
+    }
+
+    [TestCase("en", "Unusable")]
+    [TestCase("zh", "不可用")]
+    [TestCase("jp", "使用不可")]
+    public void MissingPlayerUsesApprovedLocalizedStatus(string language, string expected)
+    {
+        var text = RuntimeBattlePanelPresentationModel.BuildPlayerSection(
+            null,
+            true,
+            null,
+            new RuntimeLocalizationResolver(),
+            language);
+
+        Assert.That(text, Is.EqualTo("己方状态：" + expected));
+    }
+
+    [Test]
     public void DisabledCastleRendersWithoutBarrierPlaceholder()
     {
         var text = RuntimeBattlePanelPresentationModel.BuildCastleSummary(

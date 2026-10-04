@@ -42,6 +42,23 @@ public sealed class RuntimeEventCursor
         "amount", "cardId", "count", "reasonKey", "sourceId", "targetIds", "winnerPlayerIndex",
     };
 
+    /// <summary>
+    /// Hidden-information events may use the canonical data key set but must
+    /// never carry the identity of the hidden card.  The player-action and
+    /// snapshot producers already redact these fields per viewer; this guard
+    /// keeps a leaky producer from silently publishing one over the contract
+    /// transport.
+    /// </summary>
+    private static readonly HashSet<string> HiddenIdentityEventTypes = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "AMBUSH_SET", "AMBUSH_TRIGGERED",
+    };
+
+    private static readonly HashSet<string> ForbiddenHiddenIdentityKeys = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "cardId", "sourceId",
+    };
+
     private readonly HashSet<string> _known = new HashSet<string>(StringComparer.Ordinal);
     private long? _lastNumber;
 
@@ -90,6 +107,15 @@ public sealed class RuntimeEventCursor
         foreach (var key in envelope.Data.Keys)
         {
             if (key is null || !DataKeys.Contains(key)) return "event.data_field_unknown";
+        }
+
+        if (HiddenIdentityEventTypes.Contains(envelope.Type))
+        {
+            foreach (var key in envelope.Data.Keys)
+            {
+                if (key is not null && ForbiddenHiddenIdentityKeys.Contains(key))
+                    return "event.hidden_field_forbidden";
+            }
         }
 
         if (envelope.Type == "GAME_OVER")

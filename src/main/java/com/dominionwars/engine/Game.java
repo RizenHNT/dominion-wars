@@ -5,6 +5,7 @@ import com.dominionwars.data.CardLibrary;
 import com.dominionwars.model.CardDef;
 import com.dominionwars.model.CardDef.AmbushKind;
 import com.dominionwars.model.CardDef.CardType;
+import com.dominionwars.model.VictoryObjective;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,6 +56,15 @@ public class Game {
     public int chainDepth = 0;          // 惩罚连锁深度
     private boolean pendingEndTurn = false;
     private boolean reshuffling = false; // 洗牌阶段禁用一切效果
+    private PunishResponseWindow activePunishResponseWindow;
+
+    /** 一个惩罚根事件共享的响应额度；嵌套反制复用，独立根事件重新计数。 */
+    private static final class PunishResponseWindow {
+        final int limit;
+        int acceptedCount;
+        PunishResponseWindow(int limit) { this.limit = limit; }
+        boolean isExhausted() { return limit > 0 && acceptedCount >= limit; }
+    }
 
     // 共享王城：双方争夺同一条公共血量。谁打破，谁迫使对手首领出场并进入洗牌倒计时。
     public int royalCastleHp = 0;
@@ -68,6 +78,9 @@ public class Game {
                 String nameA, String nameB, PlayerAgent agentA, PlayerAgent agentB,
                 long seed, int firstPlayer) {
         this.balance = balance;
+        // 胜利条件的读数必须先登记，才能解析任何 leaderDef.victory —— 卡牌加载期
+        // 遇到未登记的 metric 会抛错，那是刻意的：声明了却没实现必须立刻可见。
+        VictoryConditionRegistry.install();
         this.royalCastleMaxHp = Math.max(1, balance.royalCastleMaxHp);
         this.royalCastleHp = balance.royalCastleEnabled ? this.royalCastleMaxHp : 0;
         this.rng = new Random(seed);
@@ -299,6 +312,11 @@ public class Game {
             if (c.chantRemaining == 0) {
                 log("【" + c.def.name + "】吟唱完成！");
                 Effects.resolve(this, p.idx, c, c.def.chantEffects, new Effects.Ctx());
+                // 地标吟唱完成 → 摧毁地标并召唤晋升统领（对齐 C# ResolveChants → PromoteLandmark）
+                if (c.pendingLandmarkSummonCardId != null && !c.pendingLandmarkSummonCardId.isEmpty()
+                        && p.leaderOnField == c && !over()) {
+                    promoteLandmark(p, c);
+                }
                 if (!c.def.leader && p.field.remove(c)) p.graveyard.add(c);
             }
         }
@@ -317,8 +335,15 @@ public class Game {
             else p.noDamageTurns = 0;
         }
         p.damagedThisCycle = false;
+        // 机械 B 模式：其他结束阶段效果全部结算完毕后，提交队列才 FIFO 上传进云端栈
+        // （对齐 C# EffectRuntime.ResolveEndPhase 中 PushQueue 的位置）
+        pushQueue(p);
+        if (over()) return;
         checkSpecialWins();
         if (over()) return;
+        // CONTROL 的时限以当前控制者的回合结束为边界；归还发生在
+        // 清理回合标记与玩家交替之前，和 C# TurnFlow.CompleteTurn 同序。
+        expireControlAtTurnEnd(p.idx);
         p.clearTurnFlags();
         // ---- 玩家交替 ----
         players[0].resetTagsOnAlternation();
@@ -327,9 +352,45 @@ public class Game {
         beginTurn(true);
     }
 
+    /** 归还 outgoing controller 本回合结束时已到期的临时控制单位。 */
+    private void expireControlAtTurnEnd(int controllerIdx) {
+        List<CardInstance> controlled = new ArrayList<>();
+        for (PlayerState player : players) {
+            for (CardInstance card : player.field) {
+                if (card.controlledByIdx != null && card.controlledByIdx == controllerIdx) controlled.add(card);
+            }
+        }
+        for (CardInstance card : controlled) {
+            if (card.controlTurnsRemaining > 1) {
+                card.controlTurnsRemaining--;
+                continue;
+            }
+            PlayerState controller = players[controllerIdx];
+            PlayerState owner = players[card.ownerIdx];
+            controller.field.remove(card);
+            if (!owner.field.contains(card)) owner.field.add(card);
+            card.controlledByIdx = null;
+            card.controlTurnsRemaining = 0;
+            log("【" + card.def.name + "】的操纵到期，归还" + owner.name);
+        }
+    }
+
     // ===================== 抽牌与洗牌 =====================
     /** 抽牌（byPunish=true 为惩罚抽牌）。返回实际抽到的牌（统领除外） */
     public List<CardInstance> drawCards(PlayerState p, int n, boolean byPunish) {
+        if (!byPunish || activePunishResponseWindow != null) {
+            return drawCardsWithinPunishWindow(p, n, byPunish);
+        }
+
+        activePunishResponseWindow = new PunishResponseWindow(balance.maxPunishResponsesPerRound);
+        try {
+            return drawCardsWithinPunishWindow(p, n, true);
+        } finally {
+            activePunishResponseWindow = null;
+        }
+    }
+
+    private List<CardInstance> drawCardsWithinPunishWindow(PlayerState p, int n, boolean byPunish) {
         List<CardInstance> drawn = new ArrayList<>();
         for (int i = 0; i < n && !over(); i++) {
             if (p.deck.isEmpty()) {
@@ -360,14 +421,25 @@ public class Game {
             for (CardInstance c : new ArrayList<>(drawn)) {
                 if (over()) break;
                 if (!p.hand.contains(c) || !c.punishActivated) continue;       // 可能已被伏击弃掉
-                if (chainDepth >= balance.chainLimit) { log("惩罚连锁达到上限 " + balance.chainLimit + "，不再响应"); break; }
+                // 深度「等于」上限这一层仍要响应，只有「超过」上限才停止，
+                // 与 C# PlayCardActionHandler.ResolvePunishResponses 的 `chainDepth > _chainLimit` 一致。
+                if (chainDepth > balance.chainLimit) {
+                    log("惩罚连锁深度 " + chainDepth + " 已超过上限 " + balance.chainLimit + "，不再响应");
+                    break;
+                }
                 if (!Effects.checkCondition(this, p.idx, c.def.punishCondition)) continue;
                 if (!tagsFree(p, c.def)) continue;
+                PunishResponseWindow responseWindow = activePunishResponseWindow;
+                if (responseWindow != null && responseWindow.isExhausted()) continue;
                 int cost = effectivePunish(p.idx, c, true);
                 if (agents[p.idx].askActivatePunish(this, p.idx, c, cost)) {
+                    if (responseWindow != null) responseWindow.acceptedCount++;
                     chainDepth++;
-                    playCard(p, c, true, false);
-                    chainDepth--;
+                    try {
+                        playCard(p, c, true, false);
+                    } finally {
+                        chainDepth--;
+                    }
                 }
             }
         }
@@ -390,17 +462,16 @@ public class Game {
         Collections.shuffle(p.deck, rng);
         if (p.skipReshuffleCredits > 0) {
             p.skipReshuffleCredits--;
-            log(p.name + " 的牌库循环不计入对手胜利计数（机械遗迹效果）");
+            log(p.name + " 的牌库循环不计入其自身胜利计数（机械遗迹效果）");
         } else {
             p.reshuffleCount++;
-            PlayerState beneficiary = opponentOf(p.idx);
-            beneficiary.cycleWinCount++;
-            log(p.name + " 完成牌库循环；" + beneficiary.name + " 的胜利计数 +1（"
-                    + beneficiary.cycleWinCount + "/" + balance.reshuffleLoseAt + "）");
-            if (beneficiary.cycleWinCount >= balance.reshuffleLoseAt) {
-                winner = beneficiary.idx;
-                winReason = beneficiary.name + " 的胜利计数达到 " + balance.reshuffleLoseAt
-                        + "（对手牌库循环过多），" + beneficiary.name + " 获胜！";
+            p.cycleWinCount++;
+            log(p.name + " 完成牌库循环；" + p.name + " 的胜利计数 +1（"
+                    + p.cycleWinCount + "/" + balance.reshuffleLoseAt + "）");
+            if (p.cycleWinCount >= balance.reshuffleLoseAt) {
+                winner = p.idx;
+                winReason = p.name + " 的胜利计数达到 " + balance.reshuffleLoseAt
+                        + "（自身牌库循环达到上限），" + p.name + " 获胜！";
                 phase = Phase.OVER;
                 log("== " + winReason + " ==");
             }
@@ -580,18 +651,48 @@ public class Game {
         checkAll();
     }
 
-    /** 破城胜利：用于烈焰等以王城为主目标的统领。该胜利不受“双统领在场”门限保护。 */
+    /**
+     * 破城胜利：先处理双方当前活动统领，再按规则决定胜者。
+     * 双方都是随从统领时主动破城方优先；否则只读取当前活动统领的
+     * ROYAL_CASTLE_BREAK，被动持有方获胜。双方都持有的非随从形态暂不猜测。
+     */
     private void checkRoyalCastleWin(int breakerIdx) {
         if (over()) return;
-        CardInstance leader = findLeaderAnywhere(players[breakerIdx]);
-        if (leader == null || leader.def.leaderDef == null) return;
-        if ("ROYAL_CASTLE_BREAK".equals(leader.def.leaderDef.winCondition)) {
-            winner = breakerIdx;
-            winReason = players[breakerIdx].name + " 获胜：" +
-                    (leader.def.leaderDef.winText.isEmpty() ? "击破王城" : leader.def.leaderDef.winText);
-            phase = Phase.OVER;
-            log("== " + winReason + " ==");
+        PlayerState breaker = players[breakerIdx];
+        PlayerState defender = opponentOf(breakerIdx);
+        CardInstance breakerLeader = breaker.leaderOnField;
+        CardInstance defenderLeader = defender.leaderOnField;
+
+        // 规则 §9.1：双方统领都是随从时，主动破城方具有优先级。
+        if (breakerLeader != null && defenderLeader != null
+                && breakerLeader.def.isMinion() && defenderLeader.def.isMinion()) {
+            declareCastleWinner(breakerIdx, "主动破城方优先", null);
+            return;
         }
+
+        boolean breakerHolds = hasRoyalCastleBreak(breakerLeader);
+        boolean defenderHolds = hasRoyalCastleBreak(defenderLeader);
+        // 非随从双方同时持有的处理尚未冻结：保持未决，不按座位或遍历顺序猜胜者。
+        if (breakerHolds == defenderHolds) return;
+
+        int winnerIdx = breakerHolds ? breakerIdx : defender.idx;
+        CardInstance winningLeader = breakerHolds ? breakerLeader : defenderLeader;
+        declareCastleWinner(winnerIdx, null, winningLeader);
+    }
+
+    private boolean hasRoyalCastleBreak(CardInstance leader) {
+        return leader != null && leader.def.leaderDef != null
+                && "ROYAL_CASTLE_BREAK".equals(leader.def.leaderDef.winCondition);
+    }
+
+    private void declareCastleWinner(int playerIdx, String fallbackReason, CardInstance leader) {
+        winner = playerIdx;
+        String text = leader != null && leader.def.leaderDef != null
+                ? leader.def.leaderDef.winText : null;
+        if (text == null || text.isEmpty()) text = fallbackReason == null ? "击破王城" : fallbackReason;
+        winReason = players[playerIdx].name + " 获胜：" + text;
+        phase = Phase.OVER;
+        log("== " + winReason + " ==");
     }
 
     public CardInstance findLeaderAnywhere(PlayerState p) {
@@ -656,6 +757,238 @@ public class Game {
         log(p.name + " 弃置【" + c.def.name + "】(" + reason + ")");
         if (countsForWin) triggerOpponentDiscardHooks(p);
         checkSpecialWins();
+    }
+
+    // ===================== 机械 B 模式：提交 / 上传 / 下载（RULES §12.4）=====================
+    // 提交队列与云端栈是公开区域；COMMIT / PULL 的代价沿用现有惩罚抽牌/响应链，
+    // 不是第二套法力费用。实现顺序对齐 C# EffectRuntime.Mechanical.cs 与
+    // CommitActionHandler / PullActionHandler。
+
+    /** 机械卡判定：tags 含「机械」/MECHANICAL，或阵营为「机械遗迹」。 */
+    public static boolean isMechanicalCard(CardInstance c) {
+        if (c == null) return false;
+        return c.def.tags.contains("机械") || c.def.tags.contains("MECHANICAL")
+                || "机械遗迹".equals(c.def.faction);
+    }
+
+    private static boolean isCommitSource(CardInstance c) {
+        return isMechanicalCard(c) && !c.isLeaderEntity && !c.def.leader && c.def.isMinion();
+    }
+
+    /** 下载载体：己方场上的机械单位，或己方统领区的机械地标（RULES §12.4）。 */
+    public boolean isDownloadCarrier(PlayerState owner, CardInstance c) {
+        if (c == null || c.controllerIdx() != owner.idx) return false;
+        if (owner.field.contains(c) && isMechanicalCard(c)) return true;
+        if (c.isLeaderEntity && c.def.leader) {
+            return owner.leaderOnField == c
+                    && c.def.leaderDef != null
+                    && c.def.leaderDef.isLandmark
+                    && isMechanicalCard(c);
+        }
+        return false;
+    }
+
+    private List<CardInstance> downloadCarriers(PlayerState owner) {
+        List<CardInstance> r = new ArrayList<>();
+        for (CardInstance c : owner.field) if (isDownloadCarrier(owner, c)) r.add(c);
+        // Non-minion leaders are held in leaderOnField, not the ordinary field.
+        // Mirror C#'s Field + LeaderZone carrier lookup without placing a
+        // landmark in the wrong Java zone or double-counting a minion leader.
+        CardInstance leader = owner.leaderOnField;
+        if (leader != null && !r.contains(leader) && isDownloadCarrier(owner, leader)) r.add(leader);
+        return r;
+    }
+
+    /** 是否可以发起提交；返回 null 表示可行。 */
+    public String whyCannotCommit(CardInstance c) {
+        if (over()) return "对局已结束";
+        if (phase != Phase.ACTION) return "不在行动阶段";
+        PlayerState p = current();
+        if (c == null || !p.field.contains(c)) return "卡牌不在己方场上（默认提交来源是己方场上）";
+        if (c.isLeaderEntity || c.def.leader) return "统领不能提交";
+        if (!isMechanicalCard(c)) return "只有机械卡可以提交";
+        if (!c.def.isMinion()) return "只有机械随从可以提交";
+        if (p.commitQueue.contains(c)) return "该卡已在提交队列中";
+        if (p.cloudStack.contains(c)) return "该卡已在云端栈中";
+        if (!Effects.allKnown(c.def.commitEffects)) return "提交效果包含未注册的动作";
+        return null;
+    }
+
+    /** 是否可以上传：只在结束阶段由引擎自动执行，玩家不能主动发起。 */
+    public String whyCannotPush() {
+        if (over()) return "对局已结束";
+        if (phase != Phase.END) return "上传是结束阶段的自动步骤，不能主动发起";
+        if (current().commitQueue.isEmpty()) return "提交队列为空";
+        return null;
+    }
+
+    /** 是否可以下载云端栈顶；返回 null 表示可行。 */
+    public String whyCannotPull() {
+        if (over()) return "对局已结束";
+        if (phase != Phase.ACTION) return "不在行动阶段";
+        PlayerState p = current();
+        if (p.cloudStack.isEmpty()) return "云端栈为空";
+        CardInstance top = p.cloudStack.get(p.cloudStack.size() - 1);
+        if (!Effects.allKnown(top.def.pullEffects)) return "该卡的下载效果包含未注册的动作";
+        if (downloadCarriers(p).isEmpty()) return "己方场上没有下载载体（机械单位或机械地标）";
+        return null;
+    }
+
+    /**
+     * 支付一次生命周期惩罚：对方按 amount 走既有惩罚抽牌/响应链。
+     * 与 C# PlayCardActionHandler.ResolveLifecyclePunish 同义。
+     */
+    private void payLifecyclePunish(PlayerState payer, int amount, String what) {
+        if (amount <= 0 || over()) return;
+        PlayerState opp = opponentOf(payer.idx);
+        log(what + "：惩罚" + amount + "，" + opp.name + " 抽 " + amount + " 张牌");
+        chainDepth++;
+        drawCards(opp, amount, true);
+        chainDepth--;
+    }
+
+    /**
+     * 提交（COMMIT）：先按 commitCost 惩罚抽牌，再使卡离开场上进入公开的提交队列，
+     * 最后结算该卡的提交效果（顺序对齐 C# CommitActionHandler / EffectRuntime.CommitCard）。
+     */
+    public boolean commitCard(CardInstance card) {
+        String why = whyCannotCommit(card);
+        if (why != null) { log("无法提交【" + (card == null ? "?" : card.def.name) + "】：" + why); return false; }
+        PlayerState p = current();
+        // 1) 生命周期惩罚：对方按 commitCost 抽牌
+        payLifecyclePunish(p, card.def.commitCost, p.name + " 提交【" + card.def.name + "】");
+        if (over()) return true;                       // 惩罚结算已分出胜负：不再入队
+        // 2) 离场 → 提交队列
+        p.field.remove(card);
+        p.commitQueue.add(card);
+        log(p.name + " 提交【" + card.def.name + "】进入提交队列");
+        // 3) 提交效果
+        if (!card.def.commitEffects.isEmpty() && !over()) {
+            Effects.resolve(this, p.idx, card, card.def.commitEffects, new Effects.Ctx());
+        }
+        return true;
+    }
+
+    /**
+     * 上传（PUSH）：按提交顺序（FIFO）逐张从队首移入云端栈；显式 uploadCost 在该时点惩罚，
+     * 随后结算该卡的上传效果（顺序对齐 C# EffectRuntime.PushQueue）。
+     */
+    public void pushQueue(PlayerState owner) {
+        if (owner == null || over()) return;
+        if (owner.commitQueue.isEmpty()) return;
+        for (CardInstance c : new ArrayList<>(owner.commitQueue)) {
+            if (over()) return;
+            if (!owner.commitQueue.remove(c)) continue;
+            owner.cloudStack.add(c);
+            log("【" + c.def.name + "】上传进入云端栈");
+            payLifecyclePunish(owner, c.def.uploadCost, owner.name + " 上传【" + c.def.name + "】");
+            if (over()) return;
+            if (!c.def.pushEffects.isEmpty()) {
+                Effects.resolve(this, owner.idx, c, c.def.pushEffects, new Effects.Ctx());
+            }
+        }
+    }
+
+    /**
+     * 下载（PULL）：只能下载己方云端栈顶。先按 downloadCost 惩罚，再移除栈顶并结算下载效果，
+     * 随后进墓地、pushCount +1，最后推进地标层数（顺序对齐 C# EffectRuntime.Pull）。
+     */
+    public boolean pull() {
+        String why = whyCannotPull();
+        if (why != null) { log("无法下载：" + why); return false; }
+        PlayerState p = current();
+        List<CardInstance> carriers = downloadCarriers(p);
+        CardInstance carrier;
+        if (carriers.size() == 1) {
+            carrier = carriers.get(0);
+        } else {
+            carrier = agentOf(p.idx).chooseTarget(this, p.idx, carriers, "选择接收下载的机械载体", false);
+            if (carrier == null || !carriers.contains(carrier)) {
+                log("无法下载：多于一个合法载体但未选择合法目标");
+                return false;
+            }
+        }
+        return pullWith(carrier);
+    }
+
+    /** 指定下载载体的下载（供效果/测试直接调用）。 */
+    public boolean pullWith(CardInstance carrier) {
+        String why = whyCannotPull();
+        if (why != null) { log("无法下载：" + why); return false; }
+        PlayerState p = current();
+        if (carrier == null || !isDownloadCarrier(p, carrier)) {
+            log("无法下载：该单位不是合法下载载体");
+            return false;
+        }
+        CardInstance card = p.cloudStack.get(p.cloudStack.size() - 1);
+        // 下载效果需要目标时，必须在实际下载时由当前玩家选择（RULES §12.4）
+        CardInstance effectTarget = null;
+        for (CardDef.EffectSpec e : card.def.pullEffects) {
+            if (!"FRIENDLY_MINION".equals(e.target)) continue;
+            List<CardInstance> opts = new ArrayList<>();
+            for (CardInstance m : p.field) if (m.def.isMinion() && m.health > 0) opts.add(m);
+            if (opts.isEmpty()) {
+                log("无法下载：下载效果需要至少一个合法的己方随从目标");
+                return false;
+            }
+            effectTarget = opts.size() == 1 ? opts.get(0)
+                    : agentOf(p.idx).chooseTarget(this, p.idx, opts, "选择【" + card.def.name + "】下载效果的目标", false);
+            if (effectTarget == null || !opts.contains(effectTarget)) {
+                log("无法下载：多于一个合法目标但未选择合法的下载效果目标");
+                return false;
+            }
+            break;
+        }
+        payLifecyclePunish(p, card.def.downloadCost, p.name + " 下载【" + card.def.name + "】");
+        if (over()) return true;
+        // 先移除栈顶再结算下载效果：避免嵌套下载递归命中同一张卡
+        p.cloudStack.remove(p.cloudStack.size() - 1);
+        if (!card.def.pullEffects.isEmpty()) {
+            Effects.Ctx ctx = new Effects.Ctx();
+            ctx.playedCard = card;
+            ctx.selectedTargetId = effectTarget == null ? null : effectTarget.uid;
+            Effects.resolve(this, p.idx, carrier, card.def.pullEffects, ctx);
+        }
+        if (over()) return true;
+        card.resetRuntimeState();
+        p.graveyard.add(card);
+        p.pullCount++;
+        log(p.name + " 完成下载【" + card.def.name + "】（累计 " + p.pullCount + " 次）");
+        advanceLandmark(carrier);
+        checkSpecialWins();
+        return true;
+    }
+
+    /** 地标层级推进：地标每接收一次下载 +1 层，命中层级后按其 chant/summon 推进晋升。 */
+    private void advanceLandmark(CardInstance carrier) {
+        if (carrier == null || !carrier.def.leaderDef.isLandmark) return;
+        if (!carrier.isLeaderEntity || !carrier.def.leader) return;
+        PlayerState owner = players[carrier.ownerIdx];
+        if (owner.leaderOnField != carrier) return;
+        carrier.landmarkPullCount++;
+        log("地标【" + carrier.def.name + "】层数 → " + carrier.landmarkPullCount);
+        CardDef.LandmarkTier tier = carrier.def.leaderDef.tierAt(carrier.landmarkPullCount);
+        if (tier == null) return;
+        if (!tier.effectSpecs.isEmpty() && !over()) {
+            Effects.resolve(this, owner.idx, carrier, tier.effectSpecs, new Effects.Ctx());
+        }
+        if (tier.chant <= 0 && tier.summon.isEmpty()) return;
+        carrier.chantRemaining = tier.chant;
+        carrier.pendingLandmarkSummonCardId = tier.summon;
+        log("☆ 地标【" + carrier.def.name + "】进入吟唱 " + tier.chant + "（晋升目标 "
+                + (tier.summon.isEmpty() ? "无" : tier.summon) + "）");
+        if (tier.chant == 0 && !tier.summon.isEmpty()) promoteLandmark(owner, carrier);
+    }
+
+    /** 地标吟唱完成：摧毁地标并召唤晋升统领（对齐 C# PromoteLandmark → SUMMON_LEADER）。 */
+    void promoteLandmark(PlayerState owner, CardInstance landmark) {
+        String summonId = landmark.pendingLandmarkSummonCardId;
+        if (summonId == null || summonId.isEmpty()) return;
+        landmark.pendingLandmarkSummonCardId = null;
+        CardDef.EffectSpec spec = new CardDef.EffectSpec();
+        spec.action = "SUMMON_LEADER";
+        spec.param = summonId;
+        Effects.resolve(this, owner.idx, landmark, java.util.Collections.singletonList(spec), new Effects.Ctx());
     }
 
     private int discardHookDepth = 0;
@@ -789,7 +1122,8 @@ public class Game {
         }
         if (card.def.leaderDef.grantLife > 0) {
             p.life = card.def.leaderDef.grantLife;
-            log("【" + card.def.name + "】赋予 " + p.name + " " + p.life + " 点生命，生命归零将落败");
+            // 生命池默认不存在，只有本统领开启；它不构成胜利或败北条件（RULES §1/§7）。
+            log("【" + card.def.name + "】赋予 " + p.name + " " + p.life + " 点生命池（生命池不判胜负）");
         }
         computeAuras();
         Effects.Ctx ctx = new Effects.Ctx();
@@ -812,7 +1146,7 @@ public class Game {
     /** 可被 attacker 攻击的目标（含敌方随从、随从统领、统领区耐久统领、伏击统领、玩家生命）。FACE 用 null 表示 */
     public List<CardInstance> legalAttackTargets(CardInstance attacker) {
         List<CardInstance> r = new ArrayList<>();
-        PlayerState opp = opponentOf(attacker.ownerIdx);
+        PlayerState opp = opponentOf(attacker.controllerIdx());
         boolean taunt = opp.hasTaunt();
         for (CardInstance m : opp.minions()) {
             if (m.isLeaderEntity) continue;
@@ -827,7 +1161,7 @@ public class Game {
     }
 
     public boolean canAttackFace(CardInstance attacker) {
-        PlayerState opp = opponentOf(attacker.ownerIdx);
+        PlayerState opp = opponentOf(attacker.controllerIdx());
         return !opp.hasTaunt() && (castleActive() || opp.life != null);
     }
 
@@ -835,8 +1169,9 @@ public class Game {
     public boolean attack(CardInstance attacker, CardInstance target) {
         if (over() || phase != Phase.ACTION) return false;
         PlayerState p = current();
-        PlayerState opp = opponent();
-        if (attacker.ownerIdx != p.idx || !p.field.contains(attacker) || !attacker.canAttackNow()) {
+        int controllerIdx = attacker.controllerIdx();
+        PlayerState opp = opponentOf(controllerIdx);
+        if (controllerIdx != p.idx || !p.field.contains(attacker) || !attacker.canAttackNow()) {
             log("【" + attacker.def.name + "】现在无法攻击");
             return false;
         }
@@ -856,14 +1191,14 @@ public class Game {
 
         if (target == null) {
             log("【" + attacker.def.name + "】攻击敌方核心目标！");
-            damageEnemyCore(p.idx, attacker, attacker.attack, attacker.def.name + "攻击", true, false);
+            damageEnemyCore(controllerIdx, attacker, attacker.attack, attacker.def.name + "攻击", true, false);
         } else if (target.def.isMinion()) {
             log("【" + attacker.def.name + "】攻击【" + target.def.name + "】");
             dealDamage(target, attacker.attack);
             if (target.attack > 0) dealDamage(attacker, target.attack);
         } else {
             log("【" + attacker.def.name + "】攻击统领【" + target.def.name + "】");
-            damageLeaderEntity(opponentOf(attacker.ownerIdx), target, attacker.attack);
+            damageLeaderEntity(opponentOf(controllerIdx), target, attacker.attack);
         }
         cleanupDeaths();
         checkAll();
@@ -887,6 +1222,21 @@ public class Game {
         }
     }
 
+    /**
+     * 对「非随从统领」结算伤害——只有两条出路，中间那条已于 2026-09-12 删除。
+     *
+     *   1. 该统领有耐久轨（machine 8 / wood 20）：扣耐久。这就是它自己的败北轨，
+     *      所以「击败统领」与「完成自己的胜利条件」仍是同一件事。
+     *   2. 该统领没有耐久轨（只有 sea_leader）：攻击空发并记录日志。这种统领不靠挨打被击败，
+     *      它只能靠自己的胜利目标或卡面负效果输赢（owner 裁定 2026-09-12）。
+     *
+     * 删掉的那条是 `else if (owner.life != null) damagePlayerLife(owner, amt)`：
+     * 把攻击花在统领主人的「玩家生命池」上。这在本规则下有双重错误——
+     *   * 生命池既不构成胜利也不构成败北（RULES §1/§7），打它什么也不会发生；
+     *   * 于是「无耐久非随从统领」唯一的脆弱点变成了主人的生命池，
+     *     生命池默认关闭后就出现「伤害落下了、池子掉了、什么也没发生」的荒谬状态。
+     * C# 引擎同轮同步删除（EffectRuntime.Attack.cs）。
+     */
     void damageLeaderEntity(PlayerState owner, CardInstance leader, int amt) {
         if (amt <= 0) return;
         owner.damagedThisCycle = true;
@@ -895,10 +1245,8 @@ public class Game {
         } else if (leader.def.leaderDef.durability > 0) {
             leader.durability -= amt;
             log("统领【" + leader.def.name + "】耐久 -" + amt + " (" + Math.max(0, leader.durability) + ")");
-        } else if (owner.life != null) {
-            damagePlayerLife(owner, amt);
         } else {
-            log("统领【" + leader.def.name + "】无可损耗的胜负字段，攻击未产生效果");
+            log("统领【" + leader.def.name + "】没有耐久轨，攻击不产生效果");
         }
     }
 
@@ -916,7 +1264,7 @@ public class Game {
                 if (c.def.isMinion() && c.health <= 0 && !c.isLeaderEntity) dead.add(c);
             for (CardInstance c : dead) {
                 p.field.remove(c);
-                p.graveyard.add(c);
+                players[c.ownerIdx].graveyard.add(c);
                 log("【" + c.def.name + "】被破坏（效果立即失效）");
             }
         }
@@ -941,7 +1289,11 @@ public class Game {
             else if (!l.def.isMinion() && l.def.leaderDef.durability > 0 && l.durability <= 0) {
                 defeated = true; how = "统领【" + l.def.name + "】耐久归零";
             }
-            if (!defeated && p.life != null && p.life <= 0) { defeated = true; how = p.name + " 生命归零"; }
+            // 玩家生命池不参与败北判定。原先这里还有一条
+            //   `if (!defeated && p.life != null && p.life <= 0) { defeated = true; ... }`
+            // 已于 2026-09-12 删除：RULES §1 明确只有两条胜利路径（统领记载的 winCondition
+            // 与牌库循环计数），§7 明确生命池既不构成胜利也不构成败北。C# 引擎同轮同步删除。
+            // 生命池现在只是一个可以被增减的数值，到 0 就停在 0。
             if (defeated) {
                 if (bothLeadersFielded()) {
                     winner = 1 - p.idx;
@@ -952,28 +1304,45 @@ public class Game {
                     // 门限保护：统领未齐，无法终结——回复至 1
                     if (l.def.isMinion() && l.health <= 0) l.health = 1;
                     if (!l.def.isMinion() && l.durability <= 0 && l.def.leaderDef.durability > 0) l.durability = 1;
-                    if (p.life != null && p.life <= 0) p.life = 1;
+                    // 生命池不再需要钳制：它不是败北条件，因此没有"被命运拒绝的终结"。
                     log("双方统领未齐，命运拒绝终结——" + how + " 被强行止于一线之间");
                 }
             }
         }
     }
 
-    /** 各阵营特殊胜利条件 */
+    /**
+     * 各阵营特殊胜利条件 —— 走 {@link VictoryObjective} 的统一读数，不再是硬编码 switch。
+     *
+     * 与 C# 的 {@code EvaluateLeaderWinConditions} 对齐（2026-09-12）。原实现是一个
+     * `switch (ld.winCondition)`，于是"新增一个胜利条件"必须在两套引擎里各改一处 switch，
+     * 并且 Java 那份还缺 ROYAL_CASTLE_BREAK 等分支。现在两边读同一份声明：
+     * leaderDef.victory{metric,direction,target}，metric 由登记表解析。
+     *
+     * 未声明目标（尚未迁移的卡牌）走 {@code winCondition}/{@code winParam} 兼容回退，
+     * 由 {@link VictoryObjective#fromLeaderDef} 统一处理。
+     */
     void checkSpecialWins() {
         if (over()) return;
         for (PlayerState p : players) {
             if (!p.leaderFielded()) continue;
-            CardDef.LeaderDef ld = p.leaderOnField.def.leaderDef;
-            PlayerState opp = opponentOf(p.idx);
-            boolean met = false;
-            switch (ld.winCondition) {
-                case "OPP_DISCARD_TOTAL_GE": met = opp.totalDiscarded >= ld.winParam; break;
-                case "NO_DAMAGE_TURNS_GE": met = p.noDamageTurns >= ld.winParam; break;
-                case "OPP_PUNISH_DRAW_TURN_GE": met = opp.punishDrawnThisTurn >= ld.winParam; break;
-                default: break;
+            // 使用期解析（而非只依赖加载期缓存）：测试与编辑器会手工构造 LeaderDef 并只写老字段。
+            VictoryObjective objective = VictoryObjective.of(p.leaderOnField.def.leaderDef);
+            if (objective == null) continue;
+            // 王城破坏已经由 checkRoyalCastleWin 按双方当前活动统领专门裁决。
+            // 不让通用 CASTLE_BREAK 读数在双方同时持有、尚未冻结的形态下按座位顺序猜胜者。
+            if (royalCastleBreaker >= 0 && "CASTLE_BREAK".equals(objective.metric)) continue;
+
+            // 读数可能为 null（本局无法测量，例如还没有任何封印随从）。那不是 0：
+            // 不判定达成，也不当作失败，只是这一回合无法下结论。
+            Integer current = objective.read(this, p.idx);
+            if (current == null) continue;
+
+            if (objective.met(current)) {
+                String label = p.leaderOnField.def.leaderDef.winText;
+                declareWin(p.idx, "特殊胜利条件达成："
+                        + (label == null || label.isEmpty() ? objective.describe() : label));
             }
-            if (met) declareWin(p.idx, "特殊胜利条件达成：" + (ld.winText.isEmpty() ? ld.winCondition : ld.winText));
         }
     }
 

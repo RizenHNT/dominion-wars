@@ -8,6 +8,7 @@ using System.Linq;
 using DominionWars.Adapters;
 using DominionWars.Data;
 using DominionWars.Engine.Model;
+using DominionWars.Unity.Runtime;
 using DominionWars.Unity.UI;
 using NUnit.Framework;
 using UnityEngine;
@@ -213,6 +214,70 @@ public sealed class RuntimeCardDisplayInspectEditModeTests
             Does.Contain("CARD DATA OK · PRINTED VALUES ONLY"));
         Assert.That(RuntimeCardInspectModel.BuildDebug(card).DetailText,
             Does.Contain("COST 2"));
+    }
+
+    [Test]
+    public void LocalizedCardInspectUsesResolverLabelsAndPreservesAuthoredContent()
+    {
+        var definition = Definition(
+            "localized_reader",
+            "Readable Unit",
+            faction: "机械遗迹",
+            type: "MINION",
+            attack: 4,
+            health: 5,
+            cost: 2,
+            punish: 3,
+            text: "登场：你抽1张牌。此文本应保持原样。",
+            isMinion: true,
+            keywords: new[] { "圣盾", "嘲讽" },
+            tags: new[] { "守卫" },
+            commitCost: 1,
+            uploadCost: 2,
+            downloadCost: 3);
+        var card = RuntimeCardDisplayModel.BuildVisibleCards(
+            Snapshot(
+                new RuntimePlayerSnapshot
+                {
+                    PlayerId = "player_0",
+                    Field = new[]
+                    {
+                        Card("localized_reader", 511, 0, currentAttack: 2, currentHealth: 3),
+                    },
+                },
+                new RuntimePlayerSnapshot { PlayerId = "player_1" }),
+            Catalog(definition))[0];
+        var resolver = new RuntimeLocalizationResolver();
+        var inspect = RuntimeCardInspectModel.Build(card, resolver, "zh-CN");
+
+        Assert.That(inspect.Title, Is.EqualTo("Readable Unit"));
+        Assert.That(inspect.RulesText, Is.EqualTo("登场：你抽1张牌。此文本应保持原样。"));
+        Assert.That(inspect.KeywordsLine, Is.EqualTo("关键词 圣盾 · 嘲讽"));
+        Assert.That(inspect.TagsLine, Is.EqualTo("标签 守卫"));
+        Assert.That(inspect.TypeFactionLine, Is.EqualTo("类型 MINION | 阵营 机械遗迹"));
+        Assert.That(inspect.PrintedStatsLine, Is.EqualTo("印刷 攻击 4 | 生命 5"));
+        Assert.That(inspect.CurrentStatsLine, Is.EqualTo("当前 攻击 2 | 生命 3"));
+        Assert.That(inspect.PunishAndCostLine, Is.EqualTo("印刷惩罚 3"));
+        Assert.That(inspect.MechanicalFeesLine, Is.EqualTo("提交 1 | 上传 2 | 下载 3"));
+        Assert.That(inspect.DetailText, Does.Contain("规则 登场：你抽1张牌。此文本应保持原样。"));
+        Assert.That(inspect.DetailText, Does.Not.Contain("RULES"));
+
+        var root = new GameObject("LocalizedCardInspectRoot");
+        try
+        {
+            var view = RuntimeBattlePanelView.Build(root.transform);
+            view.ShowCardInspect(inspect, null, resolver, "zh-CN");
+
+            Assert.That(view.CardInspectDetail.text, Does.Contain("效果"));
+            Assert.That(view.CardInspectDetail.text, Does.Contain("费用"));
+            Assert.That(view.CardInspectDetail.text, Does.Contain("关键词 圣盾 · 嘲讽"));
+            Assert.That(view.CardInspectDetail.text, Does.Contain("标签 守卫"));
+            Assert.That(view.CardInspectDetail.text, Does.Not.Contain("EFFECT"));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+        }
     }
 
     [Test]

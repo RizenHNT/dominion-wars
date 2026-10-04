@@ -19,6 +19,58 @@ public sealed class RuntimeActionBoundaryTests
     }
 
     [Test]
+    public void TypedSelectionRoundTripsOutsideTheImmutablePayload()
+    {
+        var action = Action();
+        action.SelectedEntityIds = new[] { 2L, 3L };
+
+        var json = RuntimeWireSerializer.Serialize(action);
+        var roundTrip = RuntimeWireSerializer.Deserialize<RuntimeGameAction>(json);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(json, Does.Contain("\"selectedEntityIds\":[2,3]"));
+            Assert.That(roundTrip.SelectedEntityIds, Is.EqualTo(new[] { 2L, 3L }));
+            Assert.That(roundTrip.Payload.ContainsKey("selectedEntityIds"), Is.False);
+            Assert.That(roundTrip.Payload["count"], Is.EqualTo(1L).Or.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void NullPayloadIsRejectedBeforeGatewayMapping()
+    {
+        var action = Action();
+        action.Payload = null!;
+
+        Assert.That(RuntimeActionBoundary.Validate(action, Snapshot()).ReasonKey,
+            Is.EqualTo("action.payload_missing"));
+    }
+
+    [Test]
+    public void SelfDiscardSelectionRejectsMixedCandidateKeys()
+    {
+        var snapshot = Snapshot();
+        snapshot.LegalActions[0].Payload = new Dictionary<string, object?>
+        {
+            ["discardRequired"] = 1,
+            ["discardCandidateIds"] = new[] { 2L, 3L },
+            ["candidateIds"] = new[] { 2L, 3L },
+        };
+        var action = Action();
+        action.Payload = snapshot.LegalActions[0].Payload;
+        action.SelectedEntityIds = new[] { 2L };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(RuntimeActionSelection.TryGetSpec(
+                snapshot.LegalActions[0], out _, out var reasonKey), Is.False);
+            Assert.That(reasonKey, Is.EqualTo(RuntimeActionSelection.SelectionSpecInvalidReason));
+            Assert.That(RuntimeActionBoundary.Validate(action, snapshot).ReasonKey,
+                Is.EqualTo(RuntimeActionSelection.SelectionSpecInvalidReason));
+        });
+    }
+
+    [Test]
     public void WrongMatchIsRejectedBeforeActionLookup()
     {
         var action = Action();

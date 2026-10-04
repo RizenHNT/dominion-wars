@@ -19,12 +19,13 @@ namespace DominionWars.Data
         private static readonly HashSet<string> WinConditions = new HashSet<string>(new[] { "NONE", "ROYAL_CASTLE_BREAK", "AMBUSH_TRIGGER_WIN", "OPP_DISCARD_TOTAL_GE", "OPP_PUNISH_DRAW_TURN_GE", "NO_DAMAGE_TURNS_GE", "GIANT_HEALTH_GE", "PULL_TOTAL_GE" }, StringComparer.Ordinal);
         private static readonly HashSet<string> EffectTargets = new HashSet<string>(new[] { "ENEMY_TARGET", "ENEMY_MINION", "FRIENDLY_MINION", "ALL_ENEMY_MINIONS", "ALL_FRIENDLY_MINIONS", "ALL_MINIONS", "ENEMY_FACE", "SELF", "ANY_MINION", "ENEMY_SINGLE", "SINGLE_ENEMY" }, StringComparer.Ordinal);
         private static readonly HashSet<string> EffectActions = new HashSet<string>(new[] { "DAMAGE", "HEAL", "DRAW", "OPP_DRAW", "DISCARD_OPP_RANDOM", "DISCARD_DRAWN", "DESTROY", "ENFEEBLE", "BANISH", "CONTROL", "BUFF", "GRANT_KEYWORD", "SUMMON", "SUMMON_LEADER", "END_TURN", "ADD_OPP_PUNISH_TURN", "ADD_SELF_PUNISH_TURN", "CONVERT_PUNISH_TO_DISCARD", "PROTECT_TURN", "NEGATE", "NEGATE_ENEMY_EFFECTS_TURN", "SKIP_RESHUFFLE", "RESTORE_ATTACKS", "GAIN_LIFE", "LOSE_LIFE", "DAMAGE_CASTLE", "WIN_GAME", "ADD_ROOT", "ADD_RAMPANT", "COMMIT", "PUSH", "PULL", "ROLLBACK" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> PunishConditions = new HashSet<string>(new[] { "ALWAYS", "ENEMY_MINIONS_GE_1", "ENEMY_MINIONS_GE_2", "HAND_GE_3" }, StringComparer.Ordinal);
+        // `punishCondition` is validated by ValidateCondition against the shared
+        // prefix+integer grammar (see ConditionSuffixFamilies below), not by a closed enum.
         private static readonly HashSet<string> AmbushKinds = new HashSet<string>(new[] { "NORMAL", "FOCUS", "LOCKDOWN" }, StringComparer.Ordinal);
         private static readonly HashSet<string> AmbushTriggers = new HashSet<string>(new[] { "OPPONENT_ATTACKS", "OPPONENT_PLAYS_SPELL", "OPPONENT_SUMMONS", "OPPONENT_PLAYS_CARD", "OPPONENT_DRAWS" }, StringComparer.Ordinal);
         private static readonly Regex StableId = new Regex("^[a-z][a-z0-9_]*\\z", RegexOptions.CultureInvariant);
         private static readonly HashSet<string> KnownCardFields = new HashSet<string>(new[] { "id", "name", "faction", "type", "tags", "punish", "attack", "health", "keywords", "leader", "leaderDef", "punishActivatable", "punishCost", "punishCondition", "punishEffects", "ambushKind", "ambushTrigger", "ambushEffects", "chant", "chantEffects", "attacksPerTurn", "onOpponentDiscardEffects", "onPlayEffects", "commitCost", "uploadCost", "downloadCost", "commitEffects", "pushEffects", "pullEffects", "text", "flavor", "guard", "kingSlayer", "summonedThisTurn", "cost", "rarity", "artId" }, StringComparer.Ordinal);
-        private static readonly HashSet<string> KnownLeaderFields = new HashSet<string>(new[] { "winCondition", "vulnerabilities", "winText", "winAmount", "winParam", "durability", "grantLife", "enterEffects", "punishEffects", "isLandmark", "landmarkTiers" }, StringComparer.Ordinal);
+        private static readonly HashSet<string> KnownLeaderFields = new HashSet<string>(new[] { "winCondition", "vulnerabilities", "winText", "winAmount", "winParam", "durability", "grantLife", "enterEffects", "punishEffects", "isLandmark", "landmarkTiers", "victory" }, StringComparer.Ordinal);
         private static readonly HashSet<string> KnownLandmarkTierFields = new HashSet<string>(new[] { "tier", "effect", "effectSpecs", "chant", "summon" }, StringComparer.Ordinal);
         private readonly IReadOnlyDictionary<string, CardCostPresence> _costPresenceByCardId;
 
@@ -190,19 +191,12 @@ namespace DominionWars.Data
             var cost = OptionalInt(element, "cost", 0, 0, 99, source);
             var artId = OptionalStableId(element, "artId", source);
             var punish = OptionalInt(element, "punish", 0, 0, 20, source);
-            var hasExplicitPunishActivatable = TryGetProperty(element, "punishActivatable", out _);
-            var hasExplicitPunishCost = TryGetProperty(element, "punishCost", out _);
-            var punishActivatable = OptionalBool(element, "punishActivatable", false, source);
+            var punishActivatable = OptionalBool(element, "punishActivatable", type == "PUNISH", source);
             var punishCost = OptionalInt(element, "punishCost", 0, 0, 20, source);
-            if (punish > 0 && !hasExplicitPunishActivatable && !hasExplicitPunishCost)
-            {
-                punishActivatable = true;
-                punishCost = punish;
-            }
             var punishCondition = OptionalString(element, "punishCondition", source, 64);
             ValidateArrayStrings(element, "tags", source, 4, 1, 8, null);
             var keywords = ValidateArrayStrings(element, "keywords", source, 4, 1, 16, Keywords);
-            ValidateEnum(element, "punishCondition", PunishConditions, source);
+            ValidateCondition(element, "punishCondition", source);
             ValidateEnum(element, "ambushKind", AmbushKinds, source);
             ValidateEnum(element, "ambushTrigger", AmbushTriggers, source);
             var punishEffects = MapEffects(element, "punishEffects", source);
@@ -246,6 +240,7 @@ namespace DominionWars.Data
             var leaderWinParam = 0;
             var isLandmark = false;
             var landmarkTiers = new List<LandmarkTierDefinition>();
+            VictoryObjectiveDefinition? victory = null;
             if (TryGetProperty(element, "leaderDef", out var leaderDef))
             {
                 if (leaderDef.Type != JTokenType.Object) throw Invalid(source, "leaderDef must be an object");
@@ -277,6 +272,7 @@ namespace DominionWars.Data
                     source);
                 isLandmark = OptionalBool(leaderDef, "isLandmark", false, source);
                 landmarkTiers = MapLandmarkTiers(leaderDef, source, warning);
+                victory = MapVictory(leaderDef, source, win, warning);
                 leaderEnterEffects = MapEffects(leaderDef, "enterEffects", source);
                 leaderPunishEffects = MapEffects(leaderDef, "punishEffects", source);
             }
@@ -320,7 +316,8 @@ namespace DominionWars.Data
                 pushEffects: pushEffects,
                 pullEffects: pullEffects,
                 isLandmark: isLandmark,
-                landmarkTiers: landmarkTiers);
+                landmarkTiers: landmarkTiers,
+                victory: victory);
         }
 
         private static void ApplyMechanicalLifecycleDefaults(
@@ -395,6 +392,90 @@ namespace DominionWars.Data
             public bool HasDownloadCost { get; }
         }
 
+        /// <summary>
+        /// Reads the optional <c>victory</c> objective, which lets the card describe its
+        /// own win condition instead of leaving that knowledge inside the engine's win
+        /// switch.
+        ///
+        /// Optional on purpose: a card without it keeps the legacy path exactly, so the
+        /// migration can go card by card and a card that has not migrated cannot change
+        /// behaviour.
+        ///
+        /// The condition id is RESOLVED here, at load time, by actually building the
+        /// condition. That is what makes a misspelled or unimplemented id fail loudly
+        /// instead of sitting in the deck never firing — which is exactly how
+        /// AMBUSH_TRIGGER_WIN is unreachable today, declared by a card and understood by
+        /// no code. Building it here rather than only checking a name list also means the
+        /// registry and the evaluator cannot disagree about what exists.
+        /// </summary>
+        private static VictoryObjectiveDefinition? MapVictory(
+            JToken leaderDef,
+            string source,
+            string legacyWinCondition,
+            Action<string>? warning)
+        {
+            if (!TryGetProperty(leaderDef, "victory", out var victory))
+            {
+                return null;
+            }
+
+            if (victory.Type != JTokenType.Object)
+            {
+                throw Invalid(source, "leaderDef.victory must be an object");
+            }
+
+            WarnUnknown(
+                victory,
+                new HashSet<string>(new[] { "metric", "direction", "target" }, StringComparer.Ordinal),
+                source + ": leaderDef.victory",
+                warning);
+
+            if (!TryGetProperty(victory, "metric", out var metricToken))
+            {
+                throw Invalid(source, "leaderDef.victory.metric is required");
+            }
+
+            var metric = ReadString(metricToken, source, "leaderDef.victory.metric");
+            var direction = TryGetProperty(victory, "direction", out var directionToken)
+                ? ReadString(directionToken, source, "leaderDef.victory.direction")
+                : VictoryObjectiveDirection.Increase;
+            if (!VictoryObjectiveDirection.IsKnown(direction))
+            {
+                throw Invalid(
+                    source,
+                    "unknown victory direction '" + direction + "'; expected "
+                    + VictoryObjectiveDirection.Increase + " or " + VictoryObjectiveDirection.Decrease);
+            }
+
+            if (!TryGetProperty(victory, "target", out var targetToken))
+            {
+                throw Invalid(source, "leaderDef.victory.target is required");
+            }
+
+            var target = OptionalInt(
+                (JObject)victory, "target", -1, 0, 999, source);
+            if (target < 0)
+            {
+                throw Invalid(source, "leaderDef.victory.target is required");
+            }
+
+            var objective = new VictoryObjectiveDefinition(metric, direction, target);
+
+            // Resolve the condition NOW, so a card naming a condition nobody implemented
+            // fails at load rather than sitting in a deck that can never win. Building it
+            // also proves the registry and this file agree about what exists.
+            try
+            {
+                objective.CreateCondition();
+            }
+            catch (ArgumentException exception)
+            {
+                throw Invalid(source, exception.Message);
+            }
+
+            return objective;
+        }
+
         private static void ValidateLeaderDef(JToken value, string source)
         {
             foreach (var property in value.Children<JProperty>())
@@ -418,6 +499,7 @@ namespace DominionWars.Data
                 if (TryGetProperty(effect, "target", out var target) && !EffectTargets.Contains(ReadString(target, source, property + ".target"))) throw Invalid(source, "invalid effect target");
                 if (TryGetProperty(effect, "amount", out var amount)) ValidateInt(amount, source, property + ".amount", -99, 99);
                 if (TryGetProperty(effect, "param", out var param) && (param.Type != JTokenType.String || param.Value<string>()!.Length > 64)) throw Invalid(source, "invalid effect param");
+                ValidateCondition(effect, "condition", source + ": " + property);
             }
         }
 
@@ -501,6 +583,76 @@ namespace DominionWars.Data
         private static void WarnUnknown(JToken element, HashSet<string> known, string source, Action<string>? warning) { if (warning == null) return; foreach (var property in element.Children<JProperty>()) if (!known.Contains(property.Name)) warning(source + ": unknown field " + property.Name); }
         private static bool TryGetProperty(JToken parent, string property, out JToken value) { value = parent.Type == JTokenType.Object ? parent[property]! : null!; return value != null; }
         private static void ValidateEnum(JToken parent, string property, HashSet<string> allowed, string source) { if (TryGetProperty(parent, property, out var value) && !allowed.Contains(ReadString(value, source, property))) throw Invalid(source, "invalid " + property); }
+
+        /// <summary>
+        /// The condition grammar's parameterised token families. Each entry is a prefix
+        /// that must be followed by a non-negative integer, e.g. "SELF_SEALED_GE_" + "2".
+        ///
+        /// WHY THIS IS NOT A CLOSED ENUM ANY MORE (2026-09-13). `punishCondition` used to be
+        /// validated against a four-value HashSet, which meant the evaluator could parse eight
+        /// token families while card data could only author four fixed strings. That truncated
+        /// the vocabulary to things like ENEMY_MINIONS_GE_2, and it is why card faces could not
+        /// state a condition tied to their own faction's mechanic. The grammar is prefix+integer,
+        /// so validation walks the same table the evaluator does.
+        ///
+        /// KEEP IN SYNC with `PunishConditionEvaluator.IsSatisfied` (src/Engine/Turns) and with
+        /// `Effects.checkCondition` (src/main/java/com/dominionwars/engine/Effects.java). A token
+        /// added to the evaluator but not here is un-authorable; a token added here but not to the
+        /// evaluator is a load-time lie.
+        /// </summary>
+        private static readonly string[] ConditionSuffixFamilies = new[]
+        {
+            "ENEMY_MINIONS_GE_",
+            "SELF_MINIONS_GE_",
+            "HAND_GE_",
+            "OPP_HAND_GE_",
+            "OPP_HAND_LE_",
+            "SELF_LIFE_LE_",
+            "SELF_SEALED_GE_",
+            "SELF_SEALED_HEALTH_GE_",
+            "SELF_ROOT_GE_",
+            "SELF_RAMPANT_GE_",
+            "SELF_COMMIT_GE_",
+            "SELF_CLOUD_GE_",
+            "SELF_PULL_GE_",
+            "OPP_DISCARD_GE_",
+            "SELF_AMBUSH_GE_",
+            "CASTLE_HP_LE_"
+        };
+
+        private static readonly string[] ConditionExactTokens = new[]
+        {
+            "ALWAYS",
+            "SELF_LEADER_ON_FIELD",
+            "OPP_LEADER_ON_FIELD"
+        };
+
+        /// <summary>Validates a `punishCondition` string against the shared condition grammar.</summary>
+        private static void ValidateCondition(JToken parent, string property, string source)
+        {
+            if (!TryGetProperty(parent, property, out var value))
+            {
+                return;
+            }
+
+            var text = ReadString(value, source, property);
+            if (string.IsNullOrWhiteSpace(text) || Array.IndexOf(ConditionExactTokens, text) >= 0)
+            {
+                return;
+            }
+
+            foreach (var family in ConditionSuffixFamilies)
+            {
+                if (text.StartsWith(family, StringComparison.Ordinal)
+                    && int.TryParse(text.Substring(family.Length), out var amount)
+                    && amount >= 0)
+                {
+                    return;
+                }
+            }
+
+            throw Invalid(source, "invalid " + property + " (unknown condition token: " + text + ")");
+        }
         private static string RequiredString(JToken parent, string property, string source, int min, int max) { if (!TryGetProperty(parent, property, out var value)) throw Invalid(source, property + " is required"); var result = ReadString(value, source, property); if (result.Length < min || result.Length > max) throw Invalid(source, property + " length is invalid"); return result; }
         private static string? OptionalString(JToken parent, string property, string source, int max) { if (!TryGetProperty(parent, property, out var value)) return null; var result = ReadString(value, source, property); if (result.Length > max) throw Invalid(source, property + " is too long"); return result; }
         private static string? OptionalStableId(JToken parent, string property, string source)

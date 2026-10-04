@@ -35,6 +35,8 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             new RuntimeCastleSnapshot { Enabled = true, Health = 75 });
 
         Assert.That(playerText, Does.Not.Contain("Unavailable"));
+        Assert.That(playerText, Does.Not.Contain("生命 18"),
+            "The base tabletop must not render RuntimePlayerSnapshot.Life as a player health bar.");
         Assert.That(playerText, Does.Not.Contain("统领："));
         Assert.That(playerText, Does.Not.Contain("除外："));
         Assert.That(castleText, Does.Contain("生命 75"));
@@ -658,7 +660,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             Assert.That(zones[0].ActionId, Is.EqualTo("play_21"));
             Assert.That(zones[0].ActionType, Is.EqualTo("PLAY_CARD"));
 
-            var card = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0");
+            var card = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0");
             Assert.That(card, Is.Not.Null);
             var drag = card!.GetComponent<RuntimeBattleCardDrag>();
             Assert.That(drag, Is.Not.Null);
@@ -729,7 +731,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             Assert.That(opponentCards.GetComponentsInChildren<RuntimeCardFaceView>(true), Is.Empty,
                 "Opponent ambush identities stay hidden behind card backs.");
 
-            var handCard = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0");
+            var handCard = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0");
             Assert.That(handCard, Is.Not.Null);
             var drag = handCard!.GetComponent<RuntimeBattleCardDrag>();
             Assert.That(drag, Is.Not.Null);
@@ -782,17 +784,19 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             var commitSurface = Find(panelObject, "RuntimeBattlePanelCenter/CommitDropSurface");
             var handSurface = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandDropSurface");
             var commitCards = Find(panelObject, "RuntimeBattlePanelCenter/CommitQueueCards");
-            var hand = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp");
+            var handScroll = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect");
+            var hand = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp");
             Assert.That(commitSurface, Is.Not.Null);
             Assert.That(handSurface, Is.Not.Null);
             Assert.That(commitCards, Is.Not.Null);
+            Assert.That(handScroll, Is.Not.Null);
             Assert.That(hand, Is.Not.Null);
             Assert.That(commitSurface!.GetComponent<UnityEngine.UI.Image>().raycastTarget, Is.True);
             Assert.That(handSurface!.GetComponent<UnityEngine.UI.Image>().raycastTarget, Is.True);
             Assert.That(commitSurface.GetComponent<RuntimeBattleDropZone>().ActionType, Is.EqualTo("COMMIT"));
             Assert.That(handSurface.GetComponent<RuntimeBattleDropZone>().ActionType, Is.EqualTo("ROLLBACK"));
             Assert.That(commitSurface.GetSiblingIndex(), Is.LessThan(commitCards!.GetSiblingIndex()));
-            Assert.That(handSurface.GetSiblingIndex(), Is.LessThan(hand!.GetSiblingIndex()));
+            Assert.That(handSurface.GetSiblingIndex(), Is.LessThan(handScroll!.GetSiblingIndex()));
             Assert.That(commitCards.GetComponents<RuntimeBattleDropZone>(), Is.Empty);
             Assert.That(hand.GetComponents<RuntimeBattleDropZone>(), Is.Empty);
         }
@@ -870,6 +874,25 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             Assert.That(panel.View.ActionsDrawerContent.Find("Action_skip_ambush"), Is.Null);
             Assert.That(panel.View.MoreActionsButton.gameObject.activeSelf, Is.False);
             Assert.That(panel.View.ActionsDrawerRoot.gameObject.activeSelf, Is.False);
+
+            var phaseStatus = panel.View.OwnPhaseRoot;
+            Assert.That(phaseStatus.GetComponent<UnityEngine.UI.Image>(), Is.Null,
+                "The phase status mirror must not retain a button-like framed background.");
+            Assert.That(phaseStatus.GetComponent<UnityEngine.UI.Button>(), Is.Null,
+                "The phase status mirror is not a phase-switch control.");
+            Assert.That(
+                phaseStatus.Find("QueueState")!.GetComponent<UnityEngine.UI.Text>()!.text,
+                Is.EqualTo("Ambush Phase"),
+                "The current public phase must remain visible in the status mirror.");
+
+            var phaseAction = panel.View.PhaseActionsContent.Find("Action_skip_ambush");
+            var phaseButton = phaseAction!.GetComponent<UnityEngine.UI.Button>();
+            Assert.That(phaseButton, Is.Not.Null);
+            Assert.That(phaseButton!.interactable, Is.True);
+            Assert.That(
+                phaseAction.Find("Label")!.GetComponent<UnityEngine.UI.Text>()!.text,
+                Is.EqualTo("Skip Ambush Phase"),
+                "The real phase action keeps its localized player-facing verb.");
         }
         finally
         {
@@ -918,10 +941,278 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             Assert.That(panel.View.ActionsRoot.Find("Action_discard_77"), Is.Null);
             Assert.That(panel.View.ActionsDrawerContent.Find("Action_discard_77"), Is.Null);
 
-            var hand = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp");
+            var hand = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp");
             Assert.That(hand, Is.Not.Null);
             Assert.That(Overlaps(panel.View.DiscardActionsRoot, hand!), Is.False,
                 "Discard confirmation must sit beside/above the hand, not cover the selected cards.");
+        }
+        finally
+        {
+            adapter.Dispose();
+            if (panelObject != null) UnityEngine.Object.DestroyImmediate(panelObject);
+        }
+    }
+
+    [Test]
+    public void SelfDiscardActionRequiresManualCandidateSelectionAndCancelDoesNotSubmit()
+    {
+        var snapshot = Snapshot(
+            new RuntimePlayerSnapshot
+            {
+                PlayerId = "player_0",
+                HandCount = 3,
+                Hand = new[]
+                {
+                    new RuntimeCardSnapshot
+                    {
+                        CardId = "self_discard_source",
+                        EntityId = 77,
+                        OwnerPlayer = 0,
+                    },
+                    new RuntimeCardSnapshot
+                    {
+                        CardId = "self_discard_candidate",
+                        EntityId = 78,
+                        OwnerPlayer = 0,
+                    },
+                    new RuntimeCardSnapshot
+                    {
+                        CardId = "self_discard_candidate_two",
+                        EntityId = 79,
+                        OwnerPlayer = 0,
+                    },
+                },
+            },
+            new RuntimePlayerSnapshot { PlayerId = "player_1" });
+        var play = LegalAction("play_self_discard", "PLAY_CARD", null!);
+        play.SourceId = 77L;
+        play.CardId = "self_discard_source";
+        play.Payload = new Dictionary<string, object?>
+        {
+            ["discardRequired"] = 1L,
+            ["discardCandidateIds"] = new[] { 78L, 79L },
+        };
+        snapshot.LegalActions = new[] { play };
+        var session = new RecordingSession(snapshot);
+        var adapter = new RuntimeAdapter(session);
+        adapter.AcceptSnapshot(snapshot);
+        GameObject panelObject = null!;
+
+        try
+        {
+            panelObject = new GameObject("RuntimeBattlePanelSelfDiscardSelectionTest", typeof(RectTransform));
+            panelObject.SetActive(false);
+            var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+            panel.Bind(adapter);
+
+            var actionObject = panel.View.ActionsDrawerContent.Find("Action_play_self_discard") ??
+                panel.View.ActionsRoot.Find("Action_play_self_discard");
+            Assert.That(actionObject, Is.Not.Null);
+            actionObject!.GetComponent<UnityEngine.UI.Button>()!.onClick.Invoke();
+            Assert.That(panel.HasPendingSelection, Is.True);
+            Assert.That(panel.PendingSelectionActionId, Is.EqualTo("play_self_discard"));
+            Assert.That(session.Submitted, Is.Null,
+                "Clicking the advertised action must open selection, not auto-pick a card.");
+            var sourceDrag = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0")!
+                .GetComponent<RuntimeBattleCardDrag>();
+            Assert.That(sourceDrag, Is.Not.Null);
+            Assert.That(sourceDrag!.enabled, Is.False,
+                "Pending selection must lock all alternate drag submissions.");
+
+            var candidate = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_1");
+            Assert.That(candidate, Is.Not.Null);
+            var interaction = candidate!.GetComponent<RuntimeCardInspectInteraction>();
+            Assert.That(interaction, Is.Not.Null);
+            var pointer = new UnityEngine.EventSystems.PointerEventData(null);
+            interaction!.OnPointerEnter(pointer);
+            interaction.OnPointerClick(pointer);
+            Assert.That(panel.PendingSelectedEntityIds, Is.EqualTo(new[] { 78L }));
+
+            // A second click closes the inspect pin, but it must also cancel
+            // the pending candidate. Selection state is independent from the
+            // inspect reader's pinned state.
+            interaction.OnPointerClick(pointer);
+            Assert.That(panel.PendingSelectedEntityIds, Is.Empty);
+
+            var secondCandidate = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_2")!
+                .GetComponent<RuntimeCardInspectInteraction>();
+            Assert.That(secondCandidate, Is.Not.Null);
+            secondCandidate!.OnPointerEnter(pointer);
+            secondCandidate.OnPointerClick(pointer);
+            Assert.That(panel.PendingSelectedEntityIds, Is.EqualTo(new[] { 79L }));
+
+            var cancel = panel.View.DiscardActionsContent
+                .Find("PendingCardSelection/SelectionControls/SelectionCancel")
+                ?.GetComponent<UnityEngine.UI.Button>();
+            Assert.That(cancel, Is.Not.Null);
+            cancel!.onClick.Invoke();
+            Assert.That(panel.HasPendingSelection, Is.False);
+            Assert.That(
+                panel.View.DiscardActionsContent.parent.GetComponent<UnityEngine.UI.Mask>().enabled,
+                Is.True,
+                "Cancel must restore the ordinary discard ScrollRect mask.");
+            Assert.That(sourceDrag.enabled, Is.True,
+                "Cancel must restore the original card drag affordance.");
+            Assert.That(session.Submitted, Is.Null,
+                "Cancel must clear the local choice without submitting an action.");
+        }
+        finally
+        {
+            adapter.Dispose();
+            if (panelObject != null) UnityEngine.Object.DestroyImmediate(panelObject);
+        }
+    }
+
+    [Test]
+    public void SelfDiscardConfirmSubmitsSelectionInTopLevelChannel()
+    {
+        var snapshot = Snapshot(
+            new RuntimePlayerSnapshot
+            {
+                PlayerId = "player_0",
+                HandCount = 2,
+                Hand = new[]
+                {
+                    new RuntimeCardSnapshot
+                    {
+                        CardId = "self_discard_source",
+                        EntityId = 77,
+                        OwnerPlayer = 0,
+                    },
+                    new RuntimeCardSnapshot
+                    {
+                        CardId = "self_discard_candidate",
+                        EntityId = 78,
+                        OwnerPlayer = 0,
+                    },
+                },
+            },
+            new RuntimePlayerSnapshot { PlayerId = "player_1" });
+        var play = LegalAction("play_self_discard_confirm", "PLAY_CARD", null!);
+        play.SourceId = 77L;
+        play.CardId = "self_discard_source";
+        play.Payload = new Dictionary<string, object?>
+        {
+            ["discardRequired"] = 1L,
+            ["discardCandidateIds"] = new[] { 78L },
+        };
+        snapshot.LegalActions = new[] { play };
+        var session = new RecordingSession(snapshot);
+        var adapter = new RuntimeAdapter(session);
+        adapter.AcceptSnapshot(snapshot);
+        GameObject panelObject = null!;
+
+        try
+        {
+            panelObject = new GameObject("RuntimeBattlePanelSelfDiscardConfirmTest", typeof(RectTransform));
+            panelObject.SetActive(false);
+            var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+            panel.Bind(adapter);
+
+            var actionObject = panel.View.ActionsDrawerContent.Find("Action_play_self_discard_confirm") ??
+                panel.View.ActionsRoot.Find("Action_play_self_discard_confirm");
+            Assert.That(actionObject, Is.Not.Null);
+            actionObject!.GetComponent<UnityEngine.UI.Button>()!.onClick.Invoke();
+            var candidate = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_1");
+            Assert.That(candidate, Is.Not.Null);
+            candidate!.GetComponent<RuntimeCardInspectInteraction>()!
+                .OnPointerClick(new UnityEngine.EventSystems.PointerEventData(null));
+
+            var confirm = panel.View.DiscardActionsContent
+                .Find("PendingCardSelection/SelectionControls/SelectionConfirm")
+                ?.GetComponent<UnityEngine.UI.Button>();
+            Assert.That(confirm, Is.Not.Null);
+            Assert.That(confirm!.interactable, Is.True);
+            confirm.onClick.Invoke();
+
+            Assert.That(session.Submitted, Is.Not.Null);
+            Assert.That(session.Submitted!.SelectedEntityIds, Is.EqualTo(new[] { 78L }));
+            Assert.That(session.Submitted.Payload.ContainsKey("selectedEntityIds"), Is.False,
+                "The UI selection must not mutate the immutable advertised payload.");
+            Assert.That(panel.HasPendingSelection, Is.False);
+        }
+        finally
+        {
+            adapter.Dispose();
+            if (panelObject != null) UnityEngine.Object.DestroyImmediate(panelObject);
+        }
+    }
+
+    [Test]
+    public void PendingSelfDiscardSelectionExpiresWhenRevisionChanges()
+    {
+        var snapshot = Snapshot(
+            new RuntimePlayerSnapshot
+            {
+                PlayerId = "player_0",
+                HandCount = 2,
+                Hand = new[]
+                {
+                    new RuntimeCardSnapshot { CardId = "source", EntityId = 77, OwnerPlayer = 0 },
+                    new RuntimeCardSnapshot { CardId = "candidate", EntityId = 78, OwnerPlayer = 0 },
+                },
+            },
+            new RuntimePlayerSnapshot { PlayerId = "player_1" });
+        var play = LegalAction("play_self_discard_expiry", "PLAY_CARD", null!);
+        play.SourceId = 77L;
+        play.CardId = "source";
+        play.Payload = new Dictionary<string, object?>
+        {
+            ["discardRequired"] = 1L,
+            ["discardCandidateIds"] = new[] { 78L },
+        };
+        snapshot.LegalActions = new[] { play };
+        var adapter = new RuntimeAdapter(new SnapshotSession(snapshot));
+        adapter.AcceptSnapshot(snapshot);
+        GameObject panelObject = null!;
+
+        try
+        {
+            panelObject = new GameObject("RuntimeBattlePanelSelfDiscardExpiryTest", typeof(RectTransform));
+            panelObject.SetActive(false);
+            var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+            panel.Bind(adapter);
+            var actionObject = panel.View.ActionsDrawerContent.Find("Action_play_self_discard_expiry") ??
+                panel.View.ActionsRoot.Find("Action_play_self_discard_expiry");
+            Assert.That(actionObject, Is.Not.Null);
+            actionObject!.GetComponent<UnityEngine.UI.Button>()!.onClick.Invoke();
+            Assert.That(panel.HasPendingSelection, Is.True);
+
+            var next = Snapshot(
+                new RuntimePlayerSnapshot
+                {
+                    PlayerId = "player_0",
+                    HandCount = 2,
+                    Hand = new[]
+                    {
+                        new RuntimeCardSnapshot { CardId = "source", EntityId = 77, OwnerPlayer = 0 },
+                        new RuntimeCardSnapshot { CardId = "candidate", EntityId = 78, OwnerPlayer = 0 },
+                    },
+                },
+                new RuntimePlayerSnapshot { PlayerId = "player_1" });
+            next.SnapshotRevision = 2;
+            var nextPlay = LegalAction("play_self_discard_expiry", "PLAY_CARD", null!);
+            nextPlay.SnapshotRevision = 2;
+            nextPlay.SourceId = 77L;
+            nextPlay.CardId = "source";
+            nextPlay.Payload = new Dictionary<string, object?>
+            {
+                ["discardRequired"] = 1L,
+                ["discardCandidateIds"] = new[] { 78L },
+            };
+            next.LegalActions = new[] { nextPlay };
+            adapter.AcceptSnapshot(next);
+            panel.Refresh();
+            Assert.That(panel.HasPendingSelection, Is.False);
+            var restoredDrag = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0")!
+                .GetComponent<RuntimeBattleCardDrag>();
+            Assert.That(restoredDrag, Is.Not.Null);
+            Assert.That(restoredDrag!.enabled, Is.True,
+                "Revision expiry must restore the new card's drag affordance.");
+            Assert.That(
+                panel.View.DiscardActionsContent.parent.GetComponent<UnityEngine.UI.Mask>().enabled,
+                Is.True,
+                "Revision expiry must restore the ordinary discard ScrollRect mask.");
         }
         finally
         {
@@ -970,6 +1261,118 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             panel.View.PauseMainMenuButton.onClick.Invoke();
             Assert.That(returnedToMenu, Is.True);
             Assert.That(panel.View.PauseDrawerRoot.gameObject.activeSelf, Is.False);
+        }
+        finally
+        {
+            if (panelObject != null) UnityEngine.Object.DestroyImmediate(panelObject);
+        }
+    }
+
+    [Test]
+    public void PauseSettingsLanguageButtonsSelectSupportedPresentationLanguage()
+    {
+        GameObject panelObject = null!;
+        try
+        {
+            panelObject = new GameObject("RuntimeBattlePanelLanguageSettingsTest", typeof(RectTransform));
+            panelObject.SetActive(false);
+            var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+
+            panel.RequestRecovery();
+            panel.View.PauseSettingsButton.onClick.Invoke();
+
+            Assert.That(panel.View.LanguageSelectorLabel, Is.Not.Null);
+            Assert.That(panel.View.LanguageSelectorLabel.text, Is.EqualTo("LANGUAGE"));
+            Assert.That(panel.View.LanguageEnglishButton, Is.Not.Null);
+            Assert.That(panel.View.LanguageChineseButton, Is.Not.Null);
+            Assert.That(panel.View.LanguageJapaneseButton, Is.Not.Null);
+
+            panel.View.LanguageChineseButton.onClick.Invoke();
+            Assert.That(panel.PresentationLanguage, Is.EqualTo("zh"));
+            Assert.That(
+                panel.View.LanguageChineseButton.GetComponentInChildren<UnityEngine.UI.Text>(true).text,
+                Is.EqualTo("✓ 中文"));
+            Assert.That(
+                panel.View.LanguageEnglishButton.GetComponentInChildren<UnityEngine.UI.Text>(true).text,
+                Is.EqualTo("English"));
+            panel.View.PauseSettingsBackButton.onClick.Invoke();
+            panel.View.PauseContinueButton.onClick.Invoke();
+            panel.RequestRecovery();
+            panel.View.PauseSettingsButton.onClick.Invoke();
+            Assert.That(panel.PresentationLanguage, Is.EqualTo("zh"),
+                "Closing and reopening the existing panel must retain its presentation choice.");
+            panel.View.LanguageJapaneseButton.onClick.Invoke();
+            Assert.That(panel.PresentationLanguage, Is.EqualTo("jp"));
+            Assert.That(
+                panel.View.LanguageJapaneseButton.GetComponentInChildren<UnityEngine.UI.Text>(true).text,
+                Is.EqualTo("✓ 日本語"));
+            panel.View.LanguageEnglishButton.onClick.Invoke();
+            Assert.That(panel.PresentationLanguage, Is.EqualTo("en"));
+            Assert.That(
+                panel.View.LanguageEnglishButton.GetComponentInChildren<UnityEngine.UI.Text>(true).text,
+                Is.EqualTo("✓ English"));
+            Assert.That(panel.Adapter, Is.Null,
+                "Presentation language selection must not create or mutate an engine adapter.");
+        }
+        finally
+        {
+            if (panelObject != null) UnityEngine.Object.DestroyImmediate(panelObject);
+        }
+    }
+
+    [Test]
+    public void PauseMenuClosesMoreActionsAndCardReaderCannotReopenWhilePaused()
+    {
+        GameObject panelObject = null!;
+        try
+        {
+            panelObject = new GameObject("RuntimeBattlePanelPauseSurfaceExclusionTest", typeof(RectTransform));
+            panelObject.SetActive(false);
+            var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+            panel.RequestRecovery();
+
+            panel.View.SetMoreActionsAvailable(true);
+            panel.View.SetMoreActionsOpen(true);
+            Assert.That(panel.View.MoreActionsOpen, Is.True);
+            Assert.That(panel.View.PauseMenuOpen, Is.False,
+                "Opening the secondary action drawer must not leave the pause surface active.");
+
+            panel.View.CardInspectRoot.gameObject.SetActive(true);
+            panel.View.SetPauseMenuOpen(true);
+            Assert.That(panel.View.PauseMenuOpen, Is.True);
+            Assert.That(panel.View.MoreActionsOpen, Is.False,
+                "Pause must close the secondary action drawer before it owns input.");
+            Assert.That(panel.View.CardInspectRoot.gameObject.activeSelf, Is.False,
+                "Pause must hide an already-open card reader.");
+            Assert.That(panel.View.PauseDrawerRoot.GetSiblingIndex(),
+                Is.EqualTo(panel.View.PauseDrawerRoot.parent.childCount - 1),
+                "Pause must remain the top sibling after the reader has previously raised itself.");
+
+            var snapshot = Snapshot(
+                new RuntimePlayerSnapshot
+                {
+                    PlayerId = "player_0",
+                    HandCount = 1,
+                    Hand = new[]
+                    {
+                        new RuntimeCardSnapshot
+                        {
+                            CardId = "reader_guard_card",
+                            EntityId = 301,
+                            OwnerPlayer = 0,
+                        },
+                    },
+                },
+                new RuntimePlayerSnapshot { PlayerId = "player_1" });
+            var visibleCard = RuntimeCardDisplayModel.BuildVisibleCards(snapshot, null)[0];
+            panel.View.ShowCardInspect(RuntimeCardInspectModel.Build(visibleCard), null);
+            Assert.That(panel.View.CardInspectRoot.gameObject.activeSelf, Is.False,
+                "A late inspection callback must not reopen the reader over the pause surface.");
+
+            panel.View.SetPauseMenuOpen(false);
+            Assert.That(panel.View.PauseMenuOpen, Is.False);
+            Assert.That(panel.View.CardInspectRoot.gameObject.activeSelf, Is.False,
+                "Closing pause must not leave a stale card reader visible.");
         }
         finally
         {
@@ -1042,7 +1445,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             var panel = panelObject.AddComponent<RuntimeBattlePanel>();
             panel.Bind(adapter);
 
-            Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0"), Is.Not.Null);
+            Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0"), Is.Not.Null);
             Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnField/OwnCard_0"), Is.Not.Null);
             Assert.That(Find(panelObject, "LegalTargetSurfaces")!.Find("LegalTarget_private_old_target"),
                 Is.Not.Null);
@@ -1057,7 +1460,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             adapter.AcceptSnapshot(mismatch);
             panel.Refresh();
 
-            Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0"), Is.Null);
+            Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0"), Is.Null);
             Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnField/OwnCard_0"), Is.Null);
             var targetLayer = Find(panelObject, "LegalTargetSurfaces");
             Assert.That(targetLayer, Is.Not.Null);
@@ -1069,9 +1472,15 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             Assert.That(Find(panelObject, "RuntimeBattlePanelOpponent/OpponentLeaderSlot"), Is.Not.Null);
             Assert.That(Find(panelObject, "RuntimeBattlePanelOwn")!
                 .GetComponent<UnityEngine.UI.Image>().raycastTarget, Is.False);
-            Assert.That(Find(panelObject, "RuntimeBattlePanelOpponent")!
-                .GetComponent<UnityEngine.UI.Image>().raycastTarget, Is.False);
-        }
+        Assert.That(Find(panelObject, "RuntimeBattlePanelOpponent")!
+            .GetComponent<UnityEngine.UI.Image>().raycastTarget, Is.False);
+        Assert.That(panel.View.MatchText.text, Is.EqualTo("比赛状态：Unusable"));
+        Assert.That(panel.View.OpponentText.text, Is.EqualTo("对手状态：Unusable"));
+        Assert.That(panel.View.CastleText.text, Is.EqualTo("共享王城：Unusable"));
+        Assert.That(panel.View.OwnText.text, Is.EqualTo("己方状态：Unusable"));
+        Assert.That(panel.View.PhaseText.text, Is.EqualTo("阶段：Unusable"));
+        Assert.That(panel.View.EventsText.text, Is.EqualTo("EVENT SUMMARY：NO EVENTS"));
+    }
         finally
         {
             adapter.Dispose();
@@ -1108,7 +1517,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             panel.SetViewerPlayerIndex(1);
 
             Assert.That(panel.ActionGroups, Is.Empty);
-            Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0"), Is.Null);
+            Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0"), Is.Null);
             var recovery = panelObject.GetComponentInChildren<UnityEngine.UI.Button>(true);
             Assert.That(recovery, Is.Not.Null);
             Assert.That(recovery!.name, Is.EqualTo("RuntimeBattlePanelRecoveryButton"));
@@ -1214,7 +1623,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             Assert.That(newLeader, Is.Not.Null);
             var newDynamicLeader = new GameObject("NewLeaderCard", typeof(RectTransform));
             newDynamicLeader.transform.SetParent(newLeader!.transform, false);
-            Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0"), Is.Not.Null);
+            Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0"), Is.Not.Null);
             Assert.That(Find(panelObject, "LegalTargetSurfaces")!.Find("LegalTarget_new_target"), Is.Not.Null);
 
             panel.Unbind();
@@ -1233,7 +1642,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
         RuntimeBattlePanel panel,
         UnityEngine.UI.Image panelImage)
     {
-        Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0"), Is.Null);
+        Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0"), Is.Null);
         Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnField/OwnCard_0"), Is.Null);
         Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnLeaderSlot/OldLeaderCard"), Is.Null);
         Assert.That(Find(panelObject, "RuntimeBattlePanelOwn/OwnLeaderSlot/NewLeaderCard"), Is.Null);
@@ -1251,6 +1660,12 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             .GetComponent<UnityEngine.UI.Image>().raycastTarget, Is.False);
         Assert.That(Find(panelObject, "RuntimeBattlePanelOpponent")!
             .GetComponent<UnityEngine.UI.Image>().raycastTarget, Is.False);
+        Assert.That(panel.View.MatchText.text, Is.EqualTo("比赛状态：Unusable"));
+        Assert.That(panel.View.OpponentText.text, Is.EqualTo("对手状态：Unusable"));
+        Assert.That(panel.View.CastleText.text, Is.EqualTo("共享王城：Unusable"));
+        Assert.That(panel.View.OwnText.text, Is.EqualTo("己方状态：Unusable"));
+        Assert.That(panel.View.PhaseText.text, Is.EqualTo("阶段：Unusable"));
+        Assert.That(panel.View.EventsText.text, Is.EqualTo("EVENT SUMMARY：NO EVENTS"));
     }
 
     [TestCase(1280f, 720f)]
@@ -1329,7 +1744,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
                 Is.LessThan(view.OwnRoot.GetSiblingIndex()));
             Assert.That(view.OpponentHandRoot.GetSiblingIndex(),
                 Is.GreaterThan(view.OpponentFieldRoot.GetSiblingIndex()));
-            Assert.That(view.OwnHandRoot.GetSiblingIndex(),
+            Assert.That(view.OwnHandScrollRoot.GetSiblingIndex(),
                 Is.GreaterThan(view.OwnFieldRoot.GetSiblingIndex()));
             Assert.That(view.FeedbackRoot.GetSiblingIndex(),
                 Is.EqualTo(view.FeedbackRoot.parent.childCount - 1));
@@ -1355,7 +1770,7 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             Assert.That(view.OwnFieldDropSurface.GetSiblingIndex(),
                 Is.LessThan(view.OwnFieldRoot.GetSiblingIndex()));
             Assert.That(view.OwnHandDropSurface.GetSiblingIndex(),
-                Is.LessThan(view.OwnHandRoot.GetSiblingIndex()));
+                Is.LessThan(view.OwnHandScrollRoot.GetSiblingIndex()));
             Assert.That(view.OwnAmbushDropSurface.GetSiblingIndex(),
                 Is.LessThan(view.OwnAmbushCardsRoot.GetSiblingIndex()));
             Assert.That(view.CommitDropSurface.GetSiblingIndex(),
@@ -1366,9 +1781,9 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             Assert.That(view.OwnFieldDropSurface.rect.height,
                 Is.EqualTo(view.OwnFieldRoot.rect.height).Within(0.5f));
             Assert.That(view.OwnHandDropSurface.rect.width,
-                Is.EqualTo(view.OwnHandRoot.rect.width).Within(0.5f));
+                Is.EqualTo(view.OwnHandScrollRoot.rect.width).Within(0.5f));
             Assert.That(view.OwnHandDropSurface.rect.height,
-                Is.EqualTo(view.OwnHandRoot.rect.height).Within(0.5f));
+                Is.EqualTo(view.OwnHandScrollRoot.rect.height).Within(0.5f));
             Assert.That(view.CommitDropSurface.rect.width,
                 Is.EqualTo(view.CommitCardsRoot.rect.width).Within(0.5f));
             Assert.That(view.CommitDropSurface.rect.height,
@@ -1446,9 +1861,9 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
             panel.Bind(adapter);
             Canvas.ForceUpdateCanvases();
 
-            var hand = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp");
+            var hand = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp");
             var field = Find(panelObject, "RuntimeBattlePanelOwn/OwnField");
-            var card = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUp/OwnCard_0");
+            var card = Find(panelObject, "RuntimeBattlePanelOwn/OwnHandFaceUpScrollRect/Viewport/OwnHandFaceUp/OwnCard_0");
             Assert.That(hand, Is.Not.Null);
             Assert.That(field, Is.Not.Null);
             Assert.That(card, Is.Not.Null);
@@ -1636,6 +2051,44 @@ public sealed class RuntimeBattlePanelStructureEditModeTests
         public RuntimeActionSubmission Submit(RuntimeGameAction action)
         {
             throw new NotSupportedException();
+        }
+
+        public void Close() { }
+    }
+
+    private sealed class RecordingSession : IRuntimeSession
+    {
+        private readonly RuntimeSnapshotEnvelope _snapshot;
+
+        public RecordingSession(RuntimeSnapshotEnvelope snapshot)
+        {
+            _snapshot = snapshot;
+        }
+
+        public RuntimeGameAction? Submitted { get; private set; }
+
+        public RuntimeSnapshotEnvelope GetSnapshot(int viewerPlayerIndex)
+        {
+            return _snapshot;
+        }
+
+        public RuntimeActionSubmission Submit(RuntimeGameAction action)
+        {
+            Submitted = action;
+            var result = new RuntimeActionResult
+            {
+                ContractVersion = ContractVersionGuard.ExpectedVersion,
+                MatchId = action.MatchId,
+                SnapshotRevision = action.SnapshotRevision,
+                ResultingSnapshotRevision = _snapshot.SnapshotRevision,
+                ActionId = action.ActionId,
+                Accepted = true,
+                ReasonKey = "accepted",
+            };
+            return new RuntimeActionSubmission(
+                result,
+                Array.Empty<DominionWars.Engine.Events.GameEvent>(),
+                _snapshot);
         }
 
         public void Close() { }

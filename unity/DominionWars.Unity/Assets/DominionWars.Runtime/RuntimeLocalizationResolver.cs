@@ -128,6 +128,32 @@ public sealed class RuntimeLocalizationTable : IRuntimeLocalizationTable
         Add(entries, "menu.rules", "规则书", "ルールブック", "Rulebook");
         Add(entries, "menu.settings", "设置", "設定", "Settings");
 
+        // Card-reader labels belong to the same resolver-owned presentation
+        // table. Authored card names, rules text, keyword values and tag values
+        // remain content data; these keys only translate the surrounding UI
+        // labels and preserve the existing reader's semantic sections.
+        Add(entries, "card.type", "类型", "タイプ", "TYPE");
+        Add(entries, "card.faction", "阵营", "勢力", "FACTION");
+        Add(entries, "card.printedPunish", "印刷惩罚", "印刷ペナルティ", "PRINTED PUNISH");
+        Add(entries, "card.printed", "印刷", "印刷", "PRINTED");
+        Add(entries, "card.current", "当前", "現在", "CURRENT");
+        Add(entries, "card.attack", "攻击", "攻撃", "ATK");
+        Add(entries, "card.health", "生命", "HP", "HP");
+        Add(entries, "card.commit", "提交", "コミット", "COMMIT");
+        Add(entries, "card.upload", "上传", "アップロード", "UPLOAD");
+        Add(entries, "card.download", "下载", "ダウンロード", "DOWNLOAD");
+        Add(entries, "card.effect", "效果", "効果", "EFFECT");
+        Add(entries, "card.fees", "费用", "コスト", "FEES");
+        Add(entries, "card.goal", "目标", "目標", "GOAL");
+        Add(entries, "card.progress", "进度", "進捗", "PROGRESS");
+        Add(entries, "card.landmark", "地标", "ランドマーク", "LANDMARK");
+        Add(entries, "card.rules", "规则", "ルール", "RULES");
+        Add(entries, "card.keywords", "关键词", "キーワード", "KEYWORDS");
+        Add(entries, "card.tags", "标签", "タグ", "TAGS");
+        Add(entries, "card.chant", "吟唱", "詠唱", "CHANT");
+        Add(entries, "card.remaining", "剩余", "残り", "REMAINING");
+        Add(entries, "card.landmarkTier", "地标层数", "ランドマーク層", "LANDMARK TIER");
+
         Add(entries, "phase.start", "开始阶段", "開始フェイズ", "Start Phase");
         Add(entries, "phase.ambush", "伏击阶段", "伏撃フェイズ", "Ambush Phase");
         Add(entries, "phase.action", "行动阶段", "行動フェイズ", "Action Phase");
@@ -137,6 +163,63 @@ public sealed class RuntimeLocalizationTable : IRuntimeLocalizationTable
 
         Add(entries, "action.skipAmbush", "跳过伏击阶段", "伏撃フェイズをスキップ", "Skip Ambush Phase");
         Add(entries, "action.endTurn", "结束回合", "ターン終了", "End Turn");
+
+        // Event-feed vocabulary is kept in the same resolver-owned table as
+        // the approved phase/action/zone terms.  The feed supplies only a
+        // semantic label; counts, amounts and target labels remain formatted
+        // by the presentation model so no event payload becomes a rule/UI
+        // authority or a hidden-information channel.
+        Add(entries, "event.summary", "事件摘要", "イベント概要", "EVENT SUMMARY");
+        Add(entries, "event.none", "暂无事件", "イベントなし", "NO EVENTS");
+        Add(entries, "event.more", "还有 {0} 条", "あと {0} 件", "{0} MORE");
+        Add(entries, "event.targets", "{0} 个目标", "{0} 件の対象", "{0} TARGETS");
+        Add(entries, "event.target", "目标", "対象", "TARGET");
+        Add(entries, "event.targetUnavailable", "目标不可用", "対象なし", "TARGET UNAVAILABLE");
+        Add(entries, "event.to", "→", "→", "TO");
+        Add(entries, "event.turnSuffix", "回合", "ターン", "TURN");
+        Add(entries, "event.playerSwitched", "玩家已切换", "プレイヤー切替", "PLAYER SWITCHED");
+        Add(entries, "event.phaseChanged", "阶段变化", "フェイズ変更", "PHASE CHANGED");
+        Add(entries, "event.turnChanged", "玩家", "プレイヤー", "PLAYER");
+        Add(entries, "event.turnStarted", "回合开始", "ターン開始", "TURN START");
+        Add(entries, "event.turnEnded", "回合结束", "ターン終了", "TURN END");
+        Add(entries, "event.cardPlayed", "打出卡牌", "カードを出す", "CARD PLAYED");
+        Add(entries, "event.ambushSet", "设置伏击", "伏撃を設置", "AMBUSH SET");
+        Add(entries, "event.ambushTriggered", "伏击触发", "伏撃発動", "AMBUSH TRIGGERED");
+        Add(entries, "event.attackDeclared", "攻击宣言", "攻撃宣言", "ATTACK DECLARED");
+        Add(entries, "event.targetRejected", "目标被拒绝", "対象拒否", "TARGET REJECTED");
+        Add(entries, "event.damageApplied", "伤害", "ダメージ", "DAMAGE");
+        Add(entries, "event.damageAppliedFallback", "伤害已结算", "ダメージ適用", "DAMAGE APPLIED");
+        Add(entries, "event.healApplied", "恢复", "回復", "HEAL");
+        Add(entries, "event.minionDestroyed", "随从被击败", "ミニオン撃破", "MINION DEFEATED");
+        Add(entries, "event.cardsDrawn", "抽牌", "カードを引く", "CARDS DRAWN");
+        Add(entries, "event.cardDrawn", "抽到卡牌", "カードを1枚引く", "CARD DRAWN");
+        Add(entries, "event.punishIssued", "惩罚", "ペナルティ", "PUNISH");
+        Add(entries, "event.punishDraw", "惩罚抽牌", "ペナルティドロー", "PUNISH DRAW");
+        Add(entries, "event.punishTriggered", "惩罚触发", "ペナルティ発動", "PUNISH");
+        Add(entries, "event.chainLink", "惩罚链", "ペナルティチェーン", "CHAIN LINK");
+        Add(entries, "event.chainResolved", "惩罚链结算", "ペナルティチェーン解決", "CHAIN RESOLVED");
+        Add(entries, "event.castleDamaged", "王城受损", "王城ダメージ", "CASTLE DAMAGED");
+        Add(entries, "event.castleBroken", "王城被破坏", "王城破壊", "CASTLE BROKEN");
+        Add(entries, "event.leaderManifested", "统领登场", "統領登場", "LEADER MANIFESTED");
+        Add(entries, "event.leaderDisabled", "统领失效", "統領無効", "LEADER DISABLED");
+        Add(entries, "event.victoryProgress", "胜利进度", "勝利進捗", "VICTORY PROGRESS");
+        Add(entries, "event.deckCycled", "牌库循环", "デッキ循環", "DECK CYCLED");
+        Add(entries, "event.cardDiscarded", "弃牌", "カードを捨てる", "CARD DISCARDED");
+        Add(entries, "event.commitDeclared", "提交宣言", "コミット宣言", "COMMIT DECLARED");
+        Add(entries, "event.cardCommitted", "卡牌已提交", "カードをコミット", "CARD COMMITTED");
+        Add(entries, "event.cardPushed", "卡牌已推进", "カードをプッシュ", "CARD PUSHED");
+        Add(entries, "event.pullDeclared", "拉取宣言", "プル宣言", "PULL DECLARED");
+        Add(entries, "event.cardPulled", "卡牌已拉取", "カードをプル", "CARD PULLED");
+        Add(entries, "event.gameOver", "对局结束", "対戦終了", "GAME OVER");
+
+        Add(entries, "target.enemyFace", "对方", "相手", "OPPONENT");
+        Add(entries, "target.enemyTarget", "对方", "相手", "OPPONENT");
+        Add(entries, "target.enemyMinion", "对方随从", "相手ミニオン", "ENEMY MINION");
+        Add(entries, "target.allEnemyMinions", "对方所有随从", "相手の全ミニオン", "ALL ENEMY MINIONS");
+        Add(entries, "target.allFriendlyMinions", "己方所有随从", "自分の全ミニオン", "ALL FRIENDLY MINIONS");
+        Add(entries, "target.friendlyMinion", "己方随从", "自分のミニオン", "FRIENDLY MINION");
+        Add(entries, "target.allMinions", "所有随从", "全ミニオン", "ALL MINIONS");
+        Add(entries, "target.self", "自身", "自分", "SELF");
 
         Add(entries, "status.usable", "可用", "使用可", "Usable");
         Add(entries, "status.unusable", "不可用", "使用不可", "Unusable");
@@ -251,6 +334,13 @@ public sealed class RuntimeLocalizationResolver
         if (TryGetFromEngine(localizationKey, canonicalLanguage, out value)) return true;
         if (EngineKeyAliases.TryGetValue(localizationKey, out var engineKey) &&
             TryGetFromEngine(engineKey, canonicalLanguage, out value)) return true;
+        // Custom tables are overrides, not isolated replacement bundles. Keep
+        // the approved runtime table available for any key they do not carry,
+        // so a narrow language fixture cannot turn unrelated player copy into
+        // an accidental generic "Unusable" fallback.
+        if (!ReferenceEquals(_table, _fallbackTable) &&
+            TryGetFromTable(_fallbackTable, localizationKey, canonicalLanguage, out value))
+            return true;
         return false;
     }
 
@@ -416,6 +506,8 @@ public sealed class RuntimeLocalizationResolver
         result[RuntimeSemanticKind.Event] = Map(
             Pair("PHASE_CHANGED", "event.phaseChanged"),
             Pair("TURN_CHANGED", "event.turnChanged"),
+            Pair("TURN_STARTED", "event.turnStarted"),
+            Pair("TURN_ENDED", "event.turnEnded"),
             Pair("CARD_PLAYED", "event.cardPlayed"),
             Pair("AMBUSH_SET", "event.ambushSet"),
             Pair("AMBUSH_TRIGGERED", "event.ambushTriggered"),
@@ -423,6 +515,10 @@ public sealed class RuntimeLocalizationResolver
             Pair("TARGET_REJECTED", "event.targetRejected"),
             Pair("DAMAGE_APPLIED", "event.damageApplied"),
             Pair("HEAL_APPLIED", "event.healApplied"),
+            Pair("CARDS_DRAWN", "event.cardsDrawn"),
+            Pair("CARD_DRAWN", "event.cardDrawn"),
+            Pair("MINION_DESTROYED", "event.minionDestroyed"),
+            Pair("MINION_DIED", "event.minionDestroyed"),
             Pair("PUNISH_ISSUED", "event.punishIssued"),
             Pair("PUNISH_DRAW", "event.punishDraw"),
             Pair("PUNISH_TRIGGERED", "event.punishTriggered"),
@@ -435,6 +531,11 @@ public sealed class RuntimeLocalizationResolver
             Pair("VICTORY_PROGRESS", "event.victoryProgress"),
             Pair("DECK_CYCLED", "event.deckCycled"),
             Pair("CARD_DISCARDED", "event.cardDiscarded"),
+            Pair("COMMIT_DECLARED", "event.commitDeclared"),
+            Pair("CARD_COMMITTED", "event.cardCommitted"),
+            Pair("CARD_PUSHED", "event.cardPushed"),
+            Pair("PULL_DECLARED", "event.pullDeclared"),
+            Pair("CARD_PULLED", "event.cardPulled"),
             Pair("GAME_OVER", "event.gameOver"));
 
         result[RuntimeSemanticKind.Zone] = Map(

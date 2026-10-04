@@ -196,18 +196,28 @@ public sealed class TurnFlow
                 if (!card.Definition.IsLeader &&
                     string.Equals(card.Definition.Type, "AMBUSH", StringComparison.Ordinal))
                 {
-                    var punish = CardPlayRules.EffectivePunish(player, card);
+                    var punish = CardPlayRules.EffectivePunish(state, player, card);
                     var payload = new Dictionary<string, object?>
                     {
                         ["punish"] = punish,
                     };
+                    var convertedCostPayable = true;
                     if (player.PunishToSelfDiscardThisTurn && punish > 0)
                     {
                         var candidates = new List<long>();
                         foreach (var discard in player.Hand)
                             if (!ReferenceEquals(discard, card)) candidates.Add(discard.InstanceId);
-                        payload["discardRequired"] = punish;
-                        payload["discardCandidateIds"] = candidates;
+                        convertedCostPayable = candidates.Count >= punish;
+                        if (convertedCostPayable)
+                        {
+                            payload["discardRequired"] = punish;
+                            payload["discardCandidateIds"] = candidates;
+                        }
+                    }
+
+                    if (!convertedCostPayable)
+                    {
+                        continue;
                     }
 
                     actions.Add(new LegalAction

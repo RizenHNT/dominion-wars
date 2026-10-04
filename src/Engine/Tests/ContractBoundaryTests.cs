@@ -63,6 +63,7 @@ public sealed class ContractBoundaryTests
             LegalActionGenerator.Attack,
             LegalActionGenerator.Commit,
             LegalActionGenerator.Pull,
+            LegalActionGenerator.Rollback,
             TurnAction.DiscardComplete,
             LegalActionGenerator.EndTurn,
         };

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DominionWars.Engine.Turns;
 
 namespace DominionWars.Engine.Effects
 {
@@ -123,6 +124,19 @@ public sealed class EffectDispatcher : IEffectDispatcher
             return;
         }
 
+        // A card-authored condition is evaluated with the single shared
+        // condition grammar before the effect resolves. An unsatisfied or
+        // unknown condition skips the effect with an auditable reason instead
+        // of silently resolving it unconditionally.
+        if (!PunishConditionEvaluator.IsSatisfied(
+                Runtime.State,
+                context.SourcePlayerIndex,
+                spec.Condition))
+        {
+            Runtime.EmitSkipped(context, spec.Action, "effect.condition_not_met");
+            return;
+        }
+
         effect.Apply(spec, context, this);
         if (checkAll)
         {
@@ -137,6 +151,12 @@ public sealed class EffectDispatcher : IEffectDispatcher
             throw new ArgumentNullException(nameof(specs));
         }
 
+        // Preserve any enclosing batch's deferral: a nested chain (for example a
+        // passive hook window, EffectRuntime.Cards.cs) must not resolve deaths
+        // while its parent batch is still applying, or the parent's remaining
+        // parts would silently lose targets that already died in this batch.
+        // The outermost ApplyAll still restores false and resolves exactly once.
+        var previousDefer = context.DeferDeaths;
         context.DeferDeaths = true;
         try
         {
@@ -151,7 +171,7 @@ public sealed class EffectDispatcher : IEffectDispatcher
         }
         finally
         {
-            context.DeferDeaths = false;
+            context.DeferDeaths = previousDefer;
             Runtime.CheckAll(context);
         }
     }

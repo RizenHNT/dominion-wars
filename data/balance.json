@@ -6,6 +6,7 @@
   "reshuffleLoseAt": 10,
   "reshuffleIncludesHand": false,
   "chainLimit": 20,
+  "maxPunishResponsesPerRound": 1,
   "deckMin": 60,
   "deckMax": 80,
   "pioneerOpponentPunishBonus": 1,

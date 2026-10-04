@@ -180,8 +180,19 @@ public sealed class PlayCardActionHandlerTests
         Assert.That(plays, Is.EqualTo(new long?[] { 16 }));
     }
 
+    /// <summary>
+    /// 2026-09-11 contract change (P0-7). 「扎根」/「疯长」 as a *tag* used to also
+    /// advance <c>RootStacks</c>/<c>RampantStacks</c> directly from
+    /// <c>PlayCardActionHandler.ConsumeTags</c>, giving growth TWO sources: the
+    /// tag path and the explicit <c>ADD_ROOT</c>/<c>ADD_RAMPANT</c> effects that
+    /// <c>data/cards/wood.json</c> actually ships. No shipped card carries either
+    /// tag, so the double-count was dormant — but re-adding the old tag
+    /// convention would silently stack on top of the explicit effects. The tag
+    /// path was therefore removed, leaving the explicit effects as the single
+    /// source of truth. Tags still throttle: one card per tag per turn.
+    /// </summary>
     [Test]
-    public void GrowthTagAdvancesItsPlayerCounterWhenTheCardResolves()
+    public void GrowthTagThrottlesOneCardPerTagPerTurnButDoesNotAdvanceTheCounter()
     {
         var state = CreateStateInActionPhase(out _, out var router);
         var card = new CardInstance(18, 0, new CardDefinition(
@@ -194,7 +205,11 @@ public sealed class PlayCardActionHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(result.Accepted, Is.True);
-            Assert.That(state.GetPlayer(0).RootStacks, Is.EqualTo(1));
+            Assert.That(
+                state.GetPlayer(0).RootStacks,
+                Is.Zero,
+                "the tag must not grant a layer; growth comes only from ADD_ROOT / ADD_RAMPANT");
+            Assert.That(state.GetPlayer(0).UsedTags, Does.Contain("扎根"));
             Assert.That(state.GetPlayer(0).Graveyard, Does.Contain(card));
         });
     }

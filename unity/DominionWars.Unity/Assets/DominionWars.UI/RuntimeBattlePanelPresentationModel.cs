@@ -160,7 +160,7 @@ public static class RuntimeBattlePanelPresentationModel
     public static string BuildCastleSummary(RuntimeCastleSnapshot castle)
     {
         if (castle is null)
-            return "共享王城：Unavailable";
+            return "共享王城：" + DefaultLocalizationResolver.Get("status.unusable", "zh");
         if (!castle.Enabled)
             return "共享王城：未启用";
 
@@ -173,7 +173,8 @@ public static class RuntimeBattlePanelPresentationModel
         RuntimePlayerSnapshot opponent)
     {
         if (castle is null)
-            return "共享王城：Unavailable | 洗牌胜利计数 己方 " + CycleWinCount(own) +
+            return "共享王城：" + DefaultLocalizationResolver.Get("status.unusable", "zh") +
+                " | 洗牌胜利计数 己方 " + CycleWinCount(own) +
                 " / 对手 " + CycleWinCount(opponent);
         if (!castle.Enabled)
             return "共享王城：未启用 | 洗牌胜利计数 己方 " + CycleWinCount(own) +
@@ -387,7 +388,7 @@ public static class RuntimeBattlePanelPresentationModel
     private static string CycleWinCount(RuntimePlayerSnapshot player)
     {
         return player is null
-            ? Unavailable
+            ? DefaultLocalizationResolver.Get("status.unusable", "zh")
             : player.CycleWinCount.ToString(CultureInfo.InvariantCulture);
     }
 
@@ -479,7 +480,7 @@ public static class RuntimeBattlePanelPresentationModel
 
     public static string BuildPlayerSection(RuntimePlayerSnapshot player, bool viewer)
     {
-        return BuildPlayerSection(player, viewer, null);
+        return BuildPlayerSection(player, viewer, null, DefaultLocalizationResolver, "zh");
     }
 
     /// <summary>
@@ -491,18 +492,36 @@ public static class RuntimeBattlePanelPresentationModel
         bool viewer,
         CardCatalog cardCatalog)
     {
+        return BuildPlayerSection(player, viewer, cardCatalog, DefaultLocalizationResolver, "zh");
+    }
+
+    /// <summary>
+    /// Builds the player-facing section with the active language for approved
+    /// status placeholders. Existing counter labels and values stay visible;
+    /// missing three-language labels remain a separate terminology question.
+    /// </summary>
+    public static string BuildPlayerSection(
+        RuntimePlayerSnapshot player,
+        bool viewer,
+        CardCatalog cardCatalog,
+        RuntimeLocalizationResolver? localizationResolver,
+        string language)
+    {
+        var resolver = localizationResolver ?? DefaultLocalizationResolver;
+        var unavailable = resolver.Get("status.unusable", language);
         if (player is null)
-            return viewer ? "己方状态：不可用" : "对手状态：不可用";
+            return (viewer ? "己方状态：" : "对手状态：") + unavailable;
 
         var role = viewer ? "己方" : "对手";
         var builder = new StringBuilder();
+        // RuntimePlayerSnapshot carries the engine's optional Life field for
+        // transport/debug consumers, but the base tabletop has no player-life
+        // pool. Keep that value out of the player-facing summary until an
+        // explicit canonical life-pool capability is published; castle and
+        // leader durability remain separate surfaces.
         builder.Append(role)
             .Append('\n')
-            .Append("生命 ")
-            .Append(player.Life.HasValue
-                ? player.Life.Value.ToString(CultureInfo.InvariantCulture)
-                : "隐藏/不可用")
-            .Append(" | 牌库 ")
+            .Append("牌库 ")
             .Append(player.DeckCount.ToString(CultureInfo.InvariantCulture))
             .Append(" | 手牌 ")
             .Append(player.HandCount.ToString(CultureInfo.InvariantCulture))
@@ -726,22 +745,30 @@ public static class RuntimeBattlePanelPresentationModel
             throw new ArgumentNullException(nameof(localizationResolver));
 
         var visibleEvents = BuildPlayerEventRows(events, localizationResolver, language);
+        var summary = localizationResolver.Get("event.summary", language);
+        var empty = localizationResolver.Get("event.none", language);
+        var separator = RuntimeLocalizationResolver.NormalizeLanguage(language) == "en"
+            ? ": "
+            : "：";
         if (visibleEvents.Count == 0)
-            return "事件摘要：暂无事件";
+            return summary + separator + empty;
 
         var visibleCount = Math.Max(0, maxEntries);
         var start = Math.Max(0, visibleEvents.Count - visibleCount);
-        var builder = new StringBuilder("事件摘要");
+        var builder = new StringBuilder(summary);
         if (start > 0)
         {
-            builder.Append(" · 还有 ")
-                .Append(start.ToString(CultureInfo.InvariantCulture))
-                .Append(" 条");
+            var more = localizationResolver.Get("event.more", language);
+            builder.Append(" · ")
+                .Append(string.Format(
+                    CultureInfo.InvariantCulture,
+                    more,
+                    start));
         }
-        builder.Append("：");
+        builder.Append(separator);
 
         if (start >= visibleEvents.Count)
-            return builder.Append("暂无事件").ToString();
+            return builder.Append(empty).ToString();
 
         for (var index = start; index < visibleEvents.Count; index++)
         {
@@ -874,13 +901,87 @@ public static class RuntimeBattlePanelPresentationModel
                     language);
                 break;
             default:
-                return false;
+                return TryResolvePersistentPublicEvent(
+                    eventEnvelope,
+                    eventType,
+                    localizationResolver,
+                    language,
+                    out semanticKey,
+                    out text);
         }
 
         if (!localized.IsKnownSemantic || string.IsNullOrWhiteSpace(localized.Text))
             return false;
 
         semanticKey = localized.LocalizationKey;
+        text = localized.Text;
+        return true;
+    }
+
+    /// <summary>
+    /// Projects the already-validated public event envelope into a durable
+    /// player-feed row. The short pulse model owns the event vocabulary and
+    /// its field redaction, so reuse it here instead of parsing private Data or
+    /// target ids a second time. A small set of public lifecycle events has no
+    /// pulse-specific cue; those receive a fixed generic label and never echo
+    /// the protocol token or payload.
+    /// </summary>
+    private static bool TryResolvePersistentPublicEvent(
+        RuntimeEventEnvelope eventEnvelope,
+        string eventType,
+        RuntimeLocalizationResolver localizationResolver,
+        string language,
+        out string semanticKey,
+        out string text)
+    {
+        semanticKey = string.Empty;
+        text = string.Empty;
+        if (eventEnvelope is null) return false;
+
+        if (RuntimeBattlePanelActionFeedbackModel.TryMap(
+                eventEnvelope,
+                language,
+                localizationResolver,
+                out var cue) &&
+            cue != null && !string.IsNullOrWhiteSpace(cue.Message))
+        {
+            // The message is already redacted by RuntimeBattlePanelActionFeedbackModel,
+            // so it is safe to distinguish adjacent public updates by their rendered
+            // content. This keeps DAMAGE 1 and DAMAGE 4 (or different draw/turn
+            // values) in order while still coalescing an identical repeated cue.
+            semanticKey = "feedback:" + cue.Kind + ":" + cue.Message;
+            text = cue.Message;
+            return true;
+        }
+
+        // Preserve the existing player-feed allowlist. Newly known protocol
+        // events remain debug-only until their public copy/redaction contract
+        // is explicitly approved; adding a resolver key alone must not make a
+        // private or technical event appear in the durable rail.
+        switch (eventType)
+        {
+            case "LEADER_MANIFESTED":
+            case "VICTORY_PROGRESS":
+            case "DECK_CYCLED":
+            case "CARD_DISCARDED":
+            case "COMMIT_DECLARED":
+            case "PULL_DECLARED":
+                break;
+            default:
+                return false;
+        }
+
+        var localized = localizationResolver.ResolveSemantic(
+            RuntimeSemanticKind.Event,
+            eventType,
+            language);
+        if (!localized.IsKnownSemantic || localized.UsedFallback ||
+            string.IsNullOrWhiteSpace(localized.Text))
+            return false;
+
+        // The event type is only used as an internal stable coalescing key;
+        // it is never copied into the player-facing text.
+        semanticKey = "event:" + localized.LocalizationKey;
         text = localized.Text;
         return true;
     }

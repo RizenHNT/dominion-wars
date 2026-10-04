@@ -33,8 +33,21 @@ namespace DominionWars.Unity.EditMode
             var snapshot = EngineProjectionAdapter.ToSnapshot(state, "unity-smoke", 1, "OVER");
             var events = EngineProjectionAdapter.ToEvents(state.Events.Items, 1, "OVER");
             Assert.That(snapshot.ContractVersion, Is.EqualTo(1));
-            Assert.That(state.WinnerPlayerIndex, Is.EqualTo(0));
-            Assert.That(events.Last().Type, Is.EqualTo("GAME_OVER"));
+            // Player life is an optional published pool, not a victory track.
+            // Reaching zero therefore remains a normal DAMAGE_APPLIED result;
+            // the engine must not fabricate GAME_OVER/winner state from it.
+            Assert.That(snapshot.Players.Single(player => player.Id == "player_1").Life,
+                Is.EqualTo(0));
+            Assert.That(state.WinnerPlayerIndex, Is.Null);
+            var playerDamage = events.Single(eventDto =>
+                eventDto.Type == "DAMAGE_APPLIED" &&
+                eventDto.TargetIds.Contains("player_1"));
+            Assert.That(playerDamage.Amount, Is.EqualTo(20));
+            Assert.That(playerDamage.EventId, Does.StartWith("evt_"));
+            Assert.That(events.Any(eventDto =>
+                eventDto.Type == "DAMAGE_APPLIED" &&
+                eventDto.TargetIds.Contains(EngineProjectionAdapter.ToEntityId(enemy.InstanceId))),
+                Is.True);
             Assert.That(events.Select(item => item.EventId).Distinct().Count(), Is.EqualTo(events.Count));
         }
     }

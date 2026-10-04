@@ -13,6 +13,21 @@ namespace DominionWars.Engine.Turns
 public sealed class PlayCardActionHandler : ITurnActionHandler
 {
     internal const int DefaultChainLimit = 20;
+
+    /// <summary>
+    /// <c>EFFECT_SKIPPED</c> reason key for a punish response that T1
+    /// (<see cref="DominionWars.Engine.Rules.MatchRules.MaxPunishResponsesPerRound"/>)
+    /// removed from the round. Distinct from a decline, which emits nothing.
+    /// </summary>
+    internal const string PunishResponseLimitReasonKey = "rule.punish_response_limit";
+
+    /// <summary>
+    /// The skipped item is not an effect spec, so it has no
+    /// <c>EffectNames</c> action; this local name keeps the shared
+    /// <c>EFFECT_SKIPPED</c> shape without widening the Effects contract.
+    /// </summary>
+    private const string SuppressedPunishResponseAction = "PUNISH_RESPONSE";
+
     private readonly CardTargetValidator _targets;
     private readonly IPunishResponsePolicy _punishResponses;
     private readonly int _chainLimit;
@@ -94,7 +109,15 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
             "punish", preparation.Cost,
             "fizzle", preparation.Fizzle));
 
-        ResolvePrepared(state, player, card, preparation, root.EventId, 0, true);
+        ResolvePrepared(
+            state,
+            player,
+            card,
+            preparation,
+            root.EventId,
+            0,
+            true,
+            new PunishRound(state.Rules.MaxPunishResponsesPerRound));
         if (state.EndTurnRequested && !state.WinnerPlayerIndex.HasValue)
         {
             flow.Advance(state, request.ActorPlayerIndex);
@@ -187,7 +210,8 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         PreparedPlay preparation,
         long rootEventId,
         int chainDepth,
-        bool topLevel)
+        bool topLevel,
+        PunishRound round)
     {
         var opponent = state.GetOpponent(player.PlayerIndex);
         if (player.PunishToSelfDiscardThisTurn && preparation.Cost > 0)
@@ -218,7 +242,7 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         {
             ExecuteMutation(state, _ =>
             {
-                ConsumeTags(player, card, grantGrowth: false);
+                ConsumeTags(player, card);
                 player.Hand.Remove(card);
                 player.Graveyard.Add(card);
                 if (topLevel)
@@ -232,7 +256,7 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         {
             var runtime = new EffectRuntime(state);
             var drawn = runtime.DrawForPunish(opponent.PlayerIndex, preparation.Cost, rootEventId);
-            ResolvePunishResponses(state, drawn, rootEventId, chainDepth + 1);
+            ResolvePunishResponses(state, drawn, rootEventId, chainDepth + 1, round);
             if (state.WinnerPlayerIndex.HasValue)
             {
                 return;
@@ -290,6 +314,13 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
             var dispatcher = EffectDispatcher.CreateDefault(new EffectRuntime(state));
             dispatcher.ApplyAll(preparation.Effects, actionContext);
         }
+        else if (!ambushResult.Negated
+            && !state.WinnerPlayerIndex.HasValue
+            && card.Definition.Chant == 0
+            && preparation.Effects.Count == 0)
+        {
+            new EffectRuntime(state).EmitSkipped(actionContext, "CARD_EFFECTS", "effect.no_effects");
+        }
 
         if (!card.Definition.IsMinion && card.Definition.Chant == 0)
         {
@@ -301,7 +332,8 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         GameState state,
         IReadOnlyList<CardInstance> drawn,
         long rootEventId,
-        int chainDepth)
+        int chainDepth,
+        PunishRound round)
     {
         if (chainDepth > _chainLimit || state.WinnerPlayerIndex.HasValue)
         {
@@ -319,7 +351,18 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
                 continue;
             }
 
-            var cost = CardPlayRules.EffectivePunish(owner, card);
+            // T1（data/balance.json: maxPunishResponsesPerRound，出厂 0 = 关闭）：
+            // 同一根动作事件内的响应额度用尽后，剩余的可响应牌不再被询问、
+            // 也不再被接受 —— 只是被"抑制"，并且照其它空发效果一样发出事件，
+            // 让回放/计数器能把"被规则抑制"和"玩家自己放弃"区分开。
+            // 额度为 0（默认）时 IsExhausted 恒为 false，本分支不改变任何行为。
+            if (round.IsExhausted)
+            {
+                EmitPunishResponseSuppressed(state, owner, card, rootEventId);
+                continue;
+            }
+
+            var cost = CardPlayRules.EffectivePunish(state, owner, card);
             var decision = _punishResponses.Decide(state, card, cost, chainDepth);
             if (!decision.Activate)
             {
@@ -336,7 +379,8 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
                 "player", owner.PlayerIndex,
                 "source", card.InstanceId,
                 "chainDepth", chainDepth));
-            ResolvePrepared(state, owner, card, preparation, rootEventId, chainDepth, false);
+            round.AcceptedCount++;
+            ResolvePrepared(state, owner, card, preparation, rootEventId, chainDepth, false, round);
             if (state.WinnerPlayerIndex.HasValue)
             {
                 return;
@@ -350,6 +394,15 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
     /// lifecycle punishment still uses the same authoritative draw/response
     /// semantics and chain limit.
     /// </summary>
+    /// <remarks>
+    /// 先驱威压 (RULES §3.2) is deliberately NOT applied here. §3.2 promises +1
+    /// to the punish value of the opponent's cards, which is the printed value
+    /// paid when a card is played; §12.4 defines commitCost/downloadCost as
+    /// explicit per-card punish-draw amounts for a lifecycle action that is not
+    /// a card play. Measured: applying the modifier here flips the machine
+    /// deck's six-download win line, so it stays an owner decision rather than
+    /// being folded in silently.
+    /// </remarks>
     internal bool ResolveLifecyclePunish(
         GameState state,
         int actorPlayerIndex,
@@ -366,8 +419,41 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
             opponent.PlayerIndex,
             amount,
             rootEventId);
-        ResolvePunishResponses(state, drawn, rootEventId, 1);
+        // One lifecycle action is one root event, so it is one punish round.
+        ResolvePunishResponses(
+            state,
+            drawn,
+            rootEventId,
+            1,
+            new PunishRound(state.Rules.MaxPunishResponsesPerRound));
         return !state.WinnerPlayerIndex.HasValue;
+    }
+
+    /// <summary>
+    /// Emits the same <c>EFFECT_SKIPPED</c> shape every other suppressed effect
+    /// uses (see <see cref="EffectRuntime.EmitSkipped"/>), so a replay or a
+    /// counter can tell a response that the round cap removed from a response
+    /// the player merely declined. <c>target</c> is the suppressed drawn card;
+    /// the parent event is still the round's root action event.
+    /// </summary>
+    private static void EmitPunishResponseSuppressed(
+        GameState state,
+        PlayerState owner,
+        CardInstance card,
+        long rootEventId)
+    {
+        // EffectContext requires the source card to be controlled by the source
+        // player. A hand card is normally its owner's, but CONTROL can leave a
+        // temporary controller behind, so the source card is only attached when
+        // that invariant actually holds.
+        var context = card.ControllerPlayerIndex == owner.PlayerIndex
+            ? new EffectContext(owner.PlayerIndex, rootEventId, sourceCard: card)
+            : new EffectContext(owner.PlayerIndex, rootEventId);
+        new EffectRuntime(state).EmitSkipped(
+            context,
+            SuppressedPunishResponseAction,
+            PunishResponseLimitReasonKey,
+            card.InstanceId);
     }
 
     private static CardInstance? FindInHand(PlayerState player, long instanceId)
@@ -383,24 +469,16 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         return null;
     }
 
-    private static void ConsumeTags(PlayerState player, CardInstance card, bool grantGrowth = true)
+    /// <summary>
+    /// Consumes a played card's tags so the one-card-per-tag-per-turn rule can
+    /// throttle repeats. Growth has exactly one source of truth: the explicit
+    /// ADD_ROOT / ADD_RAMPANT effects resolved from card data, never the tags.
+    /// </summary>
+    private static void ConsumeTags(PlayerState player, CardInstance card)
     {
         foreach (var tag in card.Definition.Tags)
         {
             player.UsedTags.Add(tag);
-            if (!grantGrowth)
-            {
-                continue;
-            }
-
-            if (string.Equals(tag, "扎根", StringComparison.Ordinal))
-            {
-                player.RootStacks = checked(player.RootStacks + 1);
-            }
-            else if (string.Equals(tag, "疯长", StringComparison.Ordinal))
-            {
-                player.RampantStacks = Math.Min(3, player.RampantStacks + 1);
-            }
         }
     }
 
@@ -418,6 +496,26 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         }
 
         return data;
+    }
+
+    /// <summary>
+    /// One punish round: every response belonging to a single root action event,
+    /// across the whole nesting of its response chain. <see cref="chainDepth"/> is
+    /// per depth, not per round — one draw batch can take several responses at the
+    /// same depth — so the accepted count is threaded here instead, which is the
+    /// only place that can see a whole round.
+    /// <para>
+    /// <see cref="Limit"/> 0 means unlimited: <see cref="IsExhausted"/> is then
+    /// always false and no code path or event changes.
+    /// </para>
+    /// </summary>
+    private sealed class PunishRound
+    {
+        public PunishRound(int limit) => Limit = limit;
+
+        public int Limit { get; }
+        public int AcceptedCount { get; set; }
+        public bool IsExhausted => Limit > 0 && AcceptedCount >= Limit;
     }
 
     private sealed class PlayCardCommand : IGameCommand

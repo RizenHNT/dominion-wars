@@ -30,7 +30,16 @@ public sealed partial class EffectRuntime
 
     internal void CheckAll(EffectContext context)
     {
-        CleanupNonLeaderDeaths(context);
+        // Deaths are resolved once per effect batch. While a batch is deferring
+        // (EffectDispatcher.ApplyAll) dead minions must stay on the field so the
+        // remaining parts of the batch still resolve against the same target
+        // set; the single resolution point is ApplyAll's finally block, which
+        // clears DeferDeaths before calling CheckAll.
+        if (!context.DeferDeaths)
+        {
+            CleanupNonLeaderDeaths(context);
+        }
+
         if (IsGameOver)
         {
             return;
@@ -52,8 +61,23 @@ public sealed partial class EffectRuntime
                 && !leader.IsMinion
                 && leader.Definition.LeaderDurability > 0
                 && leader.Durability <= 0;
-            var lifeDefeated = player.Life.HasValue && player.Life.Value <= 0;
-            if (!leaderDefeated && !durabilityDefeated && !lifeDefeated)
+
+            // THE PLAYER LIFE POOL IS NOT A DEFEAT CONDITION (docs/RULES.md §1, §0).
+            //
+            // A `lifeDefeated` branch used to live here and declared `win.enemy_life_zero`
+            // when a player's life reached 0. It was removed on 2026-09-12 because the rule
+            // book states the only two victory paths are a leader's declared winCondition and
+            // the deck-cycle counter, and the life pool explicitly does not constitute a win
+            // or loss. That branch also bypassed the leader gate below by being a peer of it
+            // rather than a participant in `TryDeclareWinner`, which is where the gate lives.
+            //
+            // A life pool still exists as a value: a leader with `grantLife` opens one for its
+            // controller, and GAIN_LIFE / LOSE_LIFE change it (EffectRuntime.State.cs). It can
+            // reach 0 and simply stays there — no victory check reads it. If a future rule
+            // wants life on a victory axis, it must be declared and registered first
+            // (docs/RULES.md §12.5), and the check belongs in `TryDeclareWinner` so the gate
+            // applies to it like every other win.
+            if (!leaderDefeated && !durabilityDefeated)
             {
                 continue;
             }
@@ -65,11 +89,6 @@ public sealed partial class EffectRuntime
                     if (leaderDefeated)
                     {
                         leader!.Health = 1;
-                    }
-
-                    if (lifeDefeated)
-                    {
-                        player.Life = 1;
                     }
 
                     if (durabilityDefeated)
@@ -85,9 +104,7 @@ public sealed partial class EffectRuntime
 
             DeclareWinner(
                 1 - player.PlayerIndex,
-                leaderDefeated || durabilityDefeated
-                    ? "win.enemy_leader_defeated"
-                    : "win.enemy_life_zero",
+                "win.enemy_leader_defeated",
                 context);
             break;
         }

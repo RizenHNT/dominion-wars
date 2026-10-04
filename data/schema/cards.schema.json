@@ -128,12 +128,31 @@
         "summon": { "$ref": "#/$defs/StableId" }
       }
     },
+    "VictoryObjective": {
+      "description": "Lets the card DESCRIBE its own victory condition instead of leaving that knowledge inside the engine's win switch. Optional: a card without it keeps the legacy winCondition path exactly, so migration can be card by card and an unmigrated card cannot change behaviour. The metric is a closed set so a misspelling is rejected at load time rather than silently never firing.",
+      "type": "object",
+      "required": ["metric", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "description": "Which condition decides this card's victory. The value names a class implementing IVictoryCondition (see VictoryConditions.Create in src/Engine/Model/VictoryObjectiveDefinition.cs); that class computes the progress and decides satisfaction, so the AI never learns what the id means. Add a new way to win by writing one such class and registering it. Unknown ids are rejected at load time, which is what stops a condition sitting in a deck that can never win.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "direction": {
+          "description": "Which way progress runs. Defaults to INCREASE.",
+          "type": "string",
+          "enum": ["INCREASE", "DECREASE"]
+        },
+        "target": { "type": "integer", "minimum": 0, "maximum": 999 }
+      }
+    },
     "LeaderDef": {
       "type": "object",
       "required": ["winCondition"],
       "additionalProperties": false,
-      "properties": {
-        "winCondition": { "$ref": "#/$defs/WinCondition" },
+      "properties": {        "winCondition": { "$ref": "#/$defs/WinCondition" },
         "vulnerabilities": {
           "type": "array",
           "uniqueItems": true,
@@ -145,6 +164,7 @@
         "durability": { "type": "integer", "minimum": 1, "maximum": 999 },
         "grantLife": { "type": "integer", "minimum": 1, "maximum": 99 },
         "isLandmark": { "type": "boolean" },
+        "victory": { "$ref": "#/$defs/VictoryObjective" },
         "landmarkTiers": {
           "type": "array",
           "items": { "$ref": "#/$defs/LandmarkTier" }

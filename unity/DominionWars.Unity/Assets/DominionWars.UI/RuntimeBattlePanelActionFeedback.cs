@@ -101,15 +101,44 @@ public static class RuntimeBattlePanelActionFeedbackModel
     private static readonly Color HealAccent = Hex("6BE0A2");
     private static readonly Color DeathAccent = Hex("D86678");
     private static readonly Color GameOverAccent = Hex("F4D35E");
-    private static readonly RuntimeLocalizationResolver TargetLocalizationResolver =
+    private static readonly RuntimeLocalizationResolver DefaultLocalizationResolver =
         new RuntimeLocalizationResolver();
 
     public static bool TryMap(
         RuntimeEventEnvelope eventEnvelope,
         out RuntimeBattlePanelFeedbackCue cue)
     {
+        return TryMap(eventEnvelope, "en", DefaultLocalizationResolver, out cue);
+    }
+
+    /// <summary>
+    /// Maps a public event with an explicit language while retaining the
+    /// existing default resolver behavior for callers that do not own a
+    /// localization source yet.
+    /// </summary>
+    public static bool TryMap(
+        RuntimeEventEnvelope eventEnvelope,
+        string language,
+        out RuntimeBattlePanelFeedbackCue cue)
+    {
+        return TryMap(eventEnvelope, language, DefaultLocalizationResolver, out cue);
+    }
+
+    /// <summary>
+    /// Maps a public event through the caller's presentation resolver. The
+    /// resolver only supplies copy; event ordering, severity and target
+    /// presence still come from the authoritative envelope.
+    /// </summary>
+    public static bool TryMap(
+        RuntimeEventEnvelope eventEnvelope,
+        string language,
+        RuntimeLocalizationResolver localizationResolver,
+        out RuntimeBattlePanelFeedbackCue cue)
+    {
         cue = null;
         if (eventEnvelope == null) return false;
+        if (localizationResolver == null)
+            throw new ArgumentNullException(nameof(localizationResolver));
 
         var eventType = NormalizeType(eventEnvelope.Type);
         var kind = KindFor(eventEnvelope, eventType);
@@ -117,7 +146,13 @@ public static class RuntimeBattlePanelActionFeedbackModel
 
         var targetCount = eventEnvelope.TargetIds == null ? 0 : eventEnvelope.TargetIds.Count;
         var missingRequiredTarget = RequiresTarget(kind) && targetCount == 0;
-        var message = MessageFor(eventEnvelope, kind, eventType, missingRequiredTarget);
+        var message = MessageFor(
+            eventEnvelope,
+            kind,
+            eventType,
+            missingRequiredTarget,
+            localizationResolver,
+            language);
         cue = new RuntimeBattlePanelFeedbackCue(
             eventEnvelope.EventId,
             eventType,
@@ -196,102 +231,149 @@ public static class RuntimeBattlePanelActionFeedbackModel
         RuntimeEventEnvelope eventEnvelope,
         RuntimeBattlePanelFeedbackKind kind,
         string eventType,
-        bool missingRequiredTarget)
+        bool missingRequiredTarget,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
     {
         if (kind == RuntimeBattlePanelFeedbackKind.DamageApplied)
-            return DamageMessageFor(eventEnvelope);
+            return DamageMessageFor(eventEnvelope, localizationResolver, language);
         if (kind == RuntimeBattlePanelFeedbackKind.CardsDrawn)
-            return CardsDrawnMessageFor(eventEnvelope);
+            return CardsDrawnMessageFor(eventEnvelope, localizationResolver, language);
         if (kind == RuntimeBattlePanelFeedbackKind.HealApplied)
-            return HealMessageFor(eventEnvelope);
+            return HealMessageFor(eventEnvelope, localizationResolver, language);
         if (kind == RuntimeBattlePanelFeedbackKind.Death)
-            return DeathMessageFor(eventEnvelope);
+            return DeathMessageFor(eventEnvelope, localizationResolver, language);
         if (kind == RuntimeBattlePanelFeedbackKind.PlayerSwitched)
-            return PlayerSwitchMessageFor(eventEnvelope);
+            return PlayerSwitchMessageFor(eventEnvelope, localizationResolver, language);
 
         var message = kind switch
         {
-            RuntimeBattlePanelFeedbackKind.CardPlayed => "CARD PLAYED",
-            RuntimeBattlePanelFeedbackKind.AttackDeclared => "ATTACK DECLARED",
-            RuntimeBattlePanelFeedbackKind.AmbushSet => "AMBUSH SET",
-            RuntimeBattlePanelFeedbackKind.AmbushTriggered => "AMBUSH TRIGGERED",
-            RuntimeBattlePanelFeedbackKind.Commit => "CARD COMMITTED",
-            RuntimeBattlePanelFeedbackKind.Push => "CARD PUSHED",
-            RuntimeBattlePanelFeedbackKind.Pull => "CARD PULLED",
+            RuntimeBattlePanelFeedbackKind.CardPlayed => EventText(
+                localizationResolver, eventType, language, "CARD PLAYED"),
+            RuntimeBattlePanelFeedbackKind.AttackDeclared => EventText(
+                localizationResolver, eventType, language, "ATTACK DECLARED"),
+            RuntimeBattlePanelFeedbackKind.AmbushSet => EventText(
+                localizationResolver, eventType, language, "AMBUSH SET"),
+            RuntimeBattlePanelFeedbackKind.AmbushTriggered => EventText(
+                localizationResolver, eventType, language, "AMBUSH TRIGGERED"),
+            RuntimeBattlePanelFeedbackKind.Commit => EventText(
+                localizationResolver, eventType, language, "CARD COMMITTED"),
+            RuntimeBattlePanelFeedbackKind.Push => EventText(
+                localizationResolver, eventType, language, "CARD PUSHED"),
+            RuntimeBattlePanelFeedbackKind.Pull => EventText(
+                localizationResolver, eventType, language, "CARD PULLED"),
             // The event subtype is an internal protocol token. Keep the
             // player cue semantic and leave the complete subtype in the
             // diagnostic cue fields for an explicitly enabled debug view.
-            RuntimeBattlePanelFeedbackKind.Punish => "PUNISH",
-            RuntimeBattlePanelFeedbackKind.CastleDamaged => "CASTLE DAMAGED",
-            RuntimeBattlePanelFeedbackKind.CastleBroken => "CASTLE BROKEN",
-            RuntimeBattlePanelFeedbackKind.PhaseChanged => "PHASE CHANGED",
-            RuntimeBattlePanelFeedbackKind.TurnStarted => "TURN START",
-            RuntimeBattlePanelFeedbackKind.TurnEnded => "TURN END",
-            RuntimeBattlePanelFeedbackKind.GameOver => "GAME OVER",
+            RuntimeBattlePanelFeedbackKind.Punish => EventText(
+                localizationResolver, eventType, language, "PUNISH"),
+            RuntimeBattlePanelFeedbackKind.CastleDamaged => EventText(
+                localizationResolver, eventType, language, "CASTLE DAMAGED"),
+            RuntimeBattlePanelFeedbackKind.CastleBroken => EventText(
+                localizationResolver, eventType, language, "CASTLE BROKEN"),
+            RuntimeBattlePanelFeedbackKind.PhaseChanged => EventText(
+                localizationResolver, eventType, language, "PHASE CHANGED"),
+            RuntimeBattlePanelFeedbackKind.TurnStarted => EventText(
+                localizationResolver, "TURN_STARTED", language, "TURN START"),
+            RuntimeBattlePanelFeedbackKind.TurnEnded => EventText(
+                localizationResolver, "TURN_ENDED", language, "TURN END"),
+            RuntimeBattlePanelFeedbackKind.GameOver => EventText(
+                localizationResolver, eventType, language, "GAME OVER"),
             _ => "EVENT",
         };
-        return missingRequiredTarget ? message + " · TARGET UNAVAILABLE" : message;
+        if (!missingRequiredTarget) return message;
+
+        return string.Concat(
+            message,
+            " · ",
+            localizationResolver.Get("event.targetUnavailable", language));
     }
 
-    private static string CardsDrawnMessageFor(RuntimeEventEnvelope eventEnvelope)
+    private static string CardsDrawnMessageFor(
+        RuntimeEventEnvelope eventEnvelope,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
     {
         if (!TryReadCount(eventEnvelope, out var count))
-            return "CARDS DRAWN";
-        if (count == 1) return "CARD DRAWN";
+            return EventText(localizationResolver, "CARDS_DRAWN", language, "CARDS DRAWN");
+        if (count == 1)
+            return EventText(localizationResolver, "CARD_DRAWN", language, "CARD DRAWN");
         return string.Concat(
-            "CARDS DRAWN ",
+            EventText(localizationResolver, "CARDS_DRAWN", language, "CARDS DRAWN"),
+            " ",
             count.ToString(CultureInfo.InvariantCulture));
     }
 
-    private static string HealMessageFor(RuntimeEventEnvelope eventEnvelope)
+    private static string HealMessageFor(
+        RuntimeEventEnvelope eventEnvelope,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
     {
         var hasAmount = TryReadAmount(eventEnvelope, out var amount);
-        var target = TargetLabelFor(eventEnvelope);
+        var label = EventText(localizationResolver, "HEAL_APPLIED", language, "HEAL");
+        var to = localizationResolver.Get("event.to", language);
+        var target = TargetLabelFor(eventEnvelope, localizationResolver, language);
         if (hasAmount && target.Length > 0)
-            return string.Concat("HEAL ", amount, " TO ", target);
+            return string.Concat(label, " ", amount, " ", to, " ", target);
         if (hasAmount)
-            return string.Concat("HEAL ", amount);
+            return string.Concat(label, " ", amount);
         if (target.Length > 0)
-            return string.Concat("HEAL TO ", target);
-        return "HEAL APPLIED";
+            return string.Concat(label, " ", to, " ", target);
+        return EventText(localizationResolver, "HEAL_APPLIED", language, "HEAL APPLIED");
     }
 
-    private static string DeathMessageFor(RuntimeEventEnvelope eventEnvelope)
+    private static string DeathMessageFor(
+        RuntimeEventEnvelope eventEnvelope,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
     {
-        var target = TargetLabelFor(eventEnvelope);
+        var target = TargetLabelFor(eventEnvelope, localizationResolver, language);
+        var label = EventText(localizationResolver, "MINION_DESTROYED", language, "MINION DEFEATED");
         return target.Length > 0
-            ? string.Concat("MINION DEFEATED · ", target)
-            : "MINION DEFEATED";
+            ? string.Concat(label, " · ", target)
+            : label;
     }
 
-    private static string PlayerSwitchMessageFor(RuntimeEventEnvelope eventEnvelope)
+    private static string PlayerSwitchMessageFor(
+        RuntimeEventEnvelope eventEnvelope,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
     {
+        var player = EventText(localizationResolver, "TURN_CHANGED", language, "PLAYER");
+        var turn = localizationResolver.Get("event.turnSuffix", language);
         if (TryReadPlayerIndex(eventEnvelope, out var playerIndex))
         {
             return string.Concat(
-                "PLAYER ",
+                player,
+                " ",
                 (playerIndex + 1).ToString(CultureInfo.InvariantCulture),
-                " TURN");
+                " ",
+                turn);
         }
 
-        return "PLAYER SWITCHED";
+        return localizationResolver.Get("event.playerSwitched", language);
     }
 
-    private static string DamageMessageFor(RuntimeEventEnvelope eventEnvelope)
+    private static string DamageMessageFor(
+        RuntimeEventEnvelope eventEnvelope,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
     {
         var hasAmount = TryReadAmount(eventEnvelope, out var amount);
-        var target = TargetLabelFor(eventEnvelope);
+        var label = EventText(localizationResolver, "DAMAGE_APPLIED", language, "DAMAGE");
+        var to = localizationResolver.Get("event.to", language);
+        var target = TargetLabelFor(eventEnvelope, localizationResolver, language);
 
         if (hasAmount && target.Length > 0)
-            return string.Concat("DAMAGE ", amount, " TO ", target);
+            return string.Concat(label, " ", amount, " ", to, " ", target);
         if (hasAmount)
-            return string.Concat("DAMAGE ", amount);
+            return string.Concat(label, " ", amount);
         if (target.Length > 0)
-            return string.Concat("DAMAGE TO ", target);
+            return string.Concat(label, " ", to, " ", target);
 
         // A malformed or older event must not make the UI invent a value or
         // target. The event type itself still gives the player a clear cue.
-        return "DAMAGE APPLIED";
+        return localizationResolver.Get("event.damageAppliedFallback", language);
     }
 
     private static bool TryReadAmount(
@@ -317,32 +399,69 @@ public static class RuntimeBattlePanelActionFeedbackModel
         return !string.IsNullOrWhiteSpace(amount);
     }
 
-    private static string TargetLabelFor(RuntimeEventEnvelope eventEnvelope)
+    private static string TargetLabelFor(
+        RuntimeEventEnvelope eventEnvelope,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
     {
         var targets = eventEnvelope?.TargetIds;
         if (targets == null || targets.Count == 0) return string.Empty;
         if (targets.Count > 1)
         {
-            return string.Concat(
-                targets.Count.ToString(CultureInfo.InvariantCulture),
-                " TARGETS");
+            var template = localizationResolver.Get("event.targets", language);
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                template,
+                targets.Count);
         }
 
         var rawTarget = ConvertTarget(targets[0]);
-        var localized = TargetLocalizationResolver.ResolveSemantic(
+        var localized = localizationResolver.ResolveSemantic(
             RuntimeSemanticKind.Target,
             rawTarget,
-            "en");
+            language);
         if (localized.IsKnownSemantic && !string.IsNullOrWhiteSpace(localized.Text))
-            return localized.Text.ToUpperInvariant();
+        {
+            return RuntimeLocalizationResolver.NormalizeLanguage(language) == "en"
+                ? localized.Text.ToUpperInvariant()
+                : localized.Text;
+        }
 
         var normalized = NormalizeType(rawTarget);
-        if (normalized.StartsWith("PLAYER_", StringComparison.Ordinal)) return "PLAYER";
-        if (normalized.StartsWith("LEADER_", StringComparison.Ordinal)) return "LEADER";
+        if (normalized.StartsWith("PLAYER_", StringComparison.Ordinal))
+        {
+            var player = localizationResolver.Get("event.turnChanged", language);
+            return RuntimeLocalizationResolver.NormalizeLanguage(language) == "en"
+                ? player.ToUpperInvariant()
+                : player;
+        }
+        if (normalized.StartsWith("LEADER_", StringComparison.Ordinal))
+        {
+            var leader = localizationResolver.Get("zone.leader", language);
+            return RuntimeLocalizationResolver.NormalizeLanguage(language) == "en"
+                ? leader.ToUpperInvariant()
+                : leader;
+        }
 
         // Entity ids are not player-facing names. Keep the cue readable
         // without leaking an internal identity that the event cannot label.
-        return "TARGET";
+        return localizationResolver.Get("event.target", language);
+    }
+
+    private static string EventText(
+        RuntimeLocalizationResolver localizationResolver,
+        string eventType,
+        string language,
+        string fallback)
+    {
+        var localized = localizationResolver.ResolveSemantic(
+            RuntimeSemanticKind.Event,
+            eventType,
+            language);
+        return localized.IsKnownSemantic && !localized.UsedFallback &&
+               !string.IsNullOrWhiteSpace(localized.Text)
+            ? localized.Text
+            : fallback;
     }
 
     private static bool RequiresTarget(RuntimeBattlePanelFeedbackKind kind)
@@ -530,6 +649,20 @@ public sealed class RuntimeBattlePanelActionFeedback
     /// </summary>
     public void Consume(IReadOnlyList<RuntimeEventEnvelope> events)
     {
+        Consume(events, null, "en");
+    }
+
+    /// <summary>
+    /// Consumes new events using the panel's current presentation language.
+    /// The overload keeps the old English/default path intact for headless and
+    /// existing callers while preventing the live panel from dropping its
+    /// language when it projects the same public event list into a pulse.
+    /// </summary>
+    public void Consume(
+        IReadOnlyList<RuntimeEventEnvelope> events,
+        RuntimeLocalizationResolver localizationResolver,
+        string language = "en")
+    {
         if (events == null) return;
 
         var incoming = new List<RuntimeBattlePanelFeedbackCue>();
@@ -538,7 +671,14 @@ public sealed class RuntimeBattlePanelActionFeedback
             var eventEnvelope = events[index];
             var key = RuntimeBattlePanelActionFeedbackModel.StableEventKey(eventEnvelope);
             if (!_consumedEventKeys.Add(key)) continue;
-            if (!RuntimeBattlePanelActionFeedbackModel.TryMap(eventEnvelope, out var cue))
+            var mapped = localizationResolver == null
+                ? RuntimeBattlePanelActionFeedbackModel.TryMap(eventEnvelope, language, out var cue)
+                : RuntimeBattlePanelActionFeedbackModel.TryMap(
+                    eventEnvelope,
+                    language,
+                    localizationResolver,
+                    out cue);
+            if (!mapped)
                 continue;
 
             AppliedFeedbackCount++;

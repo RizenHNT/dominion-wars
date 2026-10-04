@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using DominionWars.Adapters;
 using DominionWars.Unity.Runtime;
 using NUnit.Framework;
@@ -663,6 +664,72 @@ public sealed class RuntimeScreenFlowEditModeTests
         {
             File.Delete(existingPath);
         }
+    }
+
+    [TestCase("ai.action_limit_reached", "CPU action limit reached. Return to menu to recover.")]
+    [TestCase("action.rejected", "CPU action was rejected. Return to menu to recover.")]
+    [TestCase("ai.no_legal_actions", "CPU has no legal actions. Return to menu to recover.")]
+    [TestCase("ai.coordinator_failed", "CPU could not continue. Return to menu to recover.")]
+    [TestCase("ai.match_over", "CPU match complete.")]
+    public void CpuHaltStatusMapsKnownReasonsToSafePlayerText(
+        string reasonKey,
+        string expected)
+    {
+        var text = RuntimeScreenFlow.ToSafeCpuHaltStatus(reasonKey);
+
+        Assert.That(text, Is.EqualTo(expected));
+        Assert.That(text, Does.Not.Contain(reasonKey));
+    }
+
+    [Test]
+    public void CpuHaltStatusUsesGenericSafeTextForUnknownReason()
+    {
+        var text = RuntimeScreenFlow.ToSafeCpuHaltStatus("opaque.internal.reason");
+
+        Assert.That(text, Is.EqualTo("CPU stopped safely. Return to menu to recover."));
+        Assert.That(text, Does.Not.Contain("opaque.internal.reason"));
+    }
+
+    [Test]
+    public void HaltedCpuCoordinatorPublishesSafeStatusWithoutChangingBattleSnapshot()
+    {
+        var bootstrapObject = new GameObject("RuntimeScreenFlowHaltBootstrap");
+        _createdObjects.Add(bootstrapObject);
+        var bootstrap = bootstrapObject.AddComponent<RuntimeBootstrap>();
+        bootstrap.StartSession();
+
+        var panelObject = new GameObject(
+            "RuntimeScreenFlowHaltPanel",
+            typeof(RectTransform));
+        _createdObjects.Add(panelObject);
+        var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+        panel.Bind(bootstrap);
+
+        var flow = CreateFlow();
+        flow.Initialize();
+        flow.Navigate(RuntimeScreenId.Battle);
+        flow.Refresh();
+
+        var snapshot = bootstrap.Adapter!.Presentation.Snapshot!;
+        var coordinator = new RuntimeAiTurnCoordinator(bootstrap.Adapter);
+        coordinator.Halt("opaque.internal.reason");
+        var coordinatorField = typeof(RuntimeScreenFlow).GetField(
+            "_aiTurnCoordinator",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(coordinatorField, Is.Not.Null);
+        coordinatorField!.SetValue(flow, coordinator);
+
+        var lateUpdate = typeof(RuntimeScreenFlow).GetMethod(
+            "LateUpdate",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(lateUpdate, Is.Not.Null);
+        lateUpdate!.Invoke(flow, null);
+
+        Assert.That(flow.CurrentScreen, Is.EqualTo(RuntimeScreenId.Battle));
+        Assert.That(panel.View.StatusText.text,
+            Is.EqualTo("CPU stopped safely. Return to menu to recover."));
+        Assert.That(panel.View.StatusText.text, Does.Not.Contain("opaque.internal.reason"));
+        Assert.That(bootstrap.Adapter.Presentation.Snapshot, Is.SameAs(snapshot));
     }
 
     [Test]

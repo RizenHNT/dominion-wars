@@ -143,6 +143,87 @@ public class AiAgent implements PlayerAgent {
         return base + c.def.ambushEffects.size();
     }
 
+    // ===================== 机械 B 模式策略（RULES §12.4）=====================
+    // 目标只是让模拟真实跑起来，不是把机械调强：提交用便宜载体、有收益时才上传，
+    // 能付得起 downloadCost 且下载效果有用时才下载。
+
+    /** 生命周期动作的惩罚预算：生命周期动作没有"出牌词条"限制，单列预算防止无限喂牌。 */
+    private int lifecycleBudget(Game g, int playerIdx) {
+        return 3 + g.turnNumber / 4;
+    }
+
+    @Override
+    public CardInstance chooseCommit(Game g, int playerIdx, List<CardInstance> candidates) {
+        if (candidates == null || candidates.isEmpty()) return null;
+        PlayerState p = g.players[playerIdx];
+        int budget = lifecycleBudget(g, playerIdx);
+        int carrierCount = 0;
+        for (CardInstance c : p.field) if (g.isDownloadCarrier(p, c)) carrierCount++;
+        // 场上只剩一个下载载体时不提交，否则会把自己的下载能力拆掉
+        if (carrierCount <= 1) return null;
+        CardInstance best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (CardInstance c : candidates) {
+            if (g.whyCannotCommit(c) != null) continue;
+            if (c.def.commitCost > budget) continue;
+            int score = 0;
+            score += c.def.commitEffects.size() * 6;          // 提交触发的收益
+            score -= c.def.commitCost * 2;                     // 提交惩罚是代价
+            if (!c.def.pullEffects.isEmpty()) score += 4;      // 值得放进云端的下载牌
+            if (!c.def.pushEffects.isEmpty()) score += 5;      // 上传收益
+            score -= c.attack * 2;                             // 高攻单位留场
+            // 本回合已经提交过一次时降低优先级（不禁止：队列就是下载的原料）
+            if (stepCommitsThisTurn > 0) score -= 6;
+            if (score > bestScore) { bestScore = score; best = c; }
+        }
+        return best;
+    }
+
+    @Override
+    public boolean askPush(Game g, int playerIdx, List<CardInstance> queued) {
+        // 保留旧接口以兼容外部代理；PUSH 已由结束阶段引擎自动执行，不能被 AI 否决。
+        return true;
+    }
+
+    @Override
+    public boolean askPull(Game g, int playerIdx, CardInstance cloudTop, CardInstance carrier, int downloadCost) {
+        if (cloudTop == null || carrier == null) return false;
+        // 下载的代价是给对方喂牌；用惩罚预算限制节奏，而不是按对方手牌大小直接放弃
+        if (downloadCost > lifecycleBudget(g, playerIdx)) return false;
+        if (downloadCost > 0 && g.opponentOf(playerIdx).deck.size() < downloadCost) return false;
+        int gain = 0;
+        for (CardDef.EffectSpec e : cloudTop.def.pullEffects) {
+            switch (e.action) {
+                case "BUFF", "HEAL", "GRANT_KEYWORD", "RESTORE_ATTACKS" -> gain += 3;
+                case "DRAW", "OPP_DRAW" -> gain += 3;
+                case "DAMAGE", "DESTROY" ->
+                        gain += dangerousEnemyMinionExists(g, playerIdx, Math.max(1, e.amount)) ? 7 : 2;
+                case "SUMMON", "SUMMON_LEADER" -> gain += 5;
+                default -> gain += 1;
+            }
+        }
+        // 地标还没推进到第 2 层时，下载本身就有明确目标
+        if (carrier.def.leaderDef != null && carrier.def.leaderDef.isLandmark
+                && carrier.landmarkPullCount < 2) gain += 4;
+        if (gain <= 0) return false;
+        return gain >= downloadCost * 2;
+    }
+
+    @Override
+    public CardInstance chooseRollbackTarget(Game g, int playerIdx, List<CardInstance> queued) {
+        if (queued == null || queued.isEmpty()) return null;
+        // 回滚价值最高（身材/效果最好）的那张，而不是队首
+        CardInstance best = queued.get(0);
+        for (CardInstance c : queued) if (value(c) > value(best)) best = c;
+        return best;
+    }
+
+    private boolean hasWinCondition(Game g, int playerIdx, String condition) {
+        CardInstance leader = g.findLeaderAnywhere(g.players[playerIdx]);
+        return leader != null && leader.def.leaderDef != null
+                && condition.equals(leader.def.leaderDef.winCondition);
+    }
+
     private int value(CardInstance c) {
         int v = c.def.punish * 2;
         if (c.def.isMinion()) v += c.attack + c.health;
@@ -155,6 +236,46 @@ public class AiAgent implements PlayerAgent {
     // ---- 单步执行状态（用于 UI 分步动画）----
     private int stepTurnNo = -1;
     private int stepPunishSpent = 0, stepCardsPlayed = 0;
+    /** 本回合已经发起过的机械生命周期动作数（提交/下载），防止无限制刷抽。 */
+    private int stepCommitsThisTurn = 0, stepPullsThisTurn = 0, stepDrawsThisTurn = 0;
+
+    private void resetStepCounters(int turnNumber) {
+        if (stepTurnNo == turnNumber) return;
+        stepTurnNo = turnNumber;
+        stepPunishSpent = 0;
+        stepCardsPlayed = 0;
+        stepCommitsThisTurn = 0;
+        stepPullsThisTurn = 0;
+        stepDrawsThisTurn = 0;
+    }
+
+    /** 机械生命周期的一个最小步骤：下载 → 提交（引擎在结束阶段自动上传）。 */
+    private boolean machineStep(Game g, int me, PlayerState p) {
+        CardInstance carrierCard = null;
+        for (CardInstance c : p.field) if (g.isDownloadCarrier(p, c)) carrierCard = c;
+        if (carrierCard == null) return false;
+        if (stepPullsThisTurn < 2 && !p.cloudStack.isEmpty()) {
+            CardInstance top = p.cloudStack.get(p.cloudStack.size() - 1);
+            if (g.agentOf(me).askPull(g, me, top, carrierCard, top.def.downloadCost)
+                    && g.pullWith(carrierCard)) {
+                stepPullsThisTurn++;
+                stepPunishSpent += top.def.downloadCost;
+                return true;
+            }
+        }
+        if (stepCommitsThisTurn < 2 && stepPunishSpent + 1 <= lifecycleBudget(g, me)) {
+            List<CardInstance> candidates = new ArrayList<>();
+            for (CardInstance c : p.field) if (g.whyCannotCommit(c) == null) candidates.add(c);
+            CardInstance pick = g.agentOf(me).chooseCommit(g, me, candidates);
+            if (pick != null && g.commitCard(pick)) {
+                stepCommitsThisTurn++;
+                stepDrawsThisTurn++;
+                stepPunishSpent += pick.def.commitCost;
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * 执行一个最小 AI 动作（盖一张伏击 / 进入行动 / 出一张牌 / 一次攻击 / 结束回合）。
@@ -166,11 +287,7 @@ public class AiAgent implements PlayerAgent {
         int me = g.currentIdx;
         PlayerState p = g.players[me];
         PlayerState opp = g.opponentOf(me);
-        if (stepTurnNo != g.turnNumber) {
-            stepTurnNo = g.turnNumber;
-            stepPunishSpent = 0;
-            stepCardsPlayed = 0;
-        }
+        resetStepCounters(g.turnNumber);
 
         if (g.phase == Game.Phase.AMBUSH) {
             CardInstance best = null;
@@ -217,7 +334,10 @@ public class AiAgent implements PlayerAgent {
             return !g.over() && g.currentIdx == me;
         }
 
-        // 2) 一次攻击
+        // 2) 机械 B 模式：能下载就下载，否则提交一张（结束阶段自动上传）
+        if (machineStep(g, me, p)) return !g.over() && g.currentIdx == me;
+
+        // 3) 一次攻击
         for (CardInstance m : new ArrayList<>(p.field)) {
             if (!m.canAttackNow()) continue;
             CardInstance target = pickAttackTarget(g, m);
@@ -229,7 +349,7 @@ public class AiAgent implements PlayerAgent {
             }
         }
 
-        // 3) 没有可做的：结束回合
+        // 4) 没有可做的：结束回合
         g.endTurn();
         return false;
     }
@@ -262,6 +382,7 @@ public class AiAgent implements PlayerAgent {
         if (g.soloLeader(me)) punishBudget += 2;           // 己方威压期：压制节奏
         int punishSpent = 0, cardsPlayed = 0;
         int guard = 0;
+        resetStepCounters(g.turnNumber);
         while (!g.over() && g.currentIdx == me && g.phase == Game.Phase.ACTION && guard++ < 50) {
             boolean acted = false;
             // 1) 出牌：按价值从高到低，避免空发，遵守惩罚预算
@@ -282,7 +403,12 @@ public class AiAgent implements PlayerAgent {
                 if (acted) { punishSpent += cost; cardsPlayed++; }
             }
             if (g.over() || g.currentIdx != me || g.phase != Game.Phase.ACTION) return;
-            // 2) 攻击：优先有利交换，其次打脸/统领
+            // 2) 机械 B 模式：能下载就下载，否则提交一张（结束阶段自动上传）
+            if (machineStep(g, me, p)) {
+                if (g.over() || g.currentIdx != me || g.phase != Game.Phase.ACTION) return;
+                continue;
+            }
+            // 3) 攻击：优先有利交换，其次打脸/统领
             for (CardInstance m : new ArrayList<>(p.field)) {
                 if (g.over() || g.currentIdx != me) return;
                 if (!m.canAttackNow()) continue;

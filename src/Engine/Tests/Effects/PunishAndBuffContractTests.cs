@@ -45,7 +45,10 @@ public sealed class PunishAndBuffContractTests
         game.State.Players[0].PunishDeltaThisTurn = 2;
         game.Apply(EffectNames.AddSelfPunishTurn, amount: -4);
 
-        Assert.That(game.State.Players[0].PunishDeltaThisTurn, Is.EqualTo(-2));
+        // The accumulator is clamped at zero: a discount larger than the
+        // current pressure must not leave a negative delta behind, or the
+        // remaining punish paths of this turn would inherit it.
+        Assert.That(game.State.Players[0].PunishDeltaThisTurn, Is.Zero);
     }
 
     [Test]

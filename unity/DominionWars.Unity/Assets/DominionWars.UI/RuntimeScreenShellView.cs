@@ -190,7 +190,7 @@ public sealed class RuntimeScreenShellView
                     "MatchSetupPlayer0Deck_" + option.Id,
                     option,
                     0,
-                    -480f,
+                    -550f,
                     y,
                     onSelected);
                 var player1Button = CreateDeckOptionButton(
@@ -198,7 +198,7 @@ public sealed class RuntimeScreenShellView
                     "MatchSetupPlayer1Deck_" + option.Id,
                     option,
                     1,
-                    480f,
+                    550f,
                     y,
                     onSelected);
                 _player0DeckButtons.Add(player0Button);
@@ -337,7 +337,10 @@ public sealed class RuntimeScreenShellView
         float verticalOffset,
         Action<int, string> onSelected)
     {
-        var button = CreateButton(parent, objectName, option.DisplayName, verticalOffset, 740f, 72f);
+        // Keep a narrow, stable gutter for the central CPU toggle. The deck
+        // columns retain the approved two-column shell but no longer overlap
+        // the 360-reference-pixel control at 1280x720 or 1024x768.
+        var button = CreateButton(parent, objectName, option.DisplayName, verticalOffset, 680f, 72f);
         var rect = button.GetComponent<RectTransform>();
         rect.anchoredPosition = new Vector2(horizontalOffset, verticalOffset);
         var capturedId = option.Id;

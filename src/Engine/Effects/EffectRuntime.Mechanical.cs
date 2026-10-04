@@ -197,6 +197,7 @@ public sealed partial class EffectRuntime
                 playedCard: card,
                 drawnCards: context.DrawnCards,
                 selectedTargetId: context.SelectedTargetId ?? carrier.InstanceId);
+            pullContext.DeferDeaths = context.DeferDeaths;
             pullDispatcher.ApplyAll(card.Definition.PullEffects, pullContext);
         }
 

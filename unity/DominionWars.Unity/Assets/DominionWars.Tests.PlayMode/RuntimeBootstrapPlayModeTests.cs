@@ -45,6 +45,32 @@ public sealed class RuntimeBootstrapPlayModeTests
         Assert.That(snapshot.LegalActions.Any(action => action.Type == "SKIP_AMBUSH"), Is.True);
         Assert.That(bootstrap.Adapter.Presentation.Events, Is.Not.Empty,
             "The production panel may refresh the viewer snapshot and clear EventDelta; cumulative Events remain authoritative evidence.");
+
+        var phaseButton = flow.BattlePanel!.View.PhaseActionsContent
+            .GetComponentInChildren<Button>(true);
+        Assert.That(phaseButton, Is.Not.Null);
+        Assert.That(phaseButton!.interactable, Is.True);
+        Assert.That(
+            phaseButton.GetComponentInChildren<Text>(true).text,
+            Does.Contain("Skip Ambush"),
+            "The advertised phase action must retain its localized player-facing verb.");
+
+        var beforeRevision = snapshot.SnapshotRevision;
+        // Controlled Unity input: invoke the one advertised phase button once.
+        phaseButton.onClick.Invoke();
+        yield return null;
+        flow.Refresh();
+
+        var after = bootstrap.Adapter.Presentation.Snapshot!;
+        Assert.That(after.SnapshotRevision, Is.EqualTo(beforeRevision + 1));
+        Assert.That(after.Phase, Is.EqualTo("ACTION"));
+        var afterSingleSubmitRevision = after.SnapshotRevision;
+        yield return null;
+        flow.Refresh();
+        Assert.That(
+            bootstrap.Adapter.Presentation.Snapshot!.SnapshotRevision,
+            Is.EqualTo(afterSingleSubmitRevision),
+            "One controlled click must submit once; refresh must not repeat the action.");
     }
 
     [UnityTest]
@@ -252,7 +278,10 @@ public sealed class RuntimeBootstrapPlayModeTests
                 RuntimeCardFaceMode.Compact);
         }
 
-        RuntimeBattlePanelView.FitCardStrip(view.OwnHandRoot);
+        RuntimeBattlePanelView.FitScrollableCardStrip(
+            view.OwnHandScrollRoot,
+            view.OwnHandViewport,
+            view.OwnHandRoot);
         root.sizeDelta = new Vector2(1440f, 900f);
 
         // Production uses the normal Canvas layout lifecycle; there is no
@@ -260,7 +289,7 @@ public sealed class RuntimeBootstrapPlayModeTests
         yield return new WaitForEndOfFrame();
 
         var firstCard = (RectTransform)view.OwnHandRoot.GetChild(0);
-        Assert.That(firstCard.rect.width, Is.GreaterThanOrEqualTo(40f));
+        Assert.That(firstCard.rect.width, Is.GreaterThanOrEqualTo(96f));
         Assert.That(firstCard.rect.height, Is.GreaterThanOrEqualTo(44f));
         var wideWidth = firstCard.rect.width;
 
@@ -268,11 +297,12 @@ public sealed class RuntimeBootstrapPlayModeTests
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(view.ContentRoot);
         LayoutRebuilder.ForceRebuildLayoutImmediate(view.OwnRoot);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(view.OwnHandScrollRoot);
         LayoutRebuilder.ForceRebuildLayoutImmediate(view.OwnHandRoot);
 
-        Assert.That(firstCard.rect.width, Is.GreaterThanOrEqualTo(40f));
+        Assert.That(firstCard.rect.width, Is.GreaterThanOrEqualTo(96f));
         Assert.That(firstCard.rect.height, Is.GreaterThanOrEqualTo(44f));
-        Assert.That(firstCard.rect.width, Is.LessThan(wideWidth - 0.1f));
+        Assert.That(firstCard.rect.width, Is.LessThanOrEqualTo(wideWidth + 0.1f));
 
         Object.Destroy(canvasObject);
         yield return null;

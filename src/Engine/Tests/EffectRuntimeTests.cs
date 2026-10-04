@@ -460,7 +460,11 @@ public sealed class EffectRuntimeTests
     {
         var game = new EffectTestFixture();
         game.Apply(EffectNames.AddSelfPunishTurn, amount: -2);
-        Assert.That(game.State.Players[0].PunishDeltaThisTurn, Is.EqualTo(-2));
+
+        // A negative amount is still accepted as a discount, but the
+        // accumulator is clamped at zero so a discount can never leave a
+        // negative punish pressure behind for the rest of the turn.
+        Assert.That(game.State.Players[0].PunishDeltaThisTurn, Is.Zero);
     }
 
     [Test]

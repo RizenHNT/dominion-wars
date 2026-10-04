@@ -12,17 +12,36 @@
     "actionId": { "type": "string", "minLength": 1, "maxLength": 128 },
     "type": {
       "type": "string",
-      "enum": ["PLAY_CARD", "SET_AMBUSH", "SKIP_AMBUSH", "ATTACK", "COMMIT", "PULL", "DISCARD", "END_TURN"]
+      "enum": ["PLAY_CARD", "SET_AMBUSH", "SKIP_AMBUSH", "ATTACK", "COMMIT", "PULL", "ROLLBACK", "DISCARD", "END_TURN"]
     },
     "actor": { "type": "integer", "enum": [0, 1] },
     "sourceId": { "type": ["integer", "string", "null"], "minimum": 1, "pattern": "^(leader_[01])$" },
     "targetId": { "type": ["integer", "string", "null"], "minimum": 1, "pattern": "^(player_[01]|leader_[01]|castle|prompt_[A-Za-z0-9_-]+)$" },
     "cardId": { "type": ["string", "null"], "minLength": 1 },
+    "selectedEntityIds": {
+      "description": "Optional request-only card choices. Keep the advertised payload unchanged; legacy self-discard clients may carry the choice in payload.selectedEntityIds, but the runtime boundary rejects both channels together.",
+      "type": ["array", "null"],
+      "items": { "type": "integer", "minimum": 1 },
+      "uniqueItems": true
+    },
     "payload": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "selectedEntityIds": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "uniqueItems": true
+        },
+        "punish": { "type": "integer", "minimum": 0 },
+        "discardRequired": { "type": "integer", "minimum": 0 },
+        "discardCandidateIds": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "uniqueItems": true
+        },
+        "requiredCount": { "type": "integer", "minimum": 0 },
+        "candidateIds": {
           "type": "array",
           "items": { "type": "integer", "minimum": 1 },
           "uniqueItems": true

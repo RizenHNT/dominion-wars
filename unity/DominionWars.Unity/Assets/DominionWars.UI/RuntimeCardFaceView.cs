@@ -703,14 +703,19 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
 
         if (mode == RuntimeCardFaceMode.Compact)
         {
-            var type = Display(card.Type, string.Empty);
             var keywords = Shorten(BuildKeywordText(card), 12);
             var progress = BuildProgressText(card);
-            var parts = new List<string>(3);
-            if (type.Length > 0) parts.Add(type);
-            if (keywords.Length > 0) parts.Add(keywords);
-            if (progress.Length > 0) parts.Add(progress);
-            return Shorten(string.Join(" ", parts), 24);
+            // Keep live timing/goal progress intact on the face. Keywords are
+            // a quick-scan hint when they fit; their complete canonical list
+            // and all type/faction metadata remain in the existing reader.
+            if (progress.Length > 0)
+            {
+                if (keywords.Length > 0 && progress.Length + keywords.Length + 1 <= 24)
+                    return progress + " " + keywords;
+                return progress;
+            }
+
+            return keywords;
         }
 
         var sealedSuffix = card.IsSealed ? " · 封印" : string.Empty;
@@ -729,24 +734,16 @@ public sealed class RuntimeCardFaceView : MonoBehaviour
                 : battlefieldKeywords + "\n查看卡牌详情";
         }
 
-        var rules = Display(card.RulesText);
-        var keywords = BuildKeywordText(card);
         if (mode == RuntimeCardFaceMode.Compact)
         {
-            // The hand face is a glance surface. Keep a short body cue here;
-            // the existing inspect reader remains the authoritative place for
-            // full rules text and keywords. This prevents a 90px-wide card
-            // from rendering a dense, unreadable paragraph over its badges.
-            var compactRules = Display(card.RulesText, string.Empty)
-                .Replace("\r", " ")
-                .Replace("\n", " ")
-                .Trim();
-            compactRules = Shorten(compactRules, 18);
-            if (compactRules.Length == 0)
-                compactRules = Shorten(keywords, 12);
-            return compactRules.Length == 0 ? "点击查看详情" : compactRules;
+            // Compact cards are a glance surface, not a truncated rules
+            // source. The existing inspect reader preserves the full authored
+            // text, keywords, tags and technical metadata.
+            return "点击查看详情";
         }
 
+        var rules = Display(card.RulesText);
+        var keywords = BuildKeywordText(card);
         return "RULES " + rules + keywords;
     }
 

@@ -68,7 +68,8 @@ public sealed class CardDefinition
         IEnumerable<EffectSpec>? pushEffects = null,
         IEnumerable<EffectSpec>? pullEffects = null,
         bool isLandmark = false,
-        IEnumerable<LandmarkTierDefinition>? landmarkTiers = null)
+        IEnumerable<LandmarkTierDefinition>? landmarkTiers = null,
+        VictoryObjectiveDefinition? victory = null)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -163,6 +164,7 @@ public sealed class CardDefinition
         LeaderWinText = leaderWinText;
         LeaderDurability = leaderDurability;
         LeaderWinParam = leaderWinParam;
+        Victory = victory;
         CommitCost = commitCost;
         UploadCost = uploadCost;
         DownloadCost = downloadCost;
@@ -252,6 +254,17 @@ public sealed class CardDefinition
     public string? LeaderWinText { get; }
     public int LeaderDurability { get; }
     public int LeaderWinParam { get; }
+
+    /// <summary>
+    /// The victory objective described BY THE CARD DATA, when the card declares one.
+    ///
+    /// Null means the card predates this contract and the engine falls back to the
+    /// legacy <see cref="LeaderWinCondition"/> switch, so a card can migrate
+    /// individually and its behaviour is unchanged until it does. That fallback is the
+    /// whole migration safety story: adding the field cannot change a card that does
+    /// not have it.
+    /// </summary>
+    public VictoryObjectiveDefinition? Victory { get; }
     /// <summary>Declared punishment amount emitted when the card is COMMITTED.</summary>
     public int CommitCost { get; }
     /// <summary>Declared explicit punishment amount emitted when the card is PUSHED.</summary>

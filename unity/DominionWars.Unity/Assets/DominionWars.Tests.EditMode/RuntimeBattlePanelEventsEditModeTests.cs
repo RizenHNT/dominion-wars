@@ -168,7 +168,7 @@ public sealed class RuntimeBattlePanelEventsEditModeTests
         var text = RuntimeBattlePanelPresentationModel.BuildEvents(Array.Empty<RuntimeEventEnvelope>());
 
         Assert.That(timeline, Is.Empty);
-        Assert.That(text, Is.EqualTo("事件摘要：暂无事件"));
+        Assert.That(text, Is.EqualTo("EVENT SUMMARY: NO EVENTS"));
     }
 
     [Test]
@@ -219,8 +219,8 @@ public sealed class RuntimeBattlePanelEventsEditModeTests
         var text = RuntimeBattlePanelPresentationModel.BuildEvents(events, 10);
 
         Assert.That(text, Does.Contain("Play card"));
-        Assert.That(text, Does.Not.Contain("PUNISH"));
-        Assert.That(text, Does.Not.Contain("EVENT"));
+        Assert.That(text, Does.Contain("PUNISH"));
+        Assert.That(text, Does.Contain("EVENT SUMMARY"));
         Assert.That(text, Does.Not.Contain("PUNISH_TRIGGERED"));
         Assert.That(text, Does.Not.Contain("UNKNOWN_SYSTEM_EVENT"));
         Assert.That(text, Does.Not.Contain("id="));
@@ -233,7 +233,7 @@ public sealed class RuntimeBattlePanelEventsEditModeTests
     }
 
     [Test]
-    public void PlayerFeedMapsOnlyApprovedEventsToExistingSemanticKeys()
+    public void PlayerFeedMapsKnownAndPersistentEventsToSafeSemanticRows()
     {
         var table = new RuntimeLocalizationTable(
             new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal)
@@ -251,8 +251,10 @@ public sealed class RuntimeBattlePanelEventsEditModeTests
             Event(26, null, "PHASE_CHANGED"),
             Event(27, null, "GAME_OVER"),
             Event(28, null, "PUNISH_TRIGGERED", "hidden-punish"),
-            Event(29, null, "UNKNOWN_SYSTEM_EVENT", "hidden-unknown"),
+            Event(29, null, "CARDS_DRAWN"),
+            Event(30, null, "UNKNOWN_SYSTEM_EVENT", "hidden-unknown"),
         };
+        events[5].Data = new Dictionary<string, object?> { ["count"] = 2 };
 
         var text = RuntimeBattlePanelPresentationModel.BuildEvents(
             events,
@@ -264,11 +266,39 @@ public sealed class RuntimeBattlePanelEventsEditModeTests
         Assert.That(text, Does.Contain("Attack semantic"));
         Assert.That(text, Does.Contain("Action semantic"));
         Assert.That(text, Does.Contain("Game-over semantic"));
-        Assert.That(text, Does.Not.Contain("PUNISH"));
+        Assert.That(text, Does.Contain("PUNISH"));
+        Assert.That(text, Does.Contain("CARDS DRAWN 2"));
         Assert.That(text, Does.Not.Contain("UNKNOWN_SYSTEM_EVENT"));
-        Assert.That(text, Does.Not.Contain("EVENT"));
+        Assert.That(text, Does.Contain("EVENT SUMMARY"));
         Assert.That(text, Does.Not.Contain("hidden-punish"));
         Assert.That(text, Does.Not.Contain("hidden-unknown"));
+    }
+
+    [Test]
+    public void PlayerFeedPassesRequestedLanguageThroughPersistentFeedbackAndChrome()
+    {
+        var events = new[]
+        {
+            Event(28, null, "DAMAGE_APPLIED"),
+            Event(29, null, "CARDS_DRAWN"),
+            Event(30, null, "CARD_DISCARDED"),
+        };
+        events[0].Data = new Dictionary<string, object?> { ["amount"] = 3 };
+        events[1].Data = new Dictionary<string, object?> { ["count"] = 2 };
+
+        var text = RuntimeBattlePanelPresentationModel.BuildEvents(
+            events,
+            10,
+            new RuntimeLocalizationResolver(),
+            "zh-CN");
+
+        Assert.That(text, Does.Contain("事件摘要："));
+        Assert.That(text, Does.Contain("伤害 3"));
+        Assert.That(text, Does.Contain("抽牌 2"));
+        Assert.That(text, Does.Contain("弃牌"));
+        Assert.That(text, Does.Not.Contain("DAMAGE"));
+        Assert.That(text, Does.Not.Contain("CARDS DRAWN"));
+        Assert.That(text, Does.Not.Contain("CARD DISCARDED"));
     }
 
     [Test]
@@ -287,16 +317,105 @@ public sealed class RuntimeBattlePanelEventsEditModeTests
 
         var text = RuntimeBattlePanelPresentationModel.BuildEvents(events, 2);
 
-        // The two visible rows are selected after filtering and coalescing;
-        // hidden technical events do not consume the display budget.
-        Assert.That(text, Does.Contain("还有 1 条"));
-        Assert.That(text, Does.Contain("Attack"));
+        // The two visible rows are selected after safe mapping and coalescing;
+        // the bounded suffix remains chronological.
+        Assert.That(text, Does.Contain("3 MORE"));
+        Assert.That(text, Does.Contain("CASTLE BROKEN"));
+        Assert.That(text, Does.Contain("Game Over"));
+        Assert.That(text, Does.Not.Contain("Attack"));
         Assert.That(text, Does.Not.Contain("Play card"));
         Assert.That(text, Does.Not.Contain("PUNISH"));
-        Assert.That(text, Does.Not.Contain("CASTLE"));
         Assert.That(text, Does.Not.Contain("UNKNOWN_SYSTEM_EVENT"));
-        Assert.That(text, Does.Not.Contain("EVENT"));
+        Assert.That(text, Does.Contain("EVENT SUMMARY"));
         Assert.That(text, Does.Not.Contain("evt_"));
+    }
+
+    [Test]
+    public void PlayerFeedKeepsAdjacentPublicUpdatesWithDifferentRenderedValues()
+    {
+        var events = new[]
+        {
+            Event(39, null, "DAMAGE_APPLIED"),
+            Event(40, null, "DAMAGE_APPLIED"),
+            Event(41, null, "DAMAGE_APPLIED"),
+        };
+        events[0].Data = new Dictionary<string, object?> { ["amount"] = 1 };
+        events[1].Data = new Dictionary<string, object?> { ["amount"] = 4 };
+        events[2].Data = new Dictionary<string, object?> { ["amount"] = 4 };
+
+        var text = RuntimeBattlePanelPresentationModel.BuildEvents(events, 10);
+
+        Assert.That(text, Does.Contain("DAMAGE 1"));
+        Assert.That(text, Does.Contain("DAMAGE 4"));
+        Assert.That(
+            text.Split(new[] { "DAMAGE 4" }, StringSplitOptions.None),
+            Has.Length.EqualTo(2),
+            "identical adjacent rendered cues should still coalesce");
+    }
+
+    [Test]
+    public void PlayerFeedPersistsPublicEffectsWithoutRawIdentityOrPayload()
+    {
+        var events = new[]
+        {
+            Event(40, null, "CARDS_DRAWN"),
+            Event(41, null, "DAMAGE_APPLIED"),
+            Event(42, null, "AMBUSH_TRIGGERED", "secret-ambush-card"),
+            Event(43, null, "COMMIT_DECLARED"),
+            Event(44, null, "CARD_COMMITTED"),
+            Event(45, null, "PULL_DECLARED"),
+            Event(46, null, "CARD_PULLED"),
+            Event(47, null, "PUNISH_DRAW"),
+            Event(48, null, "MINION_DESTROYED"),
+            Event(49, null, "CASTLE_DAMAGED"),
+            Event(50, null, "VICTORY_PROGRESS"),
+            Event(51, null, "TURN_CHANGED"),
+            Event(52, null, "CARD_DISCARDED"),
+            Event(53, null, "DECK_CYCLED"),
+            Event(54, null, "LEADER_MANIFESTED"),
+        };
+
+        events[0].Data = new Dictionary<string, object?> { ["count"] = 2 };
+        events[1].Data = new Dictionary<string, object?> { ["amount"] = 3 };
+        events[2].Data = new Dictionary<string, object?>
+        {
+            ["cardId"] = "secret-ambush-card",
+            ["sourceId"] = "entity_999",
+        };
+        events[4].Data = new Dictionary<string, object?>
+        {
+            ["cardId"] = "secret-machine-card",
+            ["sourceId"] = "entity_998",
+        };
+        events[6].Data = new Dictionary<string, object?> { ["count"] = 1 };
+        events[9].Data = new Dictionary<string, object?> { ["amount"] = 2 };
+        events[10].Data = new Dictionary<string, object?> { ["amount"] = 4 };
+        events[11].Data = new Dictionary<string, object?> { ["currentPlayer"] = 1 };
+        events[12].Data = new Dictionary<string, object?> { ["count"] = 1 };
+
+        var text = RuntimeBattlePanelPresentationModel.BuildEvents(events, 32);
+
+        Assert.That(text, Does.Contain("CARDS DRAWN 2"));
+        Assert.That(text, Does.Contain("DAMAGE 3"));
+        Assert.That(text, Does.Contain("AMBUSH TRIGGERED"));
+        Assert.That(text, Does.Contain("COMMIT DECLARED"));
+        Assert.That(text, Does.Contain("CARD COMMITTED"));
+        Assert.That(text, Does.Contain("PULL DECLARED"));
+        Assert.That(text, Does.Contain("CARD PULLED"));
+        Assert.That(text, Does.Contain("PUNISH"));
+        Assert.That(text, Does.Contain("MINION DEFEATED"));
+        Assert.That(text, Does.Contain("CASTLE DAMAGED"));
+        Assert.That(text, Does.Contain("VICTORY PROGRESS"));
+        Assert.That(text, Does.Contain("PLAYER 2 TURN"));
+        Assert.That(text, Does.Contain("CARD DISCARDED"));
+        Assert.That(text, Does.Contain("DECK CYCLED"));
+        Assert.That(text, Does.Contain("LEADER MANIFESTED"));
+        Assert.That(text, Does.Not.Contain("secret-ambush-card"));
+        Assert.That(text, Does.Not.Contain("secret-machine-card"));
+        Assert.That(text, Does.Not.Contain("entity_999"));
+        Assert.That(text, Does.Not.Contain("entity_998"));
+        Assert.That(text, Does.Not.Contain("evt_00000000004"));
+        Assert.That(text, Does.Not.Contain("rawHidden"));
     }
 
     [Test]
@@ -304,14 +423,14 @@ public sealed class RuntimeBattlePanelEventsEditModeTests
     {
         var events = new[]
         {
-            Event(36, null, "PUNISH_ISSUED", "private-card-id"),
+            Event(36, null, "UNKNOWN_SYSTEM_EVENT", "private-card-id"),
             Event(37, null, "UNKNOWN_SYSTEM_EVENT", "private-player-id"),
         };
 
         var text = RuntimeBattlePanelPresentationModel.BuildEvents(events, 1);
 
-        Assert.That(text, Is.EqualTo("事件摘要：暂无事件"));
-        Assert.That(text, Does.Not.Contain("EVENT"));
+        Assert.That(text, Is.EqualTo("EVENT SUMMARY: NO EVENTS"));
+        Assert.That(text, Does.Not.Contain("UNKNOWN_SYSTEM_EVENT"));
         Assert.That(text, Does.Not.Contain("private-card-id"));
         Assert.That(text, Does.Not.Contain("private-player-id"));
     }
@@ -324,7 +443,7 @@ public sealed class RuntimeBattlePanelEventsEditModeTests
         var playerText = RuntimeBattlePanelPresentationModel.BuildEvents(new[] { unknown });
         var debugText = RuntimeBattlePanelPresentationModel.BuildDebugEvents(new[] { unknown });
 
-        Assert.That(playerText, Is.EqualTo("事件摘要：暂无事件"));
+        Assert.That(playerText, Is.EqualTo("EVENT SUMMARY: NO EVENTS"));
         Assert.That(playerText, Does.Not.Contain("UNREGISTERED_PROTOCOL_EVENT"));
         Assert.That(debugText, Does.Contain("UNREGISTERED_PROTOCOL_EVENT"));
         Assert.That(debugText, Does.Contain("evt_000000000038"));

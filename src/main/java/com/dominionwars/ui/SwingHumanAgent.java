@@ -81,6 +81,16 @@ public class SwingHumanAgent implements PlayerAgent {
         return (sel instanceof CardInstance) ? (CardInstance) sel : null;
     }
 
+    @Override
+    public CardInstance chooseRollbackTarget(Game g, int playerIdx, List<CardInstance> queued) {
+        if (queued.isEmpty()) return null;
+        Object[] arr = queued.toArray();
+        Object sel = JOptionPane.showInputDialog(parent,
+                pname(g, playerIdx) + "：请选择一张提交队列中的卡回滚回手",
+                "回滚目标", JOptionPane.QUESTION_MESSAGE, null, arr, arr[0]);
+        return sel instanceof CardInstance ? (CardInstance) sel : null;
+    }
+
     private String describe(String evt) {
         switch (evt) {
             case "OPPONENT_PLAYS_CARD": return "对方使用卡牌";

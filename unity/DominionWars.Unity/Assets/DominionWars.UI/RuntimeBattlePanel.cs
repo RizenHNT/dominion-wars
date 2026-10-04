@@ -42,6 +42,9 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     [Header("Accessibility")]
     [SerializeField] private bool reducedMotion;
 
+    [Header("Presentation language")]
+    [SerializeField] private string presentationLanguage = "en";
+
     [Header("Diagnostics")]
     [SerializeField] private bool debugOverlayEnabled;
 
@@ -50,6 +53,8 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     private RuntimeBattlePanelView _view;
     private UnityEngine.UI.Text _statusText;
     private RuntimeBattlePanelActionFeedback _actionFeedback;
+    private readonly RuntimeLocalizationResolver _localizationResolver =
+        new RuntimeLocalizationResolver();
     private RuntimeContentResolver _contentResolver;
     private CardCatalog _cardCatalog;
     private RuntimeContentContext _contentContext;
@@ -68,6 +73,13 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         Array.Empty<RuntimeBattlePanelActionGroup>();
     private long? _selectedCardEntityId;
     private RuntimeCardInspectInteraction _selectedCardInteraction;
+    private RuntimeLegalAction _pendingSelectionAction;
+    private RuntimeActionSelectionSpec _pendingSelectionSpec;
+    private readonly List<long> _pendingSelectionEntityIds = new List<long>();
+    private bool _pendingSelectionOverflowAllowed;
+    private readonly List<RuntimeBattleCardDrag> _pendingDisabledDrags =
+        new List<RuntimeBattleCardDrag>();
+    private long _pendingSelectionRevision = -1;
     private BindingMode _bindingMode;
 
     public RuntimeAdapter Adapter => _adapter;
@@ -77,10 +89,33 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     public bool FollowCurrentPlayer => followCurrentPlayer;
     public IReadOnlyList<RuntimeBattlePanelActionGroup> ActionGroups => _actionGroups;
     public long? SelectedCardEntityId => _selectedCardEntityId;
+    public bool HasPendingSelection => _pendingSelectionAction != null;
+    public string PendingSelectionActionId => _pendingSelectionAction?.ActionId ?? string.Empty;
+    public int PendingSelectionRequiredCount => _pendingSelectionSpec?.RequiredCount ?? 0;
+    public IReadOnlyList<long> PendingSelectedEntityIds => _pendingSelectionEntityIds.AsReadOnly();
     public string LastActionStatus => _lastActionStatus;
+
+    /// <summary>
+    /// Sets a presentation-only status owned by a host outside the action
+    /// rail. The screen flow uses this for a fail-closed CPU stop so the
+    /// player is not left looking at a silent READY state. It never changes
+    /// the adapter snapshot or submits an action.
+    /// </summary>
+    public void SetPresentationStatus(string message)
+    {
+        EnsureInitialized();
+        _lastActionStatus = string.IsNullOrWhiteSpace(message) ? string.Empty : message;
+        if (_statusText != null)
+            _statusText.text = string.IsNullOrWhiteSpace(_lastActionStatus)
+                ? "READY"
+                : DisplayStatus(_lastActionStatus);
+    }
+
     public bool DiagnosticsVisible => debugOverlayEnabled && IsDiagnosticsBuild;
     public string LastDiagnostic => _lastDiagnostic;
     public bool ReducedMotion => reducedMotion;
+    public string PresentationLanguage =>
+        RuntimeLocalizationResolver.NormalizeLanguage(presentationLanguage);
     public bool IsPauseMenuOpen => _view != null && _view.PauseMenuOpen;
     public UnityEngine.UI.Toggle ReducedMotionToggle => _view?.ReducedMotionToggle;
     public UnityEngine.UI.Button RecoveryButton => _view?.RecoveryButton;
@@ -293,6 +328,21 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         _actionFeedback.SetReducedMotion(enabled);
     }
 
+    /// <summary>
+    /// Sets the presentation-only language used by the event rail and future
+    /// transient feedback pulses. An already-consumed or queued cue keeps the
+    /// copy captured at its event boundary so changing language cannot replay,
+    /// reorder or mutate event identity/timing. It never changes engine state
+    /// or action legality; unsupported values use the resolver's existing
+    /// English normalization fallback.
+    /// </summary>
+    public void SetPresentationLanguage(string language)
+    {
+        presentationLanguage = RuntimeLocalizationResolver.NormalizeLanguage(language);
+        Render();
+        SyncLanguageSelectorVisuals();
+    }
+
     public void Refresh()
     {
         Render();
@@ -340,6 +390,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         _lastDiagnostic = string.Empty;
         _selectedCardEntityId = null;
         _selectedCardInteraction = null;
+        ClearPendingSelection();
         _presentationFaulted = false;
         _actionFeedback?.ResetForBinding();
     }
@@ -433,6 +484,12 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             _view.ReducedMotionToggle.SetIsOnWithoutNotify(reducedMotion);
             _view.ReducedMotionToggle.onValueChanged.AddListener(SetReducedMotion);
         }
+        if (_view.LanguageEnglishButton != null)
+            _view.LanguageEnglishButton.onClick.AddListener(() => SetPresentationLanguage("en"));
+        if (_view.LanguageChineseButton != null)
+            _view.LanguageChineseButton.onClick.AddListener(() => SetPresentationLanguage("zh"));
+        if (_view.LanguageJapaneseButton != null)
+            _view.LanguageJapaneseButton.onClick.AddListener(() => SetPresentationLanguage("jp"));
         if (_view.RecoveryButton != null)
         {
             // MENU is a presentation control, not an adapter-recovery
@@ -460,6 +517,40 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             });
         }
         _visualTreeReady = true;
+        SyncLanguageSelectorVisuals();
+    }
+
+    private void SyncLanguageSelectorVisuals()
+    {
+        if (_view == null) return;
+
+        var language = PresentationLanguage;
+        ApplyLanguageSelectorState(_view.LanguageEnglishButton, "English", language == "en");
+        ApplyLanguageSelectorState(_view.LanguageChineseButton, "中文", language == "zh");
+        ApplyLanguageSelectorState(_view.LanguageJapaneseButton, "日本語", language == "jp");
+    }
+
+    private static void ApplyLanguageSelectorState(
+        UnityEngine.UI.Button button,
+        string labelText,
+        bool selected)
+    {
+        if (button == null) return;
+
+        var label = button.GetComponentInChildren<UnityEngine.UI.Text>(true);
+        if (label != null)
+            label.text = selected ? "✓ " + labelText : labelText;
+
+        var outline = button.GetComponent<UnityEngine.UI.Outline>();
+        if (outline == null) return;
+
+        // Reuse the existing button outline as the selected-state affordance;
+        // the button remains interactable and no second selector widget is
+        // introduced.
+        outline.effectColor = selected
+            ? Hex("E3B85A")
+            : new Color(0.39f, 0.84f, 0.90f, 0.72f);
+        outline.effectDistance = selected ? new Vector2(2f, 2f) : Vector2.one;
     }
 
     private void EnsureInitialized()
@@ -695,22 +786,31 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
 
         _statusText.text = string.IsNullOrWhiteSpace(_lastActionStatus)
             ? "READY"
-            : _lastActionStatus;
+            : DisplayStatus(_lastActionStatus);
         if (_view.RecoveryButton != null) _view.RecoveryButton.interactable = true;
         _view.MatchText.text = RuntimeBattlePanelPresentationModel.BuildMatchLine(snapshot);
         var opponent = RuntimeBattlePanelPresentationModel.FindPlayer(snapshot, false);
         var own = RuntimeBattlePanelPresentationModel.FindPlayer(snapshot, true);
-        _view.OpponentText.text = RuntimeBattlePanelPresentationModel.BuildPlayerSection(opponent, false, _cardCatalog);
+        _view.OpponentText.text = RuntimeBattlePanelPresentationModel.BuildPlayerSection(
+            opponent, false, _cardCatalog, _localizationResolver, PresentationLanguage);
         _view.CastleText.text = BuildCastleCardText(snapshot, own, opponent);
-        _view.OwnText.text = RuntimeBattlePanelPresentationModel.BuildPlayerSection(own, true, _cardCatalog);
+        _view.OwnText.text = RuntimeBattlePanelPresentationModel.BuildPlayerSection(
+            own, true, _cardCatalog, _localizationResolver, PresentationLanguage);
         _view.PhaseText.text = RuntimeBattlePanelPresentationModel.BuildPhaseSummary(snapshot);
         RenderTable(snapshot, opponent, own);
+        RefreshPendingSelectionVisuals(snapshot);
         RenderActions(snapshot);
-        _view.EventsText.text = RuntimeBattlePanelPresentationModel.BuildEvents(_adapter.Presentation.Events);
+        _view.EventsText.text = RuntimeBattlePanelPresentationModel.BuildEvents(
+            _adapter.Presentation.Events,
+            _localizationResolver,
+            PresentationLanguage);
         RenderDebugOverlay(snapshot, own, opponent);
         // Snapshot/table/action rendering is complete before feedback consumes
         // the adapter event list. Feedback cannot delay or mutate gameplay.
-        _actionFeedback?.Consume(_adapter.Presentation.Events);
+        _actionFeedback?.Consume(
+            _adapter.Presentation.Events,
+            _localizationResolver,
+            PresentationLanguage);
         _renderedRevision = snapshot.SnapshotRevision;
         _renderedEventCount = _adapter.Presentation.Events.Count;
     }
@@ -718,7 +818,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
     private void SetUnavailable(string message)
     {
         RecordDiagnostic(message);
-        if (_statusText != null) _statusText.text = RuntimeBattlePanelPresentationModel.Unavailable;
+        if (_statusText != null) _statusText.text = UnavailableStatusText;
         if (_view?.RecoveryButton != null) _view.RecoveryButton.interactable = true;
         ClearUnavailablePresentation();
         RenderDebugOverlay(null, null, null);
@@ -786,15 +886,21 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         ClearRootRaycastTarget();
         _selectedCardEntityId = null;
         _selectedCardInteraction = null;
+        ClearPendingSelection();
         if (_view == null) return;
         ClearDynamicTablePresentation();
-        if (_view.MatchText != null) _view.MatchText.text = "比赛状态：不可用";
-        if (_view.OpponentText != null) _view.OpponentText.text = "对手状态：不可用";
-        if (_view.CastleText != null) _view.CastleText.text = "共享王城：不可用";
-        if (_view.OwnText != null) _view.OwnText.text = "己方状态：不可用";
-        if (_view.PhaseText != null) _view.PhaseText.text = "阶段：不可用";
-        if (_view.EventsText != null) _view.EventsText.text = "事件摘要：暂无事件";
+        var unavailable = UnavailableStatusText;
+        if (_view.MatchText != null) _view.MatchText.text = "比赛状态：" + unavailable;
+        if (_view.OpponentText != null) _view.OpponentText.text = "对手状态：" + unavailable;
+        if (_view.CastleText != null) _view.CastleText.text = "共享王城：" + unavailable;
+        if (_view.OwnText != null) _view.OwnText.text = "己方状态：" + unavailable;
+        if (_view.PhaseText != null) _view.PhaseText.text = "阶段：" + unavailable;
+        if (_view.EventsText != null)
+            _view.EventsText.text = _localizationResolver.Get("event.summary", PresentationLanguage) + "：" +
+                _localizationResolver.Get("event.none", PresentationLanguage);
         _actionFeedback?.Clear();
+        RuntimeBattlePanelView.SetQueueState(_view.OpponentPhaseRoot, null);
+        RuntimeBattlePanelView.SetQueueState(_view.OwnPhaseRoot, null);
         RuntimeBattlePanelView.SetLeaderSlot(
             _view.OpponentLeaderRoot,
             string.Empty,
@@ -816,6 +922,16 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         _renderedRevision = -1;
         _renderedEventCount = -1;
     }
+
+    private string DisplayStatus(string status)
+    {
+        return string.Equals(status, RuntimeBattlePanelPresentationModel.Unavailable, StringComparison.Ordinal)
+            ? UnavailableStatusText
+            : status;
+    }
+
+    private string UnavailableStatusText =>
+        _localizationResolver.Get("status.unusable", PresentationLanguage);
 
     private bool TryFollowCurrentPlayer(RuntimeSnapshotEnvelope snapshot)
     {
@@ -843,6 +959,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         RuntimePlayerSnapshot own)
     {
         ClearDynamicTablePresentation();
+        SetPhaseStatus(snapshot);
         BindLeaderSlot(_view.OpponentLeaderRoot, opponent, false);
         BindLeaderSlot(_view.OwnLeaderRoot, own, true);
 
@@ -942,7 +1059,10 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         RuntimeBattlePanelView.FitCardStrip(_view.OpponentAmbushCardsRoot);
         RuntimeBattlePanelView.FitCardStrip(_view.OpponentFieldRoot);
         RuntimeBattlePanelView.FitCardStrip(_view.OwnFieldRoot);
-        RuntimeBattlePanelView.FitCardStrip(_view.OwnHandRoot);
+        RuntimeBattlePanelView.FitScrollableCardStrip(
+            _view.OwnHandScrollRoot,
+            _view.OwnHandViewport,
+            _view.OwnHandRoot);
         RuntimeBattlePanelView.FitCardStrip(_view.OwnAmbushCardsRoot);
         RuntimeBattlePanelView.FitCardStrip(_view.CommitCardsRoot);
         RuntimeBattlePanelView.FitCardStrip(_view.CloudCardsRoot);
@@ -1168,16 +1288,35 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         if (cardRoot == null || display == null || _view == null) return;
         var interaction = RuntimeCardInspectInteraction.Attach(
             cardRoot,
-            RuntimeCardInspectModel.Build(display));
+            RuntimeCardInspectModel.Build(display, _localizationResolver, PresentationLanguage));
         interaction.InspectionRequested += (model, trigger) =>
         {
             // Hover is a transient reader only. A click pins the card and is
             // the explicit card selection that scopes the action rail.
+            if (allowActionSelection && trigger == RuntimeCardInspectTrigger.Click &&
+                HandlePendingSelectionClick(model.Card.EntityId))
+            {
+                _view.ShowCardInspect(model, art, _localizationResolver, PresentationLanguage);
+                return;
+            }
             if (allowActionSelection && trigger == RuntimeCardInspectTrigger.Click)
                 SelectCardForActions(interaction, model);
-            _view.ShowCardInspect(model, art);
+            _view.ShowCardInspect(model, art, _localizationResolver, PresentationLanguage);
         };
-        interaction.InspectionClosed += () => OnCardInspectionClosed(interaction);
+        interaction.InspectionClosed += () =>
+        {
+            // RuntimeCardInspectInteraction emits InspectionRequested only
+            // when a card becomes pinned.  Its second click closes the pin,
+            // so use that close edge to toggle an already-selected pending
+            // candidate.  PointerExit/OnDisable clear IsPointerOver first,
+            // which keeps transient hover cleanup from changing selection.
+            if (allowActionSelection && interaction.IsPointerOver &&
+                _pendingSelectionEntityIds.Contains(display.EntityId))
+            {
+                HandlePendingSelectionClick(display.EntityId);
+            }
+            OnCardInspectionClosed(interaction);
+        };
     }
 
     private void SelectCardForActions(
@@ -1251,7 +1390,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         // overlapping Canvas.
         var canvas = GetComponent<UnityEngine.Canvas>() ??
             GetComponentInParent<UnityEngine.Canvas>();
-        drag.Configure(sourceActions, canvas, SubmitAdvertisedAction);
+        drag.Configure(sourceActions, canvas, RequestAdvertisedAction);
 
         // The card itself is now a drag source and inspect surface. Clicking
         // opens/pins details; the action rail remains the explicit accessible
@@ -1667,14 +1806,14 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         return Hex("6FAFC2");
     }
 
-    private static void SetPileCount(RectTransform root, int? value)
+    private void SetPileCount(RectTransform root, int? value)
     {
         if (root == null) return;
         var text = FindChildText(root, "PileCount");
         if (text != null)
-            text.text = value.HasValue
+        text.text = value.HasValue
                 ? value.Value.ToString()
-                : RuntimeBattlePanelPresentationModel.Unavailable;
+                : UnavailableStatusText;
     }
 
     private static void HideOptionalPile(RectTransform root)
@@ -1704,6 +1843,18 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         if (text != null) text.text = value.HasValue ? value.Value.ToString() : "—";
     }
 
+    private void SetPhaseStatus(RuntimeSnapshotEnvelope snapshot)
+    {
+        var phase = snapshot == null || string.IsNullOrWhiteSpace(snapshot.Phase)
+            ? null
+            : _localizationResolver.ResolveSemantic(
+                RuntimeSemanticKind.Phase,
+                snapshot.Phase,
+                PresentationLanguage).Text;
+        RuntimeBattlePanelView.SetQueueState(_view.OpponentPhaseRoot, phase);
+        RuntimeBattlePanelView.SetQueueState(_view.OwnPhaseRoot, phase);
+    }
+
     private static UnityEngine.UI.Text FindChildText(RectTransform root, string name)
     {
         var texts = root.GetComponentsInChildren<UnityEngine.UI.Text>(true);
@@ -1719,32 +1870,33 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         return child == null ? null : child.GetComponent<RectTransform>();
     }
 
-    private static string BuildCastleCardText(RuntimeSnapshotEnvelope snapshot)
+    private string BuildCastleCardText(RuntimeSnapshotEnvelope snapshot)
     {
         return BuildCastleCardText(snapshot, null, null);
     }
 
-    private static string BuildCastleCardText(
+    private string BuildCastleCardText(
         RuntimeSnapshotEnvelope snapshot,
         RuntimePlayerSnapshot own,
         RuntimePlayerSnapshot opponent)
     {
         if (snapshot == null || snapshot.Castle == null)
-            return "LIFE  Unavailable\nTURN  Unavailable  ·  WIN COUNT OWN  " +
+            return "LIFE  " + UnavailableStatusText + "\nTURN  " + UnavailableStatusText +
+                "  ·  WIN COUNT OWN  " +
                 CycleWinCount(own) + " / OPPONENT  " + CycleWinCount(opponent);
         var life = snapshot.Castle.Enabled
             ? snapshot.Castle.Health.ToString()
-            : RuntimeBattlePanelPresentationModel.Unavailable;
+            : UnavailableStatusText;
         var turn = snapshot.Turn.ToString();
         return "LIFE  " + life +
             "\nTURN  " + turn + "  ·  WIN COUNT OWN  " + CycleWinCount(own) +
             " / OPPONENT  " + CycleWinCount(opponent);
     }
 
-    private static string CycleWinCount(RuntimePlayerSnapshot player)
+    private string CycleWinCount(RuntimePlayerSnapshot player)
     {
         return player == null
-            ? RuntimeBattlePanelPresentationModel.Unavailable
+            ? UnavailableStatusText
             : player.CycleWinCount.ToString();
     }
 
@@ -1772,6 +1924,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
 
     private void RenderActions(RuntimeSnapshotEnvelope snapshot)
     {
+        PrunePendingSelection(snapshot);
         ClearActions();
         _actionGroups = RuntimeBattlePanelActionModel.BuildActionGroups(
             snapshot,
@@ -1826,6 +1979,11 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             else
                 CreateActionGroup(group, parent, snapshot);
         }
+        if (HasPendingSelection)
+        {
+            CreatePendingSelectionSurface(snapshot);
+            discardContextActionCount++;
+        }
         _view.SetMoreActionsAvailable(secondaryActionCount > 0);
         if (_view.PhaseActionsRoot != null)
         {
@@ -1837,6 +1995,478 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             _view.DiscardActionsRoot.gameObject.SetActive(discardContextActionCount > 0);
             if (discardContextActionCount > 0) _view.DiscardActionsRoot.SetAsLastSibling();
         }
+    }
+
+    private void RequestAdvertisedAction(RuntimeLegalAction legal)
+    {
+        if (legal == null) return;
+
+        // A human selection is an atomic interaction. While it is pending,
+        // another card's button or drag must not submit a different legal
+        // action or restart the pending choice. Only the pending action's
+        // explicit confirm path below may cross the submission boundary.
+        if (HasPendingSelection)
+        {
+            if (!IsPendingSelectionAction(legal))
+            {
+                _lastActionStatus = "Finish or cancel the current card selection";
+                var lockedSnapshot = _adapter?.Presentation.Snapshot;
+                if (lockedSnapshot != null) RenderActions(lockedSnapshot);
+            }
+            return;
+        }
+
+        if (!RuntimeBattlePanelActionModel.TryGetSelectionSpec(
+                legal,
+                out var spec,
+                out var reasonKey))
+        {
+            RecordDiagnostic("Action selection contract is unavailable: " + reasonKey);
+            _lastActionStatus = "Action selection unavailable";
+            var unavailableSnapshot = _adapter?.Presentation.Snapshot;
+            if (unavailableSnapshot != null) RenderActions(unavailableSnapshot);
+            return;
+        }
+
+        if (spec != null)
+        {
+            BeginPendingSelection(legal, spec);
+            return;
+        }
+
+        SubmitAdvertisedAction(legal);
+    }
+
+    private void BeginPendingSelection(
+        RuntimeLegalAction legal,
+        RuntimeActionSelectionSpec spec)
+    {
+        if (legal == null || spec == null || _adapter == null) return;
+        var snapshot = _adapter.Presentation.Snapshot;
+        if (snapshot == null) return;
+
+        _pendingSelectionAction = legal;
+        _pendingSelectionSpec = spec;
+        _pendingSelectionRevision = snapshot.SnapshotRevision;
+        _pendingSelectionEntityIds.Clear();
+        _pendingSelectionOverflowAllowed = false;
+        _lastActionStatus = "Select " + spec.RequiredCount + " card" +
+            (spec.RequiredCount == 1 ? string.Empty : "s");
+        RenderActions(snapshot);
+        RefreshPendingSelectionVisuals(snapshot);
+    }
+
+    private bool HandlePendingSelectionClick(long entityId)
+    {
+        if (!HasPendingSelection) return false;
+
+        if (!PendingSelectionContainsCandidate(entityId))
+        {
+            _lastActionStatus = "Card is not an advertised selection candidate";
+            var unavailableSnapshot = _adapter?.Presentation.Snapshot;
+            if (unavailableSnapshot != null)
+            {
+                RenderActions(unavailableSnapshot);
+                RefreshPendingSelectionVisuals(unavailableSnapshot);
+            }
+            return true;
+        }
+
+        var selectedIndex = _pendingSelectionEntityIds.IndexOf(entityId);
+        if (selectedIndex >= 0)
+        {
+            _pendingSelectionEntityIds.RemoveAt(selectedIndex);
+        }
+        else if (_pendingSelectionEntityIds.Count < _pendingSelectionSpec.RequiredCount ||
+                 _pendingSelectionOverflowAllowed)
+        {
+            _pendingSelectionEntityIds.Add(entityId);
+        }
+        else
+        {
+            _lastActionStatus = "Selection is full; deselect a card first";
+        }
+
+        if (_pendingSelectionEntityIds.Count == _pendingSelectionSpec.RequiredCount)
+            _lastActionStatus = "Selection ready";
+        else if (_pendingSelectionEntityIds.Count > _pendingSelectionSpec.RequiredCount)
+            _lastActionStatus = "Deselect " +
+                (_pendingSelectionEntityIds.Count - _pendingSelectionSpec.RequiredCount) +
+                " card" +
+                (_pendingSelectionEntityIds.Count - _pendingSelectionSpec.RequiredCount == 1
+                    ? string.Empty
+                    : "s");
+        else if (_lastActionStatus != "Selection is full; deselect a card first")
+            _lastActionStatus = "Select " + _pendingSelectionSpec.RequiredCount + " card" +
+                (_pendingSelectionSpec.RequiredCount == 1 ? string.Empty : "s");
+
+        var snapshot = _adapter?.Presentation.Snapshot;
+        if (snapshot != null)
+        {
+            RenderActions(snapshot);
+            RefreshPendingSelectionVisuals(snapshot);
+        }
+        return true;
+    }
+
+    private void CreatePendingSelectionSurface(RuntimeSnapshotEnvelope snapshot)
+    {
+        if (_view?.DiscardActionsContent == null || _pendingSelectionSpec == null) return;
+
+        // The discard rail is intentionally a short, clipped ScrollRect for
+        // ordinary action buttons.  The pending selector is taller than that
+        // viewport, so its lower controls would otherwise be clipped and
+        // never become GraphicRaycaster hits.  Keep the scroll rail intact,
+        // but suspend only its mask while this explicit selector is visible;
+        // the selector remains inside the existing discard surface and owns
+        // the only active button graphics outside the viewport.
+        SetPendingSelectionViewportMask(false);
+
+        var root = RuntimeBattlePanelView.CreateRect(
+            "PendingCardSelection",
+            _view.DiscardActionsContent);
+        var layout = root.gameObject.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+        layout.spacing = 2f;
+        layout.padding = new RectOffset(4, 4, 2, 2);
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        RuntimeBattlePanelView.SetPreferredHeight(root, 82f);
+
+        var title = RuntimeBattlePanelView.CreateText(
+            root,
+            "SelectionLabel",
+            13,
+            new Color(1f, 0.84f, 0.40f));
+        title.text = "SELECT " + _pendingSelectionSpec.RequiredCount + " CARD" +
+            (_pendingSelectionSpec.RequiredCount == 1 ? string.Empty : "S") +
+            "  (" + _pendingSelectionEntityIds.Count + "/" +
+            _pendingSelectionSpec.RequiredCount + ")";
+        title.fontStyle = FontStyle.Bold;
+        title.alignment = TextAnchor.MiddleCenter;
+        RuntimeBattlePanelView.SetPreferredHeight(title.rectTransform, 22f);
+
+        var hint = RuntimeBattlePanelView.CreateText(
+            root,
+            "SelectionHint",
+            10,
+            new Color(0.78f, 0.86f, 0.90f));
+        hint.text = "Choose only the highlighted cards in your hand.";
+        hint.alignment = TextAnchor.MiddleCenter;
+        RuntimeBattlePanelView.SetPreferredHeight(hint.rectTransform, 18f);
+
+        var controls = RuntimeBattlePanelView.CreateRect("SelectionControls", root);
+        var controlsLayout = controls.gameObject.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+        controlsLayout.spacing = 4f;
+        controlsLayout.childControlWidth = true;
+        controlsLayout.childControlHeight = true;
+        controlsLayout.childForceExpandWidth = true;
+        controlsLayout.childForceExpandHeight = false;
+        RuntimeBattlePanelView.SetPreferredHeight(controls, 34f);
+
+        var selectAll = CreatePendingSelectionButton(
+            controls,
+            "SelectionSelectAll",
+            "ALL",
+            true,
+            new Color(0.18f, 0.34f, 0.42f, 1f));
+        selectAll.onClick.AddListener(SelectAllPendingSelection);
+
+        var clear = CreatePendingSelectionButton(
+            controls,
+            "SelectionClear",
+            "CLEAR",
+            true,
+            new Color(0.28f, 0.31f, 0.34f, 1f));
+        clear.onClick.AddListener(ClearPendingSelectionChoices);
+
+        var confirm = CreatePendingSelectionButton(
+            controls,
+            "SelectionConfirm",
+            "CONFIRM",
+            _pendingSelectionEntityIds.Count == _pendingSelectionSpec.RequiredCount,
+            new Color(0.16f, 0.42f, 0.31f, 1f));
+        confirm.onClick.AddListener(SubmitPendingSelection);
+
+        var cancel = CreatePendingSelectionButton(
+            controls,
+            "SelectionCancel",
+            "CANCEL",
+            true,
+            new Color(0.36f, 0.22f, 0.24f, 1f));
+        cancel.onClick.AddListener(CancelPendingSelection);
+    }
+
+    private void SelectAllPendingSelection()
+    {
+        if (!HasPendingSelection || _pendingSelectionSpec == null) return;
+
+        _pendingSelectionEntityIds.Clear();
+        for (var index = 0; index < _pendingSelectionSpec.CandidateIds.Count; index++)
+            _pendingSelectionEntityIds.Add(_pendingSelectionSpec.CandidateIds[index]);
+        // A deliberate ALL click may temporarily exceed requiredCount. The
+        // confirm button remains disabled until the player removes the cards
+        // they do not want, so this never chooses or submits a discard for
+        // them.
+        _pendingSelectionOverflowAllowed = true;
+        _lastActionStatus = _pendingSelectionEntityIds.Count ==
+            _pendingSelectionSpec.RequiredCount
+            ? "Selection ready"
+            : "Deselect " +
+                (_pendingSelectionEntityIds.Count - _pendingSelectionSpec.RequiredCount) +
+                " card" +
+                (_pendingSelectionEntityIds.Count - _pendingSelectionSpec.RequiredCount == 1
+                    ? string.Empty
+                    : "s");
+        var snapshot = _adapter?.Presentation.Snapshot;
+        if (snapshot != null)
+        {
+            RenderActions(snapshot);
+            RefreshPendingSelectionVisuals(snapshot);
+        }
+    }
+
+    private void ClearPendingSelectionChoices()
+    {
+        if (!HasPendingSelection || _pendingSelectionSpec == null) return;
+
+        _pendingSelectionEntityIds.Clear();
+        _pendingSelectionOverflowAllowed = false;
+        _lastActionStatus = "Select " + _pendingSelectionSpec.RequiredCount + " card" +
+            (_pendingSelectionSpec.RequiredCount == 1 ? string.Empty : "s");
+        var snapshot = _adapter?.Presentation.Snapshot;
+        if (snapshot != null)
+        {
+            RenderActions(snapshot);
+            RefreshPendingSelectionVisuals(snapshot);
+        }
+    }
+
+    private static UnityEngine.UI.Button CreatePendingSelectionButton(
+        RectTransform parent,
+        string name,
+        string labelText,
+        bool interactable,
+        Color color)
+    {
+        var buttonObject = RuntimeBattlePanelView.CreateRect(name, parent);
+        var image = buttonObject.gameObject.AddComponent<UnityEngine.UI.Image>();
+        image.color = color;
+        image.raycastTarget = true;
+        var button = buttonObject.gameObject.AddComponent<UnityEngine.UI.Button>();
+        button.targetGraphic = image;
+        button.interactable = interactable;
+        var label = RuntimeBattlePanelView.CreateText(buttonObject, "Label", 12, Color.white);
+        label.text = labelText;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.fontStyle = FontStyle.Bold;
+        RuntimeBattlePanelView.SetPreferredHeight(label.rectTransform, 32f);
+        var element = buttonObject.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+        element.minHeight = 32f;
+        element.preferredHeight = 32f;
+        element.flexibleWidth = 1f;
+        return button;
+    }
+
+    private void SubmitPendingSelection()
+    {
+        if (!HasPendingSelection || _pendingSelectionSpec == null) return;
+        if (_pendingSelectionEntityIds.Count != _pendingSelectionSpec.RequiredCount)
+        {
+            _lastActionStatus = _pendingSelectionEntityIds.Count >
+                _pendingSelectionSpec.RequiredCount
+                ? "Deselect " +
+                    (_pendingSelectionEntityIds.Count - _pendingSelectionSpec.RequiredCount) +
+                    " card" +
+                    (_pendingSelectionEntityIds.Count - _pendingSelectionSpec.RequiredCount == 1
+                        ? string.Empty
+                        : "s")
+                : "Select exactly " + _pendingSelectionSpec.RequiredCount + " card" +
+                    (_pendingSelectionSpec.RequiredCount == 1 ? string.Empty : "s");
+            var incompleteSnapshot = _adapter?.Presentation.Snapshot;
+            if (incompleteSnapshot != null) RenderActions(incompleteSnapshot);
+            return;
+        }
+
+        var legal = _pendingSelectionAction;
+        var selected = new List<long>(_pendingSelectionEntityIds).AsReadOnly();
+        SubmitAdvertisedAction(legal, selected);
+    }
+
+    private void CancelPendingSelection()
+    {
+        if (!HasPendingSelection) return;
+        ClearPendingSelection();
+        _lastActionStatus = "Selection canceled";
+        var snapshot = _adapter?.Presentation.Snapshot;
+        if (snapshot != null)
+        {
+            RenderActions(snapshot);
+            RefreshPendingSelectionVisuals(snapshot);
+        }
+    }
+
+    private void PrunePendingSelection(RuntimeSnapshotEnvelope snapshot)
+    {
+        if (!HasPendingSelection) return;
+        if (snapshot == null || snapshot.SnapshotRevision != _pendingSelectionRevision)
+        {
+            ClearPendingSelection();
+            return;
+        }
+
+        RuntimeLegalAction current = null;
+        if (snapshot.LegalActions != null)
+        {
+            for (var index = 0; index < snapshot.LegalActions.Count; index++)
+            {
+                var candidate = snapshot.LegalActions[index];
+                if (candidate != null && string.Equals(
+                        candidate.ActionId,
+                        _pendingSelectionAction.ActionId,
+                        StringComparison.Ordinal))
+                {
+                    current = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (current == null || !RuntimeBattlePanelActionModel.TryGetSelectionSpec(
+                current,
+                out var spec,
+                out _)
+            || spec == null
+            || !SelectionSpecsEqual(spec, _pendingSelectionSpec))
+        {
+            ClearPendingSelection();
+            return;
+        }
+
+        for (var index = 0; index < _pendingSelectionEntityIds.Count; index++)
+        {
+            if (!ContainsId(spec.CandidateIds, _pendingSelectionEntityIds[index]))
+            {
+                ClearPendingSelection();
+                return;
+            }
+        }
+
+        _pendingSelectionAction = current;
+        _pendingSelectionSpec = spec;
+    }
+
+    private static bool SelectionSpecsEqual(
+        RuntimeActionSelectionSpec left,
+        RuntimeActionSelectionSpec right)
+    {
+        if (left == null || right == null || left.RequiredCount != right.RequiredCount)
+            return false;
+        if (left.CandidateIds.Count != right.CandidateIds.Count) return false;
+        for (var index = 0; index < left.CandidateIds.Count; index++)
+        {
+            if (left.CandidateIds[index] != right.CandidateIds[index]) return false;
+        }
+        return true;
+    }
+
+    private bool PendingSelectionContainsCandidate(long entityId)
+    {
+        return _pendingSelectionSpec != null &&
+            ContainsId(_pendingSelectionSpec.CandidateIds, entityId);
+    }
+
+    private bool IsPendingSelectionAction(RuntimeLegalAction legal)
+    {
+        return HasPendingSelection && legal != null &&
+            string.Equals(
+                legal.ActionId,
+                _pendingSelectionAction.ActionId,
+                StringComparison.Ordinal);
+    }
+
+    private static bool ContainsId(IReadOnlyList<long> ids, long value)
+    {
+        if (ids == null) return false;
+        for (var index = 0; index < ids.Count; index++)
+            if (ids[index] == value) return true;
+        return false;
+    }
+
+    private void RefreshPendingSelectionVisuals(RuntimeSnapshotEnvelope snapshot)
+    {
+        if (_view?.OwnHandRoot == null) return;
+        if (HasPendingSelection) SuspendPendingCardDrags();
+        else RestorePendingCardDrags();
+        var faces = _view.OwnHandRoot.GetComponentsInChildren<RuntimeCardFaceView>(true);
+        for (var index = 0; index < faces.Length; index++)
+        {
+            var face = faces[index];
+            if (face == null || face.BoundCard == null) continue;
+            var sourceActions = FindSourceActions(snapshot, face.BoundCard.EntityId);
+            var targetHighlighted = FindTargetActions(snapshot, face.BoundCard.EntityId).Count > 0;
+            face.SetInteractionState(
+                sourceActions.Count > 0,
+                targetHighlighted,
+                sourceActions.Count > 0);
+
+            var outline = face.CardRoot.GetComponent<UnityEngine.UI.Outline>();
+            if (outline == null) continue;
+            if (HasPendingSelection && PendingSelectionContainsCandidate(face.BoundCard.EntityId))
+            {
+                outline.effectColor = _pendingSelectionEntityIds.Contains(face.BoundCard.EntityId)
+                    ? new Color(1f, 0.78f, 0.24f, 1f)
+                    : new Color(0.35f, 0.88f, 0.92f, 1f);
+                outline.effectDistance = _pendingSelectionEntityIds.Contains(face.BoundCard.EntityId)
+                    ? new Vector2(5f, 5f)
+                    : new Vector2(3f, 3f);
+            }
+        }
+    }
+
+    private void ClearPendingSelection()
+    {
+        SetPendingSelectionViewportMask(true);
+        RestorePendingCardDrags();
+        _pendingSelectionAction = null;
+        _pendingSelectionSpec = null;
+        _pendingSelectionRevision = -1;
+        _pendingSelectionOverflowAllowed = false;
+        _pendingSelectionEntityIds.Clear();
+    }
+
+    private void SetPendingSelectionViewportMask(bool enabled)
+    {
+        var content = _view?.DiscardActionsContent;
+        var viewport = content == null ? null : content.parent as RectTransform;
+        var mask = viewport == null
+            ? null
+            : viewport.GetComponent<UnityEngine.UI.Mask>();
+        if (mask != null) mask.enabled = enabled;
+    }
+
+    private void SuspendPendingCardDrags()
+    {
+        RestorePendingCardDrags();
+        var drags = GetComponentsInChildren<RuntimeBattleCardDrag>(true);
+        for (var index = 0; index < drags.Length; index++)
+        {
+            var drag = drags[index];
+            if (drag == null || !drag.enabled) continue;
+            drag.enabled = false;
+            _pendingDisabledDrags.Add(drag);
+        }
+    }
+
+    private void RestorePendingCardDrags()
+    {
+        for (var index = 0; index < _pendingDisabledDrags.Count; index++)
+        {
+            var drag = _pendingDisabledDrags[index];
+            if (drag != null) drag.enabled = true;
+        }
+        _pendingDisabledDrags.Clear();
     }
 
     private static bool IsPhaseContextGroup(
@@ -1909,7 +2539,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         outline.effectDistance = new Vector2(1f, 1f);
         var button = buttonObject.gameObject.AddComponent<UnityEngine.UI.Button>();
         button.targetGraphic = buttonImage;
-        button.interactable = entry.State.Interactable;
+        button.interactable = entry.State.Interactable && !IsPendingSelectionAction(legal);
         var label = RuntimeBattlePanelView.CreateText(
             buttonObject,
             "Label",
@@ -1929,7 +2559,11 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         if (entry.State.Interactable)
         {
             var captured = legal;
-            button.onClick.AddListener(() => SubmitAdvertisedAction(captured));
+            button.onClick.AddListener(() =>
+            {
+                if (!IsPendingSelectionAction(captured))
+                    RequestAdvertisedAction(captured);
+            });
         }
     }
 
@@ -2013,7 +2647,8 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         submitOutline.effectDistance = new Vector2(1f, 1f);
         var submitButton = submitObject.gameObject.AddComponent<UnityEngine.UI.Button>();
         submitButton.targetGraphic = submitImage;
-        submitButton.interactable = group.SelectedAction.State.Interactable;
+        submitButton.interactable = group.SelectedAction.State.Interactable &&
+            !IsPendingSelectionAction(group.SelectedAction.LegalAction);
         var submitLabel = RuntimeBattlePanelView.CreateText(
             submitObject,
             "Label",
@@ -2034,8 +2669,9 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
         submitButton.onClick.AddListener(() =>
         {
             var selected = group.SelectedAction;
-            if (selected is not null && selected.State.Interactable)
-                SubmitAdvertisedAction(selected.LegalAction);
+            if (selected is not null && selected.State.Interactable &&
+                !IsPendingSelectionAction(selected.LegalAction))
+                RequestAdvertisedAction(selected.LegalAction);
         });
     }
 
@@ -2149,6 +2785,14 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
 
     private void SubmitAdvertisedAction(RuntimeLegalAction legal)
     {
+        SubmitAdvertisedAction(legal, null);
+    }
+
+    private void SubmitAdvertisedAction(
+        RuntimeLegalAction legal,
+        IReadOnlyList<long> selectedEntityIds)
+    {
+        if (legal == null) return;
         if (_adapter is null)
         {
             RecordDiagnostic("Action unavailable: RuntimeAdapter is not ready.");
@@ -2167,7 +2811,38 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
 
         try
         {
-            var action = RuntimeBattlePanelActionModel.ToGameAction(legal, snapshot.MatchId);
+            if (!RuntimeBattlePanelActionModel.TryGetSelectionSpec(
+                    legal,
+                    out var selectionSpec,
+                    out var selectionReason))
+            {
+                RecordDiagnostic("Action selection contract is unavailable: " + selectionReason);
+                _lastActionStatus = "Action selection unavailable";
+                RenderActions(snapshot);
+                return;
+            }
+
+            if (selectionSpec != null && selectedEntityIds == null)
+            {
+                BeginPendingSelection(legal, selectionSpec);
+                return;
+            }
+
+            if (!RuntimeBattlePanelActionModel.TryValidateSelection(
+                    legal,
+                    selectedEntityIds,
+                    out var validationReason))
+            {
+                RecordDiagnostic("Action selection rejected: " + validationReason);
+                _lastActionStatus = "Action selection rejected";
+                RenderActions(snapshot);
+                return;
+            }
+
+            var action = RuntimeBattlePanelActionModel.ToGameAction(
+                legal,
+                snapshot.MatchId,
+                selectedEntityIds);
             var validation = RuntimeActionBoundary.Validate(action, snapshot);
             if (!validation.Accepted)
             {
@@ -2187,7 +2862,10 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
             // Preserve the most important public cue before a hot-seat viewer
             // switch clears viewer-scoped event history. This does not retain
             // raw event payloads or expose the previous viewer's snapshot.
-            _actionFeedback?.Consume(_adapter.Presentation.EventDelta);
+            _actionFeedback?.Consume(
+                _adapter.Presentation.EventDelta,
+                _localizationResolver,
+                PresentationLanguage);
             if (submission.Result.Accepted)
             {
                 // A successful action invalidates the selected card/action
@@ -2195,6 +2873,7 @@ public sealed class RuntimeBattlePanel : MonoBehaviour
                 // rebuild the card surfaces without a stale selection.
                 _selectedCardInteraction = null;
                 _selectedCardEntityId = null;
+                ClearPendingSelection();
             }
             _boundViewerPlayerIndex = -1;
             var refreshed = TryRefreshViewerSnapshot();

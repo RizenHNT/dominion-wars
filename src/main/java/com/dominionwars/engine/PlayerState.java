@@ -36,10 +36,22 @@ public class PlayerState {
     // 长期计数
     public int reshuffleCount = 0;                  // 自己发生过的有效牌库循环次数（记录用）
     public int cycleWinCount = 0;                   // 胜利计数：对手每次有效牌库循环时 +1
-    public int skipReshuffleCredits = 0;            // 机械惩罚效果：下次洗牌不计入对手胜利计数
+    public int skipReshuffleCredits = 0;            // 机械惩罚效果：下次自身洗牌不计入自身胜利计数
     public int totalDiscarded = 0;                  // 深海胜利条件
     public int noDamageTurns = 0;                   // 古木胜利条件（连续未受伤回合）
     public boolean damagedThisCycle = false;
+
+    // ── 古木计数器（RULES §12.2）──
+    public int rootStacks = 0;                      // 扎根：使用扎根卡 +N，累计不消耗，每层 +1/+1
+    public int rampantStacks = 0;                   // 疯长：上限 3，每层 ×2
+
+    // ── 机械生命周期（RULES §12.4）──
+    // 与 C# PlayerState 对齐的语义：commitQueue 与 cloudStack 属于跨回合长期区域，
+    // 既不在 clearTurnFlags() 里清空，也不随玩家交替重置——只有上传/下载/回滚
+    // 与洗牌会移动其中的卡牌；pullCount 同样是全局累计值。
+    public final List<CardInstance> commitQueue = new ArrayList<>();  // 提交队列（FIFO）
+    public final List<CardInstance> cloudStack = new ArrayList<>();   // 云端栈（顶部 = 末尾）
+    public int pullCount = 0;                       // 累计成功下载次数（PULL_TOTAL_GE 胜利条件）
 
     public PlayerState(int idx, String name) { this.idx = idx; this.name = name; }
 

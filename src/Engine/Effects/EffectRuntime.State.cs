@@ -143,10 +143,18 @@ public sealed partial class EffectRuntime
 
     private void ApplyPunishDelta(PlayerState player, int amount, EffectContext context)
     {
-        Commit(_ => player.PunishDeltaThisTurn += amount);
+        // 惩罚值施加（ADD_SELF_PUNISH_TURN / ADD_OPP_PUNISH_TURN）的负值表示本次
+        // 折扣。累积值下限为 0，否则一次大额折扣会残留到本回合剩余的所有惩罚
+        // 路径（出牌、设置伏兵、惩罚响应）上，并可能把抽牌数量推成负数。
+        // CardPlayRules.EffectivePunish 仍保留自己的 Math.Max(0, ...) 兜底。
+        var before = player.PunishDeltaThisTurn;
+        var after = Math.Max(0, before + amount);
+        Commit(_ => player.PunishDeltaThisTurn = after);
         Emit("PUNISH_DELTA_APPLIED", context, Data(
             "player", player.PlayerIndex,
-            "amount", amount));
+            "amount", after - before,
+            "requested", amount,
+            "total", after));
     }
 
     private void ChangeLife(

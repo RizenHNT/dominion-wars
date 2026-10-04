@@ -418,6 +418,14 @@ public static class EngineProjectionAdapter
             Durability = card.Durability,
             LeaderWinCondition = card.Definition.LeaderWinCondition,
             LeaderWinParam = card.Definition.LeaderWinParam,
+            Victory = card.Definition.Victory is null
+                ? null
+                : new VictoryObjectiveDto
+                {
+                    Metric = card.Definition.Victory.Metric,
+                    Direction = card.Definition.Victory.Direction,
+                    Target = card.Definition.Victory.Target,
+                },
             KingSlayer = card.Definition.KingSlayer,
             Vulnerabilities = new List<string>(card.Definition.Vulnerabilities),
             Attack = card.Attack,

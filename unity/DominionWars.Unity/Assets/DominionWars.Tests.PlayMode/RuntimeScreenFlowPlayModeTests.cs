@@ -240,6 +240,17 @@ public sealed class RuntimeScreenFlowPlayModeTests
 
     private static void SubmitActionThroughUi(RuntimeLegalAction action)
     {
+        if (string.Equals(action.Type, "DISCARD", StringComparison.OrdinalIgnoreCase) &&
+            RuntimeBattlePanelActionModel.TryGetSelectionSpec(
+                action,
+                out var discardSelection,
+                out _)
+            && discardSelection != null)
+        {
+            SubmitDiscardThroughUi(action, discardSelection);
+            return;
+        }
+
         var suffix = SanitizeName(string.IsNullOrWhiteSpace(action.ActionId)
             ? "unknown"
             : action.ActionId);
@@ -278,6 +289,57 @@ public sealed class RuntimeScreenFlowPlayModeTests
         Assert.That(submit, Is.Not.Null);
         AssertInteractableButton(submit!.gameObject);
         Click(submit.gameObject);
+    }
+
+    private static void SubmitDiscardThroughUi(
+        RuntimeLegalAction action,
+        RuntimeActionSelectionSpec selection)
+    {
+        var suffix = SanitizeName(string.IsNullOrWhiteSpace(action.ActionId)
+            ? "unknown"
+            : action.ActionId);
+        var direct = FindActive("Action_" + suffix);
+        if (direct == null)
+        {
+            var moreActions = FindActive("RuntimeBattlePanelMoreActionsButton");
+            if (moreActions != null)
+            {
+                AssertInteractableButton(moreActions);
+                Click(moreActions);
+                direct = FindActive("Action_" + suffix);
+            }
+        }
+        Assert.That(direct, Is.Not.Null,
+            "No rendered DISCARD action exists for " + action.ActionId + ".");
+        AssertInteractableButton(direct!);
+        Click(direct);
+
+        for (var index = 0; index < selection.RequiredCount; index++)
+        {
+            var entityId = selection.CandidateIds[index];
+            var candidate = FindVisibleCard(entityId);
+            Assert.That(candidate, Is.Not.Null,
+                "The advertised discard candidate must be visible in the player's hand: " +
+                entityId);
+            Click(candidate!.gameObject);
+        }
+
+        var confirm = FindActive("SelectionConfirm");
+        Assert.That(confirm, Is.Not.Null,
+            "DISCARD must expose the explicit selection confirm control.");
+        AssertInteractableButton(confirm!);
+        Click(confirm);
+    }
+
+    private static RuntimeCardInspectInteraction FindVisibleCard(long entityId)
+    {
+        return UnityEngine.Object.FindObjectsByType<RuntimeCardInspectInteraction>(
+                FindObjectsInactive.Exclude,
+                FindObjectsSortMode.None)
+            .FirstOrDefault(interaction =>
+                interaction != null &&
+                interaction.gameObject.activeInHierarchy &&
+                interaction.Model?.Card?.EntityId == entityId);
     }
 
     private static void AssertInteractableButton(GameObject target)

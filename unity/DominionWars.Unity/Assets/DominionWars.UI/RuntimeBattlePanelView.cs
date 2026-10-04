@@ -1,6 +1,8 @@
 #nullable disable
 
 using System;
+using System.Text;
+using DominionWars.Unity.Runtime;
 using UnityEngine;
 
 namespace DominionWars.Unity.UI
@@ -47,6 +49,10 @@ public sealed class RuntimeBattlePanelView
     public RectTransform CloudCardsRoot { get; private set; }
     public RectTransform MechanicalRoot { get; private set; }
     public RectTransform OwnRoot { get; private set; }
+    public RectTransform OwnHandScrollRoot { get; private set; }
+    public RectTransform OwnHandViewport { get; private set; }
+    public UnityEngine.UI.ScrollRect OwnHandScroll { get; private set; }
+    public UnityEngine.UI.Scrollbar OwnHandScrollbar { get; private set; }
     public RectTransform OwnHandRoot { get; private set; }
     public RectTransform OwnAmbushRoot { get; private set; }
     public RectTransform OwnAmbushCardsRoot { get; private set; }
@@ -77,6 +83,7 @@ public sealed class RuntimeBattlePanelView
     public UnityEngine.UI.RawImage CardInspectArt { get; private set; }
     public UnityEngine.UI.Text CardInspectTitle { get; private set; }
     public UnityEngine.UI.Text CardInspectSubtitle { get; private set; }
+    public UnityEngine.UI.Text CardInspectSummary { get; private set; }
     public UnityEngine.UI.Text CardInspectDetail { get; private set; }
 
     // Stable references retained for binding tests and concise tabletop
@@ -85,6 +92,11 @@ public sealed class RuntimeBattlePanelView
     public UnityEngine.UI.Button RecoveryButton { get; private set; }
     public RectTransform ReducedMotionToggleRoot { get; private set; }
     public UnityEngine.UI.Toggle ReducedMotionToggle { get; private set; }
+    public RectTransform LanguageSelectorRoot { get; private set; }
+    public UnityEngine.UI.Text LanguageSelectorLabel { get; private set; }
+    public UnityEngine.UI.Button LanguageEnglishButton { get; private set; }
+    public UnityEngine.UI.Button LanguageChineseButton { get; private set; }
+    public UnityEngine.UI.Button LanguageJapaneseButton { get; private set; }
     public RectTransform FeedbackRoot { get; private set; }
     public UnityEngine.UI.Image FeedbackBackground { get; private set; }
     public UnityEngine.UI.Text FeedbackText { get; private set; }
@@ -270,7 +282,10 @@ public sealed class RuntimeBattlePanelView
         // child remains the top hit when the two rectangles overlap.
         view.TargetZonesRoot.SetAsFirstSibling();
         view.OpponentHandRoot.SetAsLastSibling();
-        view.OwnHandRoot.SetAsLastSibling();
+        // The hand cards now live under a masked horizontal viewport. Keep
+        // the viewport above the semantic drop surface and the rest of the
+        // own lane; the cards themselves remain its later content children.
+        (view.OwnHandScrollRoot ?? view.OwnHandRoot).SetAsLastSibling();
         if (view.DiscardActionsRoot != null) view.DiscardActionsRoot.SetAsLastSibling();
         view.OwnFieldDropSurface.SetAsFirstSibling();
         view.OwnHandDropSurface.SetAsFirstSibling();
@@ -300,18 +315,100 @@ public sealed class RuntimeBattlePanelView
     /// </summary>
     public void ShowCardInspect(RuntimeCardInspectModel model, Texture2D art)
     {
-        if (model == null || CardInspectRoot == null) return;
+        ShowCardInspect(model, art, null, "en");
+    }
+
+    /// <summary>
+    /// Opens the reader with presentation labels from the shared resolver.
+    /// Authored card content (name, rules, keywords and tag values) remains
+    /// supplied by the card display model rather than being translated here.
+    /// </summary>
+    public void ShowCardInspect(
+        RuntimeCardInspectModel model,
+        Texture2D art,
+        RuntimeLocalizationResolver localizationResolver,
+        string language = "en")
+    {
+        // The pause surface owns input while it is open. Do not let a late
+        // card click or snapshot callback reopen the reader over pause UI.
+        if (model == null || CardInspectRoot == null || PauseMenuOpen) return;
         CardInspectTitle.text = model.Title;
         CardInspectSubtitle.text = model.TypeFactionLine;
-        CardInspectDetail.text = model.DetailText;
+        CardInspectSummary.text = BuildCardInspectSummary(model);
+        CardInspectDetail.text = BuildCardInspectBody(model, localizationResolver, language);
         CardInspectArt.texture = art;
         CardInspectArt.enabled = art != null;
         CardInspectRoot.gameObject.SetActive(true);
         CardInspectRoot.SetAsLastSibling();
 
+        // Every new inspection starts at the top of the canonical body. The
+        // existing ScrollRect remains the only reader scroll surface; this
+        // prevents a previous card's bottom position from hiding the new
+        // card's effect heading after a snapshot/card switch.
+        var inspectScroll = CardInspectRoot.GetComponentInChildren<UnityEngine.UI.ScrollRect>(true);
+        if (inspectScroll != null)
+            inspectScroll.verticalNormalizedPosition = 1f;
+
         var content = CardInspectDetail.transform.parent as RectTransform;
         if (content != null)
             UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+    }
+
+    private static string BuildCardInspectSummary(RuntimeCardInspectModel model)
+    {
+        var summary = model.PunishAndCostLine;
+        var stats = !string.IsNullOrWhiteSpace(model.CurrentStatsLine)
+            ? model.CurrentStatsLine
+            : model.PrintedStatsLine;
+        if (!string.IsNullOrWhiteSpace(stats)) summary += "\n" + stats;
+        return summary;
+    }
+
+    private static string BuildCardInspectBody(
+        RuntimeCardInspectModel model,
+        RuntimeLocalizationResolver localizationResolver,
+        string language)
+    {
+        var builder = new StringBuilder(256);
+        AppendCardInspectSection(builder, CardLabel(localizationResolver, "card.effect", "EFFECT", language), model.RulesText);
+        AppendCardInspectSection(builder, CardLabel(localizationResolver, "card.fees", "FEES", language), model.MechanicalFeesLine);
+        AppendCardInspectSection(builder, CardLabel(localizationResolver, "card.goal", "GOAL", language), model.LeaderWinText);
+        AppendCardInspectSection(builder, CardLabel(localizationResolver, "card.progress", "PROGRESS", language), model.ChantLine);
+        AppendCardInspectSection(builder, CardLabel(localizationResolver, "card.landmark", "LANDMARK", language), model.LandmarkProgressLine);
+        // These two contract lines already carry their canonical KEYWORDS/TAGS
+        // prefix. Keep the source wording once rather than rendering a
+        // duplicated reader heading around it.
+        AppendCardInspectLine(builder, model.KeywordsLine);
+        AppendCardInspectLine(builder, model.TagsLine);
+        return builder.ToString();
+    }
+
+    private static string CardLabel(
+        RuntimeLocalizationResolver localizationResolver,
+        string localizationKey,
+        string fallback,
+        string language)
+    {
+        return localizationResolver == null
+            ? fallback
+            : localizationResolver.Get(localizationKey, language);
+    }
+
+    private static void AppendCardInspectLine(StringBuilder builder, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        if (builder.Length > 0) builder.Append('\n');
+        builder.Append(value).Append('\n');
+    }
+
+    private static void AppendCardInspectSection(
+        StringBuilder builder,
+        string label,
+        string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        if (builder.Length > 0) builder.Append('\n');
+        builder.Append(label).Append('\n').Append(value).Append('\n');
     }
 
     public void HideCardInspect()
@@ -333,6 +430,8 @@ public sealed class RuntimeBattlePanelView
     {
         if (ActionsDrawerRoot == null) return;
         if (open && !_moreActionsAvailable) return;
+        if (open && PauseMenuOpen)
+            SetPauseMenuOpen(false);
         ActionsDrawerRoot.gameObject.SetActive(open);
         if (MoreActionsButton != null)
             MoreActionsButton.gameObject.SetActive(_moreActionsAvailable && !open);
@@ -340,9 +439,18 @@ public sealed class RuntimeBattlePanelView
 
     public bool PauseMenuOpen => PauseDrawerRoot != null && PauseDrawerRoot.gameObject.activeSelf;
 
+    public bool PauseSettingsOpen => PauseSettingsRoot != null && PauseSettingsRoot.gameObject.activeSelf;
+
     public void SetPauseMenuOpen(bool open)
     {
         if (PauseDrawerRoot == null) return;
+        if (open && MoreActionsOpen)
+            SetMoreActionsOpen(false);
+        if (open)
+        {
+            HideCardInspect();
+            PauseDrawerRoot.SetAsLastSibling();
+        }
         PauseDrawerRoot.gameObject.SetActive(open);
         if (!open && PauseSettingsRoot != null)
             PauseSettingsRoot.gameObject.SetActive(false);
@@ -370,7 +478,15 @@ public sealed class RuntimeBattlePanelView
         // semantic/layout hook, but keep the absent zone off the player-facing
         // surface until the contract supplies an authoritative value.
         view.OpponentExileRoot.gameObject.SetActive(false);
-        view.OpponentPhaseRoot = CreateQueueSlot(view.LeftRailRoot, "OpponentPhaseAmbush", "PHASE", "—", new Color(0.93f, 0.65f, 0.74f), Vector2.zero, Vector2.zero);
+        view.OpponentPhaseRoot = CreateQueueSlot(
+            view.LeftRailRoot,
+            "OpponentPhaseAmbush",
+            "PHASE STATUS",
+            "—",
+            new Color(0.93f, 0.65f, 0.74f),
+            Vector2.zero,
+            Vector2.zero,
+            statusOnly: true);
         CreateFlexibleSpacer(view.LeftRailRoot, "LeftRailSpacer");
 
         view.CenterPilesRoot = CreateRect("CenterPiles", view.LeftRailRoot);
@@ -379,7 +495,15 @@ public sealed class RuntimeBattlePanelView
         ConfigureVerticalRail(view.CenterPilesRoot, 2, 2, 3f);
         CreateQueueSlot(view.CenterPilesRoot, "CenterCloudMirror", "CLOUD", "—", new Color(0.40f, 0.72f, 0.82f), Vector2.zero, Vector2.zero);
         CreateQueueSlot(view.CenterPilesRoot, "CenterCommitMirror", "SUBMIT QUEUE", "—", new Color(0.42f, 0.77f, 0.60f), Vector2.zero, Vector2.zero);
-        view.OwnPhaseRoot = CreateQueueSlot(view.LeftRailRoot, "OwnPhaseAmbush", "AMBUSH", "—", new Color(0.45f, 0.85f, 0.68f), Vector2.zero, Vector2.zero);
+        view.OwnPhaseRoot = CreateQueueSlot(
+            view.LeftRailRoot,
+            "OwnPhaseAmbush",
+            "AMBUSH QUEUE",
+            "—",
+            new Color(0.45f, 0.85f, 0.68f),
+            Vector2.zero,
+            Vector2.zero,
+            statusOnly: true);
         view.PhaseActionsRoot = CreatePhaseActionsSurface(
             view.LeftRailRoot,
             "RuntimeBattlePanelPhaseActions",
@@ -559,7 +683,26 @@ public sealed class RuntimeBattlePanelView
             "DROP TO HAND",
             new Vector2(0.31f, 0.02f),
             new Vector2(0.99f, 0.76f));
-        view.OwnHandRoot = CreateCardStrip(view.OwnRoot, "OwnHandFaceUp", new Vector2(0.31f, 0.02f), new Vector2(0.99f, 0.76f), 112f, 136f, 6f, 80f);
+        view.OwnHandScrollRoot = CreateHorizontalCardScrollRoot(
+            view.OwnRoot,
+            "OwnHandFaceUpScrollRect",
+            new Vector2(0.31f, 0.02f),
+            new Vector2(0.99f, 0.76f),
+            out var ownHandViewport,
+            out var ownHandContent,
+            out var ownHandScroll,
+            out var ownHandScrollbar,
+            112f,
+            136f,
+            6f,
+            // Preserve the existing compact card's portrait proportion at
+            // high hand counts; the ScrollRect handles overflow instead of
+            // squeezing cards below a readable width.
+            96f);
+        view.OwnHandViewport = ownHandViewport;
+        view.OwnHandRoot = ownHandContent;
+        view.OwnHandScroll = ownHandScroll;
+        view.OwnHandScrollbar = ownHandScrollbar;
         view.DiscardActionsRoot = CreateDiscardActionsSurface(
             view.OwnRoot,
             "RuntimeBattlePanelDiscardActions",
@@ -701,6 +844,51 @@ public sealed class RuntimeBattlePanelView
         settingsTitle.alignment = TextAnchor.MiddleCenter;
         settingsTitle.fontStyle = FontStyle.Bold;
         SetAnchors(settingsTitle.rectTransform, new Vector2(0.08f, 0.78f), new Vector2(0.92f, 0.94f));
+
+        view.LanguageSelectorRoot = CreateRect(
+            "RuntimeBattlePanelLanguageSelector",
+            view.PauseSettingsRoot);
+        SetAnchors(
+            view.LanguageSelectorRoot,
+            new Vector2(0.08f, 0.52f),
+            new Vector2(0.92f, 0.73f));
+        view.LanguageSelectorLabel = CreateText(
+            view.LanguageSelectorRoot,
+            "LanguageSelectorLabel",
+            12,
+            Muted);
+        view.LanguageSelectorLabel.text = "LANGUAGE";
+        view.LanguageSelectorLabel.alignment = TextAnchor.MiddleLeft;
+        view.LanguageSelectorLabel.fontStyle = FontStyle.Bold;
+        SetAnchors(
+            view.LanguageSelectorLabel.rectTransform,
+            new Vector2(0f, 0f),
+            new Vector2(0.24f, 1f));
+        view.LanguageEnglishButton = CreateFooterButton(
+            view.LanguageSelectorRoot,
+            "RuntimeBattlePanelLanguageEnglish",
+            "English",
+            new Vector2(0.27f, 0.04f),
+            new Vector2(0.49f, 0.96f),
+            Hex("334858"),
+            11);
+        view.LanguageChineseButton = CreateFooterButton(
+            view.LanguageSelectorRoot,
+            "RuntimeBattlePanelLanguageChinese",
+            "中文",
+            new Vector2(0.51f, 0.04f),
+            new Vector2(0.73f, 0.96f),
+            Hex("334858"),
+            11);
+        view.LanguageJapaneseButton = CreateFooterButton(
+            view.LanguageSelectorRoot,
+            "RuntimeBattlePanelLanguageJapanese",
+            "日本語",
+            new Vector2(0.75f, 0.04f),
+            new Vector2(1f, 0.96f),
+            Hex("334858"),
+            11);
+
         view.PauseSettingsBackButton = CreateFooterButton(
             view.PauseSettingsRoot,
             "RuntimeBattlePanelPauseSettingsBackButton",
@@ -715,7 +903,7 @@ public sealed class RuntimeBattlePanelView
         if (view.ReducedMotionToggleRoot != null)
         {
             view.ReducedMotionToggleRoot.SetParent(view.PauseSettingsRoot, false);
-            SetAnchors(view.ReducedMotionToggleRoot, new Vector2(0.12f, 0.38f), new Vector2(0.88f, 0.68f));
+            SetAnchors(view.ReducedMotionToggleRoot, new Vector2(0.12f, 0.29f), new Vector2(0.88f, 0.47f));
         }
 
         view.PauseSettingsRoot.gameObject.SetActive(false);
@@ -726,26 +914,52 @@ public sealed class RuntimeBattlePanelView
     {
         // A temporary reader is essential at 1280x720: cards can remain
         // compact on the table while hover/click exposes their full canonical
-        // presentation metadata. Keep its actual hit rectangle inside the
-        // left rail. The reader must not overlap the board's ambush/hand lanes,
-        // otherwise its ScrollRect becomes the pointerDrag owner of a gesture
-        // that visibly starts on a card.
+        // presentation metadata. Keep the root hit rectangle inside the left
+        // rail. The visual surface may extend just up to the hand's left edge,
+        // but its background/text are non-raycast presentation only; this
+        // preserves the physical card's pointer path for a drag.
         view.CardInspectRoot = CreateRect("RuntimeCardInspect", view.ContentRoot);
         SetAnchors(view.CardInspectRoot, new Vector2(0.012f, 0.16f), new Vector2(0.135f, 0.89f));
         AddPanelBackground(view.CardInspectRoot, Hex("0A171F"), Gold, 0.99f);
 
-        view.CardInspectTitle = CreateText(view.CardInspectRoot, "CardInspectTitle", 25, Color.white);
+        // The reader's old root is intentionally retained as the stable,
+        // narrow interaction boundary. At its current width it is only about
+        // 148/119 reference pixels at 1280/1024. This child is a bounded
+        // presentation expansion: 2.88 times the root width ends just before
+        // the MainBattleRoot hand/field cards (about x=.366 of ContentRoot),
+        // without moving any tabletop lane or target surface. While the
+        // reader is open this presentation surface may temporarily cover
+        // the summary/leader/ambush area; closing or beginning a hand drag
+        // returns the underlying controls to their normal state.
+        var readerSurface = CreateRect("CardInspectSurface", view.CardInspectRoot);
+        SetAnchors(readerSurface, Vector2.zero, new Vector2(2.88f, 1f));
+        AddPanelBackground(readerSurface, Hex("0A171F"), Gold, 0.99f);
+
+        view.CardInspectTitle = CreateText(readerSurface, "CardInspectTitle", 27, Color.white);
         view.CardInspectTitle.fontStyle = FontStyle.Bold;
         view.CardInspectTitle.alignment = TextAnchor.MiddleLeft;
-        SetAnchors(view.CardInspectTitle.rectTransform, new Vector2(0.055f, 0.90f), new Vector2(0.95f, 0.985f));
+        view.CardInspectTitle.horizontalOverflow = HorizontalWrapMode.Wrap;
+        view.CardInspectTitle.verticalOverflow = VerticalWrapMode.Overflow;
+        SetAnchors(view.CardInspectTitle.rectTransform, new Vector2(0.04f, 0.86f), new Vector2(0.96f, 0.985f));
 
-        view.CardInspectSubtitle = CreateText(view.CardInspectRoot, "CardInspectSubtitle", 13, Cyan);
+        view.CardInspectSubtitle = CreateText(readerSurface, "CardInspectSubtitle", 14, Cyan);
         view.CardInspectSubtitle.fontStyle = FontStyle.Bold;
         view.CardInspectSubtitle.alignment = TextAnchor.MiddleLeft;
-        SetAnchors(view.CardInspectSubtitle.rectTransform, new Vector2(0.055f, 0.84f), new Vector2(0.95f, 0.905f));
+        SetAnchors(view.CardInspectSubtitle.rectTransform, new Vector2(0.04f, 0.795f), new Vector2(0.96f, 0.855f));
 
-        var artRoot = CreateRect("CardInspectArt", view.CardInspectRoot);
-        SetAnchors(artRoot, new Vector2(0.055f, 0.52f), new Vector2(0.945f, 0.835f));
+        view.CardInspectSummary = CreateText(
+            readerSurface,
+            "CardInspectSummary",
+            16,
+            new Color(1f, 0.84f, 0.40f));
+        view.CardInspectSummary.fontStyle = FontStyle.Bold;
+        view.CardInspectSummary.alignment = TextAnchor.UpperLeft;
+        view.CardInspectSummary.horizontalOverflow = HorizontalWrapMode.Wrap;
+        view.CardInspectSummary.verticalOverflow = VerticalWrapMode.Overflow;
+        SetAnchors(view.CardInspectSummary.rectTransform, new Vector2(0.04f, 0.695f), new Vector2(0.96f, 0.79f));
+
+        var artRoot = CreateRect("CardInspectArt", readerSurface);
+        SetAnchors(artRoot, new Vector2(0.04f, 0.46f), new Vector2(0.96f, 0.685f));
         AddPanelBackground(artRoot, Hex("132731"), PanelBorder, 0.98f);
         // A GameObject cannot host both Image and RawImage because both are
         // Graphic components. Keep the bordered panel on the parent and put
@@ -759,18 +973,30 @@ public sealed class RuntimeBattlePanelView
         RectTransform viewport;
         RectTransform content;
         var scrollRoot = CreateScrollRoot(
-            view.CardInspectRoot,
+            readerSurface,
             "CardInspectScrollRect",
             out viewport,
             out content);
-        SetAnchors(scrollRoot, new Vector2(0.045f, 0.055f), new Vector2(0.955f, 0.50f));
+        SetAnchors(scrollRoot, new Vector2(0.03f, 0.035f), new Vector2(0.97f, 0.445f));
         scrollRoot.GetComponent<UnityEngine.UI.ScrollRect>().scrollSensitivity = 28f;
 
-        view.CardInspectDetail = CreateText(content, "CardInspectDetail", 14, new Color(0.88f, 0.92f, 0.94f));
+        // The visible detail body owns its full ScrollRect input surface.
+        // Do not narrow the hit area back to the old rail: long effects must
+        // scroll from any visible point in the expanded reader. The bounded
+        // surface ends before the hand/field card start area, and the
+        // existing card-drag close path gives those targets priority when a
+        // drag begins.
+        var viewportImage = viewport.GetComponent<UnityEngine.UI.Image>();
+        if (viewportImage != null) viewportImage.raycastTarget = true;
+
+        view.CardInspectDetail = CreateText(content, "CardInspectDetail", 16, new Color(0.88f, 0.92f, 0.94f));
         view.CardInspectDetail.alignment = TextAnchor.UpperLeft;
         view.CardInspectDetail.horizontalOverflow = HorizontalWrapMode.Wrap;
         view.CardInspectDetail.verticalOverflow = VerticalWrapMode.Overflow;
-        SetLayout(view.CardInspectDetail.rectTransform, 220f, 320f, 0f);
+        view.CardInspectDetail.lineSpacing = 1.05f;
+        var detailFitter = view.CardInspectDetail.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();
+        detailFitter.horizontalFit = UnityEngine.UI.ContentSizeFitter.FitMode.Unconstrained;
+        detailFitter.verticalFit = UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
 
         view.CardInspectRoot.gameObject.SetActive(false);
     }
@@ -903,6 +1129,90 @@ public sealed class RuntimeBattlePanelView
         element.flexibleWidth = flexibleWidth;
     }
 
+    private static RectTransform CreateHorizontalCardScrollRoot(
+        RectTransform parent,
+        string name,
+        Vector2 min,
+        Vector2 max,
+        out RectTransform viewport,
+        out RectTransform content,
+        out UnityEngine.UI.ScrollRect scroll,
+        out UnityEngine.UI.Scrollbar scrollbar,
+        float width,
+        float height,
+        float spacing,
+        float minimumCardWidth)
+    {
+        var root = CreateRect(name, parent);
+        SetAnchors(root, min, max);
+        SetLayout(root, height, height, 0f);
+
+        scroll = root.gameObject.AddComponent<UnityEngine.UI.ScrollRect>();
+        scroll.horizontal = true;
+        scroll.vertical = false;
+        scroll.movementType = UnityEngine.UI.ScrollRect.MovementType.Clamped;
+        scroll.inertia = true;
+        scroll.scrollSensitivity = 32f;
+        scroll.horizontalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide;
+        scroll.horizontalScrollbarSpacing = 0f;
+
+        viewport = CreateRect("Viewport", root);
+        SetAnchors(viewport, Vector2.zero, Vector2.one);
+        var viewportImage = viewport.gameObject.AddComponent<UnityEngine.UI.Image>();
+        viewportImage.color = new Color(0.02f, 0.12f, 0.15f, 0.08f);
+        // The hand and own-field lanes intentionally overlap. The viewport
+        // clips the hand but must not become a transparent full-rectangle
+        // pointer shield over a field card or its semantic drop surface.
+        // Card graphics still receive pointer/drag events, which bubble to
+        // this ScrollRect for wheel input; the visible scrollbar remains the
+        // explicit blank-space browsing affordance.
+        viewportImage.raycastTarget = false;
+        var viewportMask = viewport.gameObject.AddComponent<UnityEngine.UI.Mask>();
+        viewportMask.showMaskGraphic = false;
+
+        content = CreateCardStrip(
+            viewport,
+            "OwnHandFaceUp",
+            new Vector2(0f, 0f),
+            new Vector2(0f, 1f),
+            width,
+            height,
+            spacing,
+            minimumCardWidth,
+            false);
+        content.pivot = new Vector2(0f, 0.5f);
+        content.anchoredPosition = Vector2.zero;
+        content.sizeDelta = new Vector2(viewport.rect.width, 0f);
+        var contentFitter = content.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();
+        contentFitter.horizontalFit = UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
+        contentFitter.verticalFit = UnityEngine.UI.ContentSizeFitter.FitMode.Unconstrained;
+
+        var scrollbarRoot = CreateRect("Scrollbar", root);
+        SetAnchors(scrollbarRoot, new Vector2(0.02f, 0.01f), new Vector2(0.98f, 0.085f));
+        var scrollbarBackground = scrollbarRoot.gameObject.AddComponent<UnityEngine.UI.Image>();
+        scrollbarBackground.color = new Color(0.20f, 0.43f, 0.49f, 0.46f);
+        scrollbarBackground.raycastTarget = true;
+        scrollbar = scrollbarRoot.gameObject.AddComponent<UnityEngine.UI.Scrollbar>();
+        scrollbar.direction = UnityEngine.UI.Scrollbar.Direction.LeftToRight;
+        scrollbar.navigation = new UnityEngine.UI.Navigation { mode = UnityEngine.UI.Navigation.Mode.None };
+
+        var slidingArea = CreateRect("SlidingArea", scrollbarRoot);
+        SetAnchors(slidingArea, new Vector2(0.02f, 0.18f), new Vector2(0.98f, 0.82f));
+        var handle = CreateRect("Handle", slidingArea);
+        SetAnchors(handle, Vector2.zero, Vector2.one);
+        var handleImage = handle.gameObject.AddComponent<UnityEngine.UI.Image>();
+        handleImage.color = new Color(Cyan.r, Cyan.g, Cyan.b, 0.94f);
+        handleImage.raycastTarget = true;
+        scrollbar.handleRect = handle;
+        scrollbar.targetGraphic = handleImage;
+        scrollbarRoot.SetAsLastSibling();
+
+        scroll.viewport = viewport;
+        scroll.content = content;
+        scroll.horizontalScrollbar = scrollbar;
+        return root;
+    }
+
     private static RectTransform CreateCardStrip(
         RectTransform parent,
         string name,
@@ -911,7 +1221,8 @@ public sealed class RuntimeBattlePanelView
         float width,
         float height,
         float spacing,
-        float minimumCardWidth = 40f)
+        float minimumCardWidth = 40f,
+        bool addMask = true)
     {
         var strip = CreateRect(name, parent);
         SetAnchors(strip, min, max);
@@ -927,7 +1238,7 @@ public sealed class RuntimeBattlePanelView
         layout.PreferredCardHeight = height;
         layout.BaseSpacing = spacing;
         layout.MinimumCardWidth = minimumCardWidth;
-        strip.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
+        if (addMask) strip.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
         SetLayout(strip, height, height, 0f);
         return strip;
     }
@@ -964,6 +1275,64 @@ public sealed class RuntimeBattlePanelView
         layout.RequestRefresh();
         if (strip.rect.width > 1f && strip.rect.height > 1f)
             UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(strip);
+    }
+
+    public static void FitScrollableCardStrip(
+        RectTransform scrollRoot,
+        RectTransform viewport,
+        RectTransform content)
+    {
+        if (scrollRoot == null || viewport == null || content == null) return;
+        var layout = content.GetComponent<RuntimeResponsiveCardLayout>();
+        var scroll = scrollRoot.GetComponent<UnityEngine.UI.ScrollRect>();
+        if (layout == null || scroll == null || viewport.rect.width <= 1f) return;
+
+        var normalizedPosition = layout.BeginScrollRefit(scroll, viewport, content);
+        var activeCount = 0;
+        for (var index = 0; index < content.childCount; index++)
+        {
+            var child = content.GetChild(index).gameObject;
+            if (!child.activeSelf) continue;
+            var element = child.GetComponent<UnityEngine.UI.LayoutElement>();
+            if (element != null && !element.ignoreLayout) activeCount++;
+        }
+
+        var availableWidth = viewport.rect.width - layout.padding.horizontal;
+        var cardWidth = activeCount == 0
+            ? 0f
+            : Mathf.Min(
+                layout.PreferredCardWidth,
+                (availableWidth - layout.BaseSpacing * Mathf.Max(0, activeCount - 1)) /
+                    activeCount);
+        var minimumWidth = Mathf.Min(layout.MinimumCardWidth, layout.PreferredCardWidth);
+        if (activeCount > 0 && cardWidth < minimumWidth)
+            cardWidth = minimumWidth;
+
+        var desiredWidth = activeCount == 0
+            ? viewport.rect.width
+            : layout.padding.horizontal +
+              cardWidth * activeCount +
+              layout.BaseSpacing * Mathf.Max(0, activeCount - 1);
+        desiredWidth = Mathf.Max(viewport.rect.width, desiredWidth);
+
+        var contentLayout = content.GetComponent<UnityEngine.UI.LayoutElement>();
+        if (contentLayout == null) contentLayout = content.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+        contentLayout.minWidth = desiredWidth;
+        contentLayout.preferredWidth = desiredWidth;
+        contentLayout.flexibleWidth = 0f;
+        content.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, desiredWidth);
+
+        layout.RequestRefresh();
+        UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+        if (activeCount == 0)
+            scroll.horizontalNormalizedPosition = 0f;
+        else
+            scroll.horizontalNormalizedPosition = Mathf.Clamp01(normalizedPosition);
+        layout.CompleteScrollRefit(
+            scroll,
+            viewport,
+            content,
+            activeCount == 0 ? 0f : normalizedPosition);
     }
 
     private static void ConfigureVerticalRail(RectTransform rail, int horizontalPadding = 4, int verticalPadding = 4, float spacing = 4f)
@@ -1068,7 +1437,15 @@ public sealed class RuntimeBattlePanelView
         return slot;
     }
 
-    private static RectTransform CreateQueueSlot(RectTransform parent, string name, string label, string value, Color accent, Vector2 min, Vector2 max)
+    private static RectTransform CreateQueueSlot(
+        RectTransform parent,
+        string name,
+        string label,
+        string value,
+        Color accent,
+        Vector2 min,
+        Vector2 max,
+        bool statusOnly = false)
     {
         var slot = CreateRect(name, parent);
         SetAnchors(slot, min, max);
@@ -1080,17 +1457,38 @@ public sealed class RuntimeBattlePanelView
             slotLayout.minWidth = 56f;
             slotLayout.preferredWidth = 56f;
         }
-        AddPanelBackground(slot, Hex("101C23"), accent, 0.96f);
-        var title = CreateText(slot, "QueueLabel", 14, accent);
+        // The two side phase slots are status mirrors, not controls. Keep
+        // their count readable, but remove the framed button-like treatment
+        // so the adjacent PhaseActions surface is the obvious action target.
+        if (!statusOnly)
+            AddPanelBackground(slot, Hex("101C23"), accent, 0.96f);
+
+        var title = CreateText(slot, "QueueLabel", statusOnly ? 11 : 14, statusOnly ? Muted : accent);
         title.text = label;
-        title.alignment = TextAnchor.MiddleCenter;
+        title.alignment = statusOnly ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
         title.fontStyle = FontStyle.Bold;
-        SetAnchors(title.rectTransform, new Vector2(0.04f, 0.48f), new Vector2(0.96f, 0.92f));
-        var count = CreateText(slot, "QueueCount", 18, Color.white);
+        SetAnchors(
+            title.rectTransform,
+            new Vector2(0.04f, statusOnly ? 0.69f : 0.48f),
+            new Vector2(0.96f, statusOnly ? 0.96f : 0.92f));
+
+        if (statusOnly)
+        {
+            var state = CreateText(slot, "QueueState", 10, Muted);
+            state.text = "—";
+            state.alignment = TextAnchor.MiddleLeft;
+            state.verticalOverflow = VerticalWrapMode.Truncate;
+            SetAnchors(state.rectTransform, new Vector2(0.04f, 0.42f), new Vector2(0.96f, 0.67f));
+        }
+
+        var count = CreateText(slot, "QueueCount", statusOnly ? 17 : 18, Color.white);
         count.text = value;
-        count.alignment = TextAnchor.MiddleCenter;
+        count.alignment = statusOnly ? TextAnchor.MiddleRight : TextAnchor.MiddleCenter;
         count.fontStyle = FontStyle.Bold;
-        SetAnchors(count.rectTransform, new Vector2(0.04f, 0.05f), new Vector2(0.96f, 0.45f));
+        SetAnchors(
+            count.rectTransform,
+            new Vector2(0.04f, statusOnly ? 0.06f : 0.05f),
+            new Vector2(0.96f, statusOnly ? 0.40f : 0.45f));
         return slot;
     }
 
@@ -1396,6 +1794,14 @@ public sealed class RuntimeBattlePanelView
         }
     }
 
+    public static void SetQueueState(RectTransform root, string value)
+    {
+        if (root == null) return;
+        var text = FindChildText(root, "QueueState");
+        if (text != null)
+            text.text = string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
     private static string ShortenLeaderGoal(string winText)
     {
         var summary = winText.Replace("\r", " ").Replace("\n", " ").Trim();
@@ -1466,14 +1872,99 @@ public sealed class RuntimeBattlePanelView
         if (ColorUtility.TryParseHtmlString("#" + value, out var color)) return color;
         return Color.magenta;
     }
+
 }
 
 internal sealed class RuntimeResponsiveCardLayout : UnityEngine.UI.HorizontalLayoutGroup
 {
+    private UnityEngine.UI.ScrollRect _trackedScroll;
+    private UnityEngine.Events.UnityAction<Vector2> _scrollValueChangedListener;
+    private float _lastNormalizedPosition;
+    private float _lastViewportWidth;
+    private float _lastContentWidth;
+    private bool _hasScrollPosition;
+    private bool _isRefittingScroll;
+
     public float PreferredCardWidth;
     public float PreferredCardHeight;
     public float BaseSpacing;
     public float MinimumCardWidth = 40f;
+
+    public float BeginScrollRefit(
+        UnityEngine.UI.ScrollRect scroll,
+        RectTransform viewport,
+        RectTransform content)
+    {
+        if (_trackedScroll != scroll)
+        {
+            if (_trackedScroll != null && _scrollValueChangedListener != null)
+                _trackedScroll.onValueChanged.RemoveListener(_scrollValueChangedListener);
+
+            _trackedScroll = scroll;
+            _scrollValueChangedListener = CaptureScrollPosition;
+            _trackedScroll.onValueChanged.AddListener(_scrollValueChangedListener);
+            _hasScrollPosition = false;
+        }
+
+        if (!_hasScrollPosition)
+        {
+            CaptureScrollPosition(viewport, content);
+        }
+        else if (HasSameScrollGeometry(viewport, content))
+        {
+            _lastNormalizedPosition = scroll.horizontalNormalizedPosition;
+        }
+
+        _isRefittingScroll = true;
+        return Mathf.Clamp01(_lastNormalizedPosition);
+    }
+
+    public void CompleteScrollRefit(
+        UnityEngine.UI.ScrollRect scroll,
+        RectTransform viewport,
+        RectTransform content,
+        float normalizedPosition)
+    {
+        _trackedScroll = scroll;
+        _lastNormalizedPosition = Mathf.Clamp01(normalizedPosition);
+        _lastViewportWidth = viewport.rect.width;
+        _lastContentWidth = content.rect.width;
+        _hasScrollPosition = true;
+        _isRefittingScroll = false;
+    }
+
+    private void CaptureScrollPosition(Vector2 _)
+    {
+        if (_isRefittingScroll || !_hasScrollPosition || _trackedScroll == null ||
+            _trackedScroll.viewport == null || _trackedScroll.content == null)
+            return;
+
+        var viewport = _trackedScroll.viewport as RectTransform;
+        var content = _trackedScroll.content as RectTransform;
+        if (viewport == null || content == null || !HasSameScrollGeometry(viewport, content)) return;
+        _lastNormalizedPosition = _trackedScroll.horizontalNormalizedPosition;
+    }
+
+    private void CaptureScrollPosition(RectTransform viewport, RectTransform content)
+    {
+        _lastNormalizedPosition = _trackedScroll.horizontalNormalizedPosition;
+        _lastViewportWidth = viewport.rect.width;
+        _lastContentWidth = content.rect.width;
+        _hasScrollPosition = true;
+    }
+
+    private bool HasSameScrollGeometry(RectTransform viewport, RectTransform content)
+    {
+        return Mathf.Approximately(_lastViewportWidth, viewport.rect.width) &&
+            Mathf.Approximately(_lastContentWidth, content.rect.width);
+    }
+
+    protected override void OnDestroy()
+    {
+        if (_trackedScroll != null && _scrollValueChangedListener != null)
+            _trackedScroll.onValueChanged.RemoveListener(_scrollValueChangedListener);
+        base.OnDestroy();
+    }
 
     public void RequestRefresh()
     {

@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using DominionWars.Unity.Runtime;
 using DominionWars.Unity.UI;
 
 namespace DominionWars.Unity.PlayMode
@@ -68,6 +69,80 @@ public sealed class RuntimeBattlePanelStructurePlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator PlayerEventRailPersistsPublicEventsAfterPanelRender()
+    {
+        GameObject panelObject = null!;
+        RuntimeAdapter adapter = null!;
+        try
+        {
+            var snapshot = new RuntimeSnapshotEnvelope
+            {
+                ContractVersion = ContractVersionGuard.ExpectedVersion,
+                MatchId = "match_public_event_rail",
+                SnapshotRevision = 1,
+                Turn = 1,
+                Phase = "ACTION",
+                CurrentPlayer = 0,
+                ViewerPlayerId = "player_0",
+                Players = new[]
+                {
+                    new RuntimePlayerSnapshot { PlayerId = "player_0" },
+                    new RuntimePlayerSnapshot { PlayerId = "player_1" },
+                },
+                Castle = new RuntimeCastleSnapshot { Enabled = true, Health = 75 },
+                LegalActions = System.Array.Empty<RuntimeLegalAction>(),
+            };
+
+            adapter = new RuntimeAdapter(new SnapshotSession(snapshot));
+            adapter.AcceptSnapshot(snapshot);
+
+            panelObject = new GameObject(
+                "RuntimeBattlePanelPublicEventRail",
+                typeof(RectTransform));
+            panelObject.SetActive(false);
+            var panel = panelObject.AddComponent<RuntimeBattlePanel>();
+            panel.Bind(adapter);
+            panelObject.SetActive(true);
+
+            adapter.ApplyEvents(new[]
+            {
+                new RuntimeEventEnvelope
+                {
+                    EventId = "evt_000000000001",
+                    Type = "CARDS_DRAWN",
+                    Turn = 1,
+                    Phase = "ACTION",
+                    SnapshotRevision = 2,
+                    TargetIds = System.Array.Empty<object?>(),
+                    Data = new Dictionary<string, object?> { ["count"] = 2 },
+                },
+                new RuntimeEventEnvelope
+                {
+                    EventId = "evt_000000000002",
+                    Type = "DAMAGE_APPLIED",
+                    Turn = 1,
+                    Phase = "ACTION",
+                    SnapshotRevision = 2,
+                    TargetIds = new object?[] { "castle" },
+                    Data = new Dictionary<string, object?> { ["amount"] = 3 },
+                },
+            });
+
+            yield return null;
+
+            Assert.That(panel.View.EventsText.text, Does.Contain("CARDS DRAWN 2"));
+            Assert.That(panel.View.EventsText.text, Does.Contain("DAMAGE 3"));
+            Assert.That(panel.View.EventsText.text, Does.Not.Contain("evt_000000000001"));
+            Assert.That(panel.View.EventsText.text, Does.Not.Contain("evt_000000000002"));
+        }
+        finally
+        {
+            if (adapter != null) adapter.Dispose();
+            if (panelObject != null) Object.Destroy(panelObject);
+        }
+    }
+
+    [UnityTest]
     public IEnumerator TabletopStructureIsVisibleAtBothApprovedViewports()
     {
         GameObject canvasObject = null!;
@@ -109,7 +184,7 @@ public sealed class RuntimeBattlePanelStructurePlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator OverlappedOwnHandKeepsEveryVisibleLeadingEdgeRaycastable()
+    public IEnumerator ScrollableOwnHandKeepsEveryVisibleCardRaycastable()
     {
         GameObject canvasObject = null!;
         GameObject eventSystemObject = null!;
@@ -147,35 +222,88 @@ public sealed class RuntimeBattlePanelStructurePlayModeTests
                 Canvas.ForceUpdateCanvases();
                 LayoutRebuilder.ForceRebuildLayoutImmediate(view.ContentRoot);
                 LayoutRebuilder.ForceRebuildLayoutImmediate(view.OwnRoot);
+                RuntimeBattlePanelView.FitScrollableCardStrip(
+                    view.OwnHandScrollRoot,
+                    view.OwnHandViewport,
+                    view.OwnHandRoot);
                 LayoutRebuilder.ForceRebuildLayoutImmediate(view.OwnHandRoot);
                 yield return null;
 
-                var pointerEvent = new PointerEventData(eventSystem!);
-                for (var index = 0; index < view.OwnHandRoot.childCount; index++)
+                var scroll = view.OwnHandScroll!;
+                Assert.That(scroll.horizontal, Is.True);
+                Assert.That(scroll.vertical, Is.False);
+                Assert.That(view.OwnHandRoot.rect.width, Is.GreaterThan(view.OwnHandViewport.rect.width),
+                    "Ten cards must overflow the viewport so the user can browse without shrinking them.");
+
+                foreach (var normalizedPosition in new[] { 0f, 0.5f, 1f })
                 {
-                    var card = (RectTransform)view.OwnHandRoot.GetChild(index);
-                    var cardCorners = new Vector3[4];
-                    card.GetWorldCorners(cardCorners);
-                    var sampleX = cardCorners[0].x;
-                    if (index + 1 < view.OwnHandRoot.childCount)
+                    scroll.horizontalNormalizedPosition = normalizedPosition;
+                    Canvas.ForceUpdateCanvases();
+                    yield return null;
+
+                    var viewportCorners = new Vector3[4];
+                    view.OwnHandViewport.GetWorldCorners(viewportCorners);
+                    var visibleCards = 0;
+                    var pointerEvent = new PointerEventData(eventSystem!);
+                    for (var index = 0; index < view.OwnHandRoot.childCount; index++)
                     {
-                        var nextCorners = new Vector3[4];
-                        view.OwnHandRoot.GetChild(index + 1).GetComponent<RectTransform>()!.GetWorldCorners(nextCorners);
-                        sampleX = (sampleX + nextCorners[0].x) * 0.5f;
-                    }
-                    else
-                    {
-                        sampleX = (sampleX + cardCorners[2].x) * 0.5f;
+                        var card = (RectTransform)view.OwnHandRoot.GetChild(index);
+                        var cardCorners = new Vector3[4];
+                        card.GetWorldCorners(cardCorners);
+                        var center = (cardCorners[0] + cardCorners[2]) * 0.5f;
+                        if (center.x < viewportCorners[0].x || center.x > viewportCorners[2].x)
+                            continue;
+                        visibleCards++;
+
+                        Assert.That(card.rect.width, Is.GreaterThanOrEqualTo(96f),
+                            "Hand cards must keep the readable minimum width while scrolling.");
+
+                        pointerEvent.position = center;
+                        var raycasts = new List<RaycastResult>();
+                        eventSystem.RaycastAll(pointerEvent, raycasts);
+                        Assert.That(
+                            raycasts,
+                            Has.Some.Property("gameObject").SameAs(card.gameObject),
+                            "Visible card " + index + " must remain reachable at " + size.x + "x" + size.y +
+                            " scroll=" + normalizedPosition + ".");
                     }
 
-                    pointerEvent.position = new Vector2(sampleX, (cardCorners[0].y + cardCorners[2].y) * 0.5f);
-                    var raycasts = new List<RaycastResult>();
-                    eventSystem.RaycastAll(pointerEvent, raycasts);
-                    Assert.That(
-                        raycasts,
-                        Has.Some.Property("gameObject").SameAs(card.gameObject),
-                        "Card " + index + " must remain reachable at " + size.x + "x" + size.y + ".");
+                    Assert.That(visibleCards, Is.GreaterThan(0),
+                        "Each scroll position must expose at least one hand card at " + size.x + "x" + size.y + ".");
                 }
+
+                var scrollPositionBeforeResize = scroll.horizontalNormalizedPosition;
+                Assert.That(scrollPositionBeforeResize, Is.EqualTo(1f).Within(0.01f));
+                var viewportWidth = view.OwnHandViewport.rect.width;
+                view.OwnHandViewport.SetSizeWithCurrentAnchors(
+                    RectTransform.Axis.Horizontal,
+                    viewportWidth + 16f);
+                Canvas.ForceUpdateCanvases();
+                RuntimeBattlePanelView.FitScrollableCardStrip(
+                    view.OwnHandScrollRoot,
+                    view.OwnHandViewport,
+                    view.OwnHandRoot);
+                Canvas.ForceUpdateCanvases();
+                yield return null;
+                Assert.That(
+                    scroll.horizontalNormalizedPosition,
+                    Is.EqualTo(scrollPositionBeforeResize).Within(0.01f),
+                    "A narrowed overflow strip must preserve its horizontal position after refit.");
+
+                view.OwnHandViewport.SetSizeWithCurrentAnchors(
+                    RectTransform.Axis.Horizontal,
+                    viewportWidth);
+                Canvas.ForceUpdateCanvases();
+                RuntimeBattlePanelView.FitScrollableCardStrip(
+                    view.OwnHandScrollRoot,
+                    view.OwnHandViewport,
+                    view.OwnHandRoot);
+                Canvas.ForceUpdateCanvases();
+                yield return null;
+                Assert.That(
+                    scroll.horizontalNormalizedPosition,
+                    Is.EqualTo(scrollPositionBeforeResize).Within(0.01f),
+                    "Returning to the original width must not drift a nonzero hand position.");
             }
         }
         finally
@@ -221,10 +349,19 @@ public sealed class RuntimeBattlePanelStructurePlayModeTests
             var inspectScroll = view.CardInspectRoot.GetComponentInChildren<ScrollRect>(true);
             Assert.That(inspectScroll, Is.Not.Null);
             Assert.That(inspectScroll!.enabled, Is.True);
+            var readerSurface = view.CardInspectRoot.Find("CardInspectSurface") as RectTransform;
+            Assert.That(readerSurface, Is.Not.Null,
+                "The card reader must use the bounded expanded presentation surface.");
+            Assert.That(readerSurface!.anchorMax.x, Is.GreaterThan(1f),
+                "The reader surface must expand beyond the original narrow rail.");
+            var viewportImage = inspectScroll.viewport!.GetComponent<Image>();
+            Assert.That(viewportImage, Is.Not.Null);
+            Assert.That(viewportImage!.raycastTarget, Is.True,
+                "The full visible detail viewport must own scroll input across its width.");
             Assert.That(RectanglesOverlap(view.CardInspectRoot, view.OwnAmbushRoot), Is.False,
-                "The detail reader must stay inside the side rail and away from the ambush lane.");
+                "The original reader interaction boundary must stay inside the side rail and away from the ambush lane.");
             Assert.That(RectanglesOverlap(view.CardInspectRoot, view.OwnHandRoot), Is.False,
-                "The detail reader must not cover the hand's physical drag start area.");
+                "The original reader interaction boundary must not cover the hand's physical drag start area.");
 
             cardObject = new GameObject(
                 "DragScrollCoexistenceCard",
@@ -284,9 +421,13 @@ public sealed class RuntimeBattlePanelStructurePlayModeTests
                 ExecuteEvents.beginDragHandler), Is.True);
             Assert.That(drag.IsDragging, Is.True,
                 "The hand card must remain the drag source while the reader is open.");
+            Assert.That(view.OwnHandScroll!.enabled, Is.False,
+                "A hand drag must temporarily release the horizontal ScrollRect so it cannot steal the gesture.");
             ExecuteEvents.Execute(cardObject, pointer, ExecuteEvents.endDragHandler);
             Assert.That(drag.IsDragging, Is.False);
             Assert.That(drag.IsRetired, Is.False);
+            Assert.That(view.OwnHandScroll.enabled, Is.True,
+                "Cancelling an invalid hand drag must restore browsing immediately.");
         }
         finally
         {
@@ -387,6 +528,28 @@ public sealed class RuntimeBattlePanelStructurePlayModeTests
             leftCorners[2].x > rightCorners[0].x &&
             leftCorners[0].y < rightCorners[2].y &&
             leftCorners[2].y > rightCorners[0].y;
+    }
+
+    private sealed class SnapshotSession : IRuntimeSession
+    {
+        private readonly RuntimeSnapshotEnvelope _snapshot;
+
+        public SnapshotSession(RuntimeSnapshotEnvelope snapshot)
+        {
+            _snapshot = snapshot;
+        }
+
+        public RuntimeSnapshotEnvelope GetSnapshot(int viewerPlayerIndex)
+        {
+            return _snapshot;
+        }
+
+        public RuntimeActionSubmission Submit(RuntimeGameAction action)
+        {
+            throw new System.NotSupportedException();
+        }
+
+        public void Close() { }
     }
 }
 }

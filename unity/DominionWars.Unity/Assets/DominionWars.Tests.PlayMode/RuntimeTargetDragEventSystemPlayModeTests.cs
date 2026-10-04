@@ -288,6 +288,282 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator StandaloneInputModuleSelectsSelfDiscardCandidateBeforeConfirm()
+    {
+        var play = Action("play_101_self_discard", "PLAY_CARD", 101L, null!, "flame_bolt");
+        play.Payload = new Dictionary<string, object?>
+        {
+            ["discardRequired"] = 1L,
+            ["discardCandidateIds"] = new[] { 102L },
+        };
+        var decoyAction = Action("set_103_ambush", "SET_AMBUSH", 103L, null!, "wood_guard");
+        var initial = Snapshot(
+            1,
+            new[] { Card(101, "flame_bolt"), Card(102, "wood_guard"), Card(103, "wood_scout") },
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            new[] { play, decoyAction });
+        var resulting = Snapshot(
+            2,
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeLegalAction>());
+        yield return BuildPanel(initial, resulting);
+
+        var input = InstallPointerInputModule();
+        yield return null;
+        Assert.That(EventSystem.current!.currentInputModule, Is.SameAs(input));
+
+        var candidate = _canvasObject!.GetComponentsInChildren<RuntimeCardInspectInteraction>(true)
+            .Single(interaction => interaction.Model!.Card.EntityId == 102L);
+        var decoy = _canvasObject.GetComponentsInChildren<RuntimeCardInspectInteraction>(true)
+            .Single(interaction => interaction.Model!.Card.EntityId == 103L);
+        var candidateClickCount = 0;
+        candidate.InspectionRequested += (_, trigger) =>
+        {
+            if (trigger == RuntimeCardInspectTrigger.Click) candidateClickCount++;
+        };
+
+        var actionButton = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "Action_" + play.ActionId);
+        // The action is in the existing secondary drawer; opening that drawer
+        // is already covered by the panel structure tests. Invoke this one
+        // production button to enter the pending state, then exercise the
+        // candidate and confirm controls through StandaloneInputModule below.
+        actionButton.onClick.Invoke();
+        Assert.That(_panel!.HasPendingSelection, Is.True);
+        Assert.That(_session!.Submissions, Is.Empty);
+        var selectAll = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionSelectAll" &&
+                              button.gameObject.activeInHierarchy);
+        var clearSelection = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionClear" &&
+                              button.gameObject.activeInHierarchy);
+        selectAll.onClick.Invoke();
+        Assert.That(_panel.PendingSelectedEntityIds, Is.EqualTo(new[] { 102L }),
+            "ALL must only stage the advertised candidate and never submit it.");
+        Assert.That(_session.Submissions, Is.Empty);
+        clearSelection = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionClear" &&
+                              button.gameObject.activeInHierarchy);
+        clearSelection.onClick.Invoke();
+        Assert.That(_panel.PendingSelectedEntityIds, Is.Empty,
+            "CLEAR must be reversible without changing the adapter snapshot.");
+        Assert.That(_session.Submissions, Is.Empty);
+        var decoyDrag = decoy.GetComponent<RuntimeBattleCardDrag>();
+        Assert.That(decoyDrag, Is.Not.Null);
+        Assert.That(decoyDrag!.enabled, Is.False,
+            "Pending selection must disable alternate drag sources before input is processed.");
+
+        var decoyPosition = FindInspectablePoint(EventSystem.current!, decoy);
+        input.QueueMove(decoyPosition);
+        yield return null;
+        input.QueuePress(decoyPosition);
+        yield return null;
+        input.QueueRelease(decoyPosition);
+        yield return null;
+        Assert.That(_session.Submissions, Is.Empty,
+            "A second legal card must not submit or replace an in-progress selection.");
+        Assert.That(_panel.HasPendingSelection, Is.True);
+
+        var candidatePosition = FindInspectablePoint(EventSystem.current!, candidate);
+        input.QueueMove(candidatePosition);
+        yield return null;
+        input.QueuePress(candidatePosition);
+        yield return null;
+        input.QueueRelease(candidatePosition);
+        yield return null;
+        Assert.That(candidateClickCount, Is.EqualTo(1),
+            "StandaloneInputModule must dispatch the candidate pointer click.");
+        Assert.That(_panel.PendingSelectedEntityIds, Is.EqualTo(new[] { 102L }));
+
+        // The candidate click rebuilds the pending selector during EventSystem
+        // processing.  Let the next canvas cycle register its new Graphics
+        // before asking the real GraphicRaycaster for the confirm point.
+        yield return null;
+        var confirm = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionConfirm" &&
+                              button.gameObject.activeInHierarchy);
+        Canvas.ForceUpdateCanvases();
+        var confirmScroll = confirm.GetComponentInParent<ScrollRect>();
+        if (confirmScroll != null && confirmScroll.content != null)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(confirmScroll.content);
+        Canvas.ForceUpdateCanvases();
+        var confirmPosition = FindButtonPoint(EventSystem.current!, confirm);
+        input.QueuePress(confirmPosition);
+        yield return null;
+        input.QueueRelease(confirmPosition);
+        yield return null;
+        yield return null;
+
+        Assert.That(_session.Submissions, Has.Count.EqualTo(1));
+        Assert.That(_session.Submissions[0].SelectedEntityIds, Is.EqualTo(new[] { 102L }));
+        Assert.That(_session.Submissions[0].Payload.ContainsKey("selectedEntityIds"), Is.False);
+        Assert.That(_panel.HasPendingSelection, Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator PendingDiscardAllThenDeselectsTenEnablesConfirmAndSubmitsOnce()
+    {
+        var candidateIds = Enumerable.Range(1, 29)
+            .Select(value => (long)value)
+            .ToArray();
+        var discard = Action("discard_0_19", "DISCARD", null!, null!, "discard");
+        discard.Payload = new Dictionary<string, object?>
+        {
+            ["requiredCount"] = 19L,
+            ["candidateIds"] = candidateIds,
+        };
+        var nextAction = Action("end_turn_0", "END_TURN", null!, null!, string.Empty);
+        nextAction.SnapshotRevision = 2;
+        var initial = Snapshot(
+            1,
+            candidateIds.Select(id => Card(id, "discard_card_" + id)).ToArray(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            new[] { discard });
+        var resulting = Snapshot(
+            2,
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            new[] { nextAction });
+        yield return BuildPanel(initial, resulting);
+
+        var discardButton = _canvasObject!.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "Action_" + discard.ActionId &&
+                              button.gameObject.activeInHierarchy);
+        discardButton.onClick.Invoke();
+        Assert.That(_panel!.HasPendingSelection, Is.True);
+
+        var selectAll = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionSelectAll" &&
+                              button.gameObject.activeInHierarchy);
+        selectAll.onClick.Invoke();
+        Assert.That(_panel.PendingSelectedEntityIds, Is.EqualTo(candidateIds));
+        var overselectedConfirm = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionConfirm" &&
+                              button.gameObject.activeInHierarchy);
+        Assert.That(overselectedConfirm.interactable, Is.False,
+            "ALL stages every advertised candidate but must not enable an over-count submission.");
+        Assert.That(_panel.LastActionStatus, Is.EqualTo("Deselect 10 cards"));
+
+        var eventSystem = EventSystem.current;
+        Assert.That(eventSystem, Is.Not.Null);
+        foreach (var entityId in candidateIds.Take(10))
+        {
+            var interaction = _canvasObject.GetComponentsInChildren<RuntimeCardInspectInteraction>(true)
+                .Single(candidate => candidate.Model!.Card.EntityId == entityId);
+            interaction.OnPointerClick(NewPointer(eventSystem!, Center(interaction.gameObject)));
+            yield return null;
+        }
+
+        Assert.That(_panel.PendingSelectedEntityIds, Is.EqualTo(candidateIds.Skip(10).ToArray()));
+        var confirm = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionConfirm" &&
+                              button.gameObject.activeInHierarchy);
+        Assert.That(confirm.interactable, Is.True,
+            "The explicit ALL-then-deselect path must enable confirmation at exactly 19/19.");
+
+        confirm.onClick.Invoke();
+        yield return null;
+        yield return null;
+
+        Assert.That(_session!.Submissions, Has.Count.EqualTo(1),
+            "The confirm boundary must submit the discard exactly once.");
+        Assert.That(_session.Submissions[0].ActionId, Is.EqualTo(discard.ActionId));
+        Assert.That(_session.Submissions[0].SelectedEntityIds,
+            Is.EqualTo(candidateIds.Skip(10).ToArray()));
+        Assert.That(_panel.HasPendingSelection, Is.False);
+        Assert.That(_adapter!.Presentation.Snapshot!.SnapshotRevision, Is.EqualTo(2));
+        Assert.That(_adapter.Presentation.Snapshot.LegalActions,
+            Has.Some.Property("ActionId").EqualTo(nextAction.ActionId),
+            "An accepted discard must leave the panel on the engine-advertised next state.");
+        Assert.That(_canvasObject.GetComponentsInChildren<Button>(true)
+            .Any(button => button.gameObject.name == "SelectionConfirm" &&
+                          button.gameObject.activeInHierarchy), Is.False,
+            "The old confirm surface must be gone after the resulting snapshot is rendered.");
+        Assert.That(_canvasObject.GetComponentsInChildren<Button>(true)
+            .Any(button => button.gameObject.name == "Action_" + nextAction.ActionId &&
+                          button.gameObject.activeInHierarchy), Is.True,
+            "The next advertised action must be reachable after the accepted discard.");
+    }
+
+    [UnityTest]
+    public IEnumerator PendingDiscardDoesNotSubmitAfterSnapshotRevisionChanges()
+    {
+        var candidateIds = Enumerable.Range(1, 29)
+            .Select(value => (long)value)
+            .ToArray();
+        var discard = Action("discard_0_19", "DISCARD", null!, null!, "discard");
+        discard.Payload = new Dictionary<string, object?>
+        {
+            ["requiredCount"] = 19L,
+            ["candidateIds"] = candidateIds,
+        };
+        var initial = Snapshot(
+            1,
+            candidateIds.Select(id => Card(id, "discard_card_" + id)).ToArray(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            new[] { discard });
+        var nextAction = Action("end_turn_0", "END_TURN", null!, null!, string.Empty);
+        nextAction.SnapshotRevision = 2;
+        var resulting = Snapshot(
+            2,
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            new[] { nextAction });
+        yield return BuildPanel(initial, resulting);
+
+        var discardButton = _canvasObject!.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "Action_" + discard.ActionId &&
+                              button.gameObject.activeInHierarchy);
+        discardButton.onClick.Invoke();
+        var selectAll = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionSelectAll" &&
+                              button.gameObject.activeInHierarchy);
+        selectAll.onClick.Invoke();
+        var eventSystem = EventSystem.current;
+        Assert.That(eventSystem, Is.Not.Null);
+        foreach (var entityId in candidateIds.Take(10))
+        {
+            var interaction = _canvasObject.GetComponentsInChildren<RuntimeCardInspectInteraction>(true)
+                .Single(candidate => candidate.Model!.Card.EntityId == entityId);
+            interaction.OnPointerClick(NewPointer(eventSystem!, Center(interaction.gameObject)));
+            yield return null;
+        }
+
+        Assert.That(_panel!.PendingSelectedEntityIds, Is.EqualTo(candidateIds.Skip(10).ToArray()));
+        var staleConfirm = _canvasObject.GetComponentsInChildren<Button>(true)
+            .Single(button => button.gameObject.name == "SelectionConfirm" &&
+                              button.gameObject.activeInHierarchy);
+
+        var changed = Snapshot(
+            2,
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            Array.Empty<RuntimeCardSnapshot>(),
+            new[] { nextAction });
+        _session!.ReplaceSnapshot(changed);
+        _adapter!.AcceptSnapshot(changed);
+        staleConfirm.onClick.Invoke();
+        yield return null;
+
+        Assert.That(_session.Submissions, Is.Empty,
+            "A confirm captured from the previous revision must not cross the adapter boundary.");
+        Assert.That(_adapter.Presentation.Snapshot!.SnapshotRevision, Is.EqualTo(2));
+        Assert.That(_panel.HasPendingSelection, Is.False,
+            "The changed snapshot must invalidate the old candidate set.");
+        Assert.That(_panel.LastActionStatus, Is.EqualTo("Action rejected"));
+        Assert.That(_canvasObject.GetComponentsInChildren<Button>(true)
+            .Any(button => button.gameObject.name == "SelectionConfirm" &&
+                          button.gameObject.activeInHierarchy), Is.False);
+    }
+
+    [UnityTest]
     public IEnumerator IllegalDropRollsBackAndKeepsRevisionUnchanged()
     {
         var play = Action("play_101_castle", "PLAY_CARD", 101L, "castle", "flame_bolt");
@@ -431,6 +707,15 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
     {
         var eventSystem = EventSystem.current;
         Assert.That(eventSystem, Is.Not.Null);
+        // Unity's batch test runner can deliver an application-focus loss even
+        // though the fixture owns an active Canvas.  StandaloneInputModule
+        // intentionally returns before ProcessMouseEvent in that state.  The
+        // fixture explicitly restores focus so this remains a controlled
+        // InputModule-path test; it is not native OS mouse acceptance.
+        eventSystem.SendMessage(
+            "OnApplicationFocus",
+            true,
+            SendMessageOptions.DontRequireReceiver);
         foreach (var module in eventSystem!.GetComponents<BaseInputModule>())
             module.enabled = false;
 
@@ -574,6 +859,84 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
             rect!.TransformPoint(rect.rect.center));
     }
 
+    private static Vector2 FindInspectablePoint(
+        EventSystem eventSystem,
+        RuntimeCardInspectInteraction target)
+    {
+        var rect = target.GetComponent<RectTransform>();
+        Assert.That(rect, Is.Not.Null);
+        var corners = new Vector3[4];
+        rect!.GetWorldCorners(corners);
+        for (var yIndex = 1; yIndex < 4; yIndex++)
+        {
+            var normalizedY = yIndex / 4f;
+            var worldY = Mathf.Lerp(corners[0].y, corners[2].y, normalizedY);
+            for (var xIndex = 1; xIndex < 24; xIndex++)
+            {
+                var normalizedX = xIndex / 24f;
+                var worldX = Mathf.Lerp(corners[0].x, corners[2].x, normalizedX);
+                var position = RectTransformUtility.WorldToScreenPoint(
+                    null,
+                    new Vector3(worldX, worldY, corners[0].z));
+                var hits = Raycast(eventSystem, position);
+                if (hits.Any(hit =>
+                        hit.gameObject == target.gameObject ||
+                        hit.gameObject.GetComponentInParent<RuntimeCardInspectInteraction>() == target))
+                    return position;
+            }
+        }
+
+        var hitNames = string.Join(
+            ",",
+            Raycast(eventSystem, Center(target.gameObject))
+                .Select(DescribeRaycastHit));
+        Assert.Fail("No real GraphicRaycaster point reached " + target.gameObject.name +
+            "; center hits=" + hitNames);
+        return Vector2.zero;
+    }
+
+    private static string DescribeRaycastHit(RaycastResult hit)
+    {
+        return (hit.gameObject == null ? "<null>" : hit.gameObject.name) +
+            "[depth=" + hit.depth +
+            ",index=" + hit.index +
+            ",distance=" + hit.distance + "]";
+    }
+
+    private static Vector2 FindButtonPoint(EventSystem eventSystem, Button target)
+    {
+        var rect = target.GetComponent<RectTransform>();
+        Assert.That(rect, Is.Not.Null);
+        var corners = new Vector3[4];
+        rect!.GetWorldCorners(corners);
+        for (var yIndex = 1; yIndex < 4; yIndex++)
+        {
+            var normalizedY = yIndex / 4f;
+            var worldY = Mathf.Lerp(corners[0].y, corners[2].y, normalizedY);
+            for (var xIndex = 1; xIndex < 8; xIndex++)
+            {
+                var normalizedX = xIndex / 8f;
+                var worldX = Mathf.Lerp(corners[0].x, corners[2].x, normalizedX);
+                var position = RectTransformUtility.WorldToScreenPoint(
+                    null,
+                    new Vector3(worldX, worldY, corners[0].z));
+                var hits = Raycast(eventSystem, position);
+                if (hits.Any(hit =>
+                        hit.gameObject == target.gameObject ||
+                        hit.gameObject.GetComponentInParent<Button>() == target))
+                    return position;
+            }
+        }
+
+        var hitNames = string.Join(
+            ",",
+            Raycast(eventSystem, Center(target.gameObject))
+                .Select(DescribeRaycastHit));
+        Assert.Fail("No real GraphicRaycaster point reached " + target.gameObject.name +
+            "; center hits=" + hitNames);
+        return Vector2.zero;
+    }
+
     /// <summary>
     /// Deterministic mouse input for PlayMode. This uses Unity's actual
     /// StandaloneInputModule implementation and only replaces BaseInput through
@@ -655,7 +1018,12 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
                 _position = step.Position;
                 _pressed = step.IsPress;
                 _released = step.IsRelease;
-                _held = !step.IsRelease;
+                // Keep the button state across move frames.  A hover/move
+                // before the press must not look like a held mouse button to
+                // StandaloneInputModule; after a press it must remain held
+                // until the release frame, matching BaseInput semantics.
+                if (step.IsPress) _held = true;
+                if (step.IsRelease) _held = false;
             }
 
             public void ClearTransitions()
@@ -820,6 +1188,11 @@ public sealed class RuntimeTargetDragEventSystemPlayModeTests
         public List<RuntimeGameAction> Submissions { get; } = new List<RuntimeGameAction>();
 
         public RuntimeSnapshotEnvelope GetSnapshot(int viewerPlayerIndex) => _snapshot;
+
+        public void ReplaceSnapshot(RuntimeSnapshotEnvelope snapshot)
+        {
+            _snapshot = snapshot;
+        }
 
         public RuntimeActionSubmission Submit(RuntimeGameAction action)
         {

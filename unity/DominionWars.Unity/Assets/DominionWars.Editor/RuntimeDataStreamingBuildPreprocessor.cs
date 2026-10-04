@@ -157,6 +157,43 @@ public sealed class RuntimeDataStreamingBuildPreprocessor :
         ClearOutputBaseline(outputBaseline);
     }
 
+    internal static void CompleteSuccessfulCommandLineBuildCleanup(BuildReport report)
+    {
+        if (report is null) throw new ArgumentNullException(nameof(report));
+
+        var outputBaseline = _outputBaseline;
+        if (outputBaseline is null || !PathsEqual(outputBaseline.OutputPath, report.summary.outputPath))
+        {
+            Debug.Log("Dominion Wars synchronous build cleanup skipped because no matching current-build output baseline exists. " +
+                GeneratedRelativePath + " remains available for diagnosis.");
+            return;
+        }
+
+        var outputChanged = RuntimeDataStreamingBuildSafety.HasBuildOutputChanged(
+            report.summary.outputPath,
+            outputBaseline.Fingerprint);
+        if (!RuntimeDataStreamingBuildSafety.ShouldCleanupAfterSynchronousBuild(
+                report.summary.result,
+                report.summary.totalErrors,
+                hasMatchingCurrentBuildBaseline: true,
+                outputChanged: outputChanged))
+        {
+            Debug.Log("Dominion Wars synchronous build cleanup skipped because the report did not prove a successful current build. " +
+                "result=" + report.summary.result +
+                ", errors=" + report.summary.totalErrors +
+                ", outputChanged=" + outputChanged + ". " +
+                GeneratedRelativePath + " remains available for diagnosis.");
+            ClearOutputBaseline(outputBaseline);
+            return;
+        }
+
+        Debug.Log("Dominion Wars synchronous build cleanup accepted current report: result=" +
+            report.summary.result + ", errors=" + report.summary.totalErrors +
+            ", outputChanged=" + outputChanged + ".");
+        CleanupOwnedRootsAfterSuccessfulBuild();
+        ClearOutputBaseline(outputBaseline);
+    }
+
     private static void SchedulePostprocessCleanup(BuildReport report, BuildOutputBaseline outputBaseline)
     {
         // Pipeline-driven builds can discard delayCall callbacks registered from
@@ -553,6 +590,16 @@ public static class RuntimeDataStreamingBuildSafety
         return totalErrors == 0 &&
             (result == BuildResult.Succeeded ||
              (result == BuildResult.Unknown && outputChanged));
+    }
+
+    public static bool ShouldCleanupAfterSynchronousBuild(
+        BuildResult result,
+        int totalErrors,
+        bool hasMatchingCurrentBuildBaseline,
+        bool outputChanged)
+    {
+        return hasMatchingCurrentBuildBaseline &&
+            ShouldCleanupAfterBuild(result, totalErrors, outputChanged);
     }
 
     public static bool ShouldDeferBuildCleanup(BuildResult result, int totalErrors)

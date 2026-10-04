@@ -285,3 +285,66 @@ VFX：data/content/inbox/vfx/
 在编辑器中执行“导入素材”，再新建卡牌、填写 ID/名称/阵营/类型/费用、选择已有机制和 artId、预览并保存。不要填写路径，不要改 ID，不要覆盖已有 assetId。
 
 程序员实现并注册新机制且测试通过后，该机制会自动出现在编辑器下拉框；在此之前不要用“自定义字段”绕过注册表。
+
+## 14. 参考对齐的资产与布局约束（2026-09-29）
+
+**状态：设计接入规范 / 不是新的视觉定稿。** 本节把已存在的参考、运行时契约和当前 uGUI 测量值整理成可维护的资产交接边界。它不把样稿中的卡名、数值、额外区域、字体、颜色、动画时长或精确构图提升为规则，也不宣称已经有可安装的 Mod/皮肤包系统。
+
+### 14.1 证据层级：参考、当前实现和硬门禁必须分开
+
+- `design/concepts/2026-09-08-review/APPROVED_DIRECTION.md` 与其中的 `screens/approved-motion-language-01.png` 只批准“叠片、套色、破框、水磨石竞赛台和构成主义对比”的方向。图中四格实际展示了非对称大色块、硬边阴影、卡框/卡图越界和按需展开的信息承载；该文件明确说它不是完整视觉系统、精确布局、正式素材或实机动效验收。`card-art-study*.png` 也只是四类阵营插画研究，不是可直接分发的卡包素材。
+- `design/runtime-kit-v1.30/contracts/layout_contract.json` 是当前布局比例锚点：参考坐标为 `1440x900`、单位为 normalized；`1440`、`1280` 和 `960` 是参考、紧凑和观战/缩放断点。`component_registry.json` 固定组件 ID、输入和信息边界；`theme_contract.json` 固定语义 token、字体角色和“矢量资产不得内嵌本地化文字”。这些契约比样稿中的具体文案和图形更高优先级。
+- 当前 Unity uGUI 仍在 `RuntimeScreenFlow`/`RuntimeBattlePanel` 运行时创建 CanvasScaler（`ScaleWithScreenSize`，当前 reference resolution 为 `1920x1080`），再把 normalized 牌桌区域映射到 Canvas；这是当前实现测量值，不是要求所有素材按 1920×1080 绘制。
+- 当前 `RuntimeCardFaceView` 的可复用卡框测量值为 Full `176x248`、Compact `112x158`，外轮廓约 `0.71` 宽高比。卡框内部已有稳定的 Header/Title/Meta、Cost、Punish、Art、Rules、Stats、InteractionMarker、DisabledVeil 结构；卡图子面当前使用 `AspectRatioFitter.FitInParent` 的 `1:1` 显示槽。以上是现有实现的可复用锚点，不能被误写成已经完成的最终美术验收。
+- 当前 `data/content/manifests/content.manifest.json` 中的 board、card-back、castle、leader、faction-frame、UI icon 仍主要是 programmatic placeholder；仓库现有的 9-slice、SVG、纹理和屏幕预览位于 `design/runtime-kit-v1.30/`，清单本身不是运行时内容库，不能仅凭设计资产文件存在就声称 Unity 已加载正式美术。
+
+### 14.2 结构和比例锚点
+
+下表的 normalized 值来自 `layout_contract.json`；“当前测量”来自现有 Unity 代码；“建议目标”只约束可维护性和可读性，仍需人类对 Style Frame/实机画面确认。
+
+| 元素 | 稳定结构/槽位 | 当前测量或契约比例 | 建议目标与不可破坏边界 |
+|---|---|---|---|
+| 根画布 | Canvas → CanvasScaler → GraphicRaycaster → `RuntimeScreenShell` | Canvas 当前 1920×1080 reference；设计契约 1440×900 normalized | 素材不写死屏幕像素；所有屏幕在 1280×720、1024×768 至少保持可见、可达和不横向滚动。 |
+| 敌方牌库区 | `opponentArchive` | x=.03, y=.02, w=.78, h=.10 | 只显示公开计数/牌背；不把牌库背景当交互目标，不泄漏牌序或暗牌身份。 |
+| 敌方伏击区 | `opponentAmbush` | x=.10, y=.12, w=.68, h=.08 | 只显示契约允许的封存计数/牌背；图案可以换，语义和隐藏边界不能换。 |
+| 敌方场区 | `opponentFront` | x=.08, y=.20, w=.72, h=.19 | 卡槽顺序与公开卡身份由 snapshot 提供；皮肤不能替换为规则推断或隐藏卡正面。 |
+| 公共王城 | `royalCastle` | x=.25, y=.395, w=.40, h=.105 | 保持中央共享目标与可读 HP/损伤状态；城堡图、损伤纹理可换，胜负语义不可换。 |
+| 我方场区 | `playerFront` | x=.08, y=.51, w=.72, h=.18 | 保留稳定 drop/target socket；目标 socket 至少为契约的 44 reference-px，且不能只用颜色表达合法性。 |
+| 我方伏击区 | `playerAmbush` | x=.10, y=.695, w=.68, h=.075 | 公开部分可展示卡面，封存部分仍按 snapshot 的可见性渲染；不因皮肤覆盖扩大信息。 |
+| 手牌 | `hand` | x=.04, y=.77, w=.76, h=.21 | 可采用 fan/overlap/zoom，但手牌永远可达；压缩布局不能把拖拽命中区变成仅一条不可用的视觉缝。 |
+| 战报抽屉 | `battleReportDrawer` | x=.81, y=.10, w=.18, h=.76，`overlay-drawer` | 可折叠，不是理解合法行动的前置条件；打开时不得遮住必须操作的目标，关闭后释放 raycast。 |
+| 阶段指示 | `phaseIndicator` | x=.82, y=.02, w=.16, h=.075 | 文案由 localization 渲染，背景/图形不内嵌语言；状态仍需文字或形状双重表达。 |
+| 主操作 | `primaryAction` | x=.83, y=.88, w=.14, h=.08 | 一次只显示当前 snapshot 暴露的上下文操作；皮肤只换外观，不新增跳阶段或绕过引擎的按钮。 |
+| 卡框 | `CardView` | Full 176×248；Compact 112×158；约 0.71 比例 | 保持稳定 anatomy 和状态（default/hover/selected/disabled/silenced/destroyed）；卡图、框、阵营色可替换，CardView ID、数值槽和信息顺序不可删除。 |
+| 卡框内部 | Header/Title/Meta → Cost/Punish → Art → Rules → Stats → interaction/disabled overlay | 当前 Art 子面为 1:1 FitInParent；文字和数值槽由运行时填充 | 插画主体留在安全中心区；不要把可本地化标题、数值或规则文字烘进图；详细长文放现有 CardDetail/reader，不强塞进 Compact 卡面。 |
+| 卡牌详情 | `CardDetail` folio overlay → `CardInspectScrollRect` → Viewport/Content | 当前读卡面可扩展到手牌前缘，reader 本身是 presentation-only | 详情可以覆盖次要信息，但不能覆盖拖拽起点；图片和背景 `Raycast Target=false`，滚动内容按 uGUI ScrollRect 结构维护。 |
+
+### 14.3 皮肤/素材的硬门禁
+
+这些是资产进入运行时前可自动检查的边界，不是要求每张图保持同一画风：
+
+1. **稳定身份。** 运行时身份使用 `cardId`/`assetId`，遵守 `^[a-z][a-z0-9_]*$`，建议按类别加前缀（例如 `card_art_`、`board_`、`ui_icon_`）。Unity `.meta` GUID 是项目/导入层标识，不是跨包运行时身份；不得把 GUID、绝对路径或 `Assets/...` 写入卡牌 JSON。已发布资产改名必须新建 ID 并保留 alias，不能静默覆盖。
+2. **资源与文字分离。** `theme_contract.json` 的 display/body/mono 字体角色和 localization key 负责文字；通用矢量/纹理/9-slice 图不得嵌入中文、日文或英文。卡图可有艺术构图，但不能把会随语言变化的卡名、费用、攻击、生命、关键词和规则文案画死。
+3. **最小可读与命中。** 继续遵守 layout contract 的“无横向滚动、手牌可达、目标 socket ≥44 reference-px”；交互状态不能只靠颜色，至少有形状、边框、标签或位置变化。素材本身应在 1280×720 和 1024×768 的紧凑模式仍保留识别焦点；无法证明时标为待实机验收，不通过静态文件存在推断。
+4. **图层和射线。** 建议/当前顺序为：背景与桌面 → 目标/drop 语义面 → 牌区和卡牌 → 反馈/事件/操作栏 → pause 或详情 reader。非交互的背景、卡图、反馈图层必须关闭 raycast；交互根、Button、ScrollRect viewport 和 target socket 才可拦截输入。详情打开时可临时覆盖次要信息，但不得遮住手牌拖拽起点；对手暗牌永远只能显示允许的牌背/计数。
+5. **九宫格与比例。** 设计 kit 中已有 `button_stamp_9slice`、`tooltip_9slice`、`archive_panel_9slice` 等 source/raster 参考，但当前 v1.30 content manifest 没有 border/padding/slice 元数据，Unity runtime 也没有已证实的九宫格资产绑定链。当前只能把它们视为设计/导出参考；若未来接入 `Image.Type.Sliced`，每个资产必须随 manifest 版本记录四边 cap、内容 padding、最小尺寸、可拉伸轴和 1x/2x 来源，并在目标分辨率验证不变形，不能靠 renderer 猜边距。
+6. **字体与授权。** `theme.json` 已有字体角色名，但当前 Unity CardFace 使用内置 `LegacyRuntime.ttf`，不能宣称任意 skin 字体已能运行时替换。未来字体资源必须记录来源、版本、许可证、CJK/日文覆盖和发行允许范围；缺字、字体加载失败或许可证不明时回退到默认字体并给诊断，不把未授权字体打入包。
+
+### 14.4 安装、卸载、回退与包冲突：当前边界和未来最小约定
+
+**当前已证实的能力仅限构建/运行时内容边界：** `ContentPipelineValidator` 校验 `data/content`，`RuntimeDataStreamingBuildPreprocessor` 把通过校验的 manifest 和引用文件原子交换到自有的 `Assets/StreamingAssets/content`；`ContentPipelineStaging` 使用 `.content-generated` ownership marker、旁路 stage/backup 和失败回滚，拒绝覆盖非本工具拥有的 StreamingAssets。`RuntimeContentResolver` 只从 `Application.streamingAssetsPath/content` 读 manifest、alias、hash 和 fallback；`RuntimeContentContext` 只缓存成功 resolver，失败可重试。素材导入前停留在 inbox，不能因文件存在就被打包。
+
+**当前没有证据、不可对 Mod 作者承诺的能力：** 独立的 zip/package 发现与安装、游戏内启用/禁用、卸载按钮、优先级合并、依赖解析、跨包冲突解决、运行中热重载、下载/上传或脚本执行。成功加载的 context/resolver 没有公开的热重载入口；改包后需要新的构建/运行时上下文，不能说“刷新即可生效”。
+
+在未来确实批准 Mod 包时，先复用本节现有目录和 manifest 内部格式，不引入大 CMS，并至少遵守以下最小规则：
+
+- 每包使用自己的稳定 ID 命名空间；同一 `assetId`/`cardId` 的冲突默认 fail-closed，只有显式、版本化的 skin override 才能覆盖表现资源，不能覆盖组件 ID、布局语义、合法行动或规则。
+- 包安装先在隔离目录校验 manifest、相对路径、hash、fallback、字体许可和所有引用，再整体交换；任何失败保留上一份可用包，不删除用户文件。卸载只允许删除该包拥有的文件，并回退到 base/default skin 或其已验证 fallback。
+- `packId`、`packVersion`、依赖/冲突/优先级字段目前不在 `ContentManifest`/`ContentSkinManifest` 的运行时合同中。加入这些字段必须先版本化 schema、更新 resolver/build gate 并增加冲突/回退测试；在此之前不要让作者手写这些字段并假定生效。
+- 任何未来包都必须能只靠 `assetId`、角色槽和 skin map 接入；卡牌 JSON 不得依赖包内物理路径、Unity GUID 或某个编辑器工程的本地文件名。
+
+### 14.5 仍需人类确认的视觉选择
+
+- 参考图的最终卡框宽高、卡图安全区、标题/正文最小字号、详情 reader 的遮挡边界和各屏幕精确比例尚未作为 Style Frame/实机结果冻结；本节的当前测量值是维护锚点，不替代 1280×720、1024×768 和 Windows Player 视觉验收。
+- 是否允许正式 skin 替换字体、是否采用 9-slice 元数据、未来 Mod 包的优先级/依赖/冲突语义，都是合同扩展决策；在得到批准并有实现与测试前，保持未实现/未宣称。
+- 设计 kit 的 320 项资产、参考图片和外部素材链接不自动取得发行授权。正式入库仍需来源、作者、版本/日期、许可证、文件 hash、修改记录和使用位置。

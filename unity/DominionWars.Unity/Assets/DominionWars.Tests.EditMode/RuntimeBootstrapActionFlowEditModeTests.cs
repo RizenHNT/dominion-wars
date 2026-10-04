@@ -97,7 +97,7 @@ public sealed class RuntimeBootstrapActionFlowEditModeTests
                         "flame_bolt must carry an engine-advertised target.");
                 }
                 var submission = adapter.Submit(
-                    RuntimeBattlePanelActionModel.ToGameAction(legal, snapshot.MatchId));
+                    BuildAdvertisedGameAction(legal, snapshot.MatchId));
 
                 Assert.That(submission.Result.Accepted, Is.True,
                     "An action advertised by the real RuntimeBootstrap must be accepted.");
@@ -170,6 +170,28 @@ public sealed class RuntimeBootstrapActionFlowEditModeTests
         }
 
         return legalActions[0];
+    }
+
+    private static RuntimeGameAction BuildAdvertisedGameAction(
+        RuntimeLegalAction legal,
+        string matchId)
+    {
+        Assert.That(
+            RuntimeActionSelection.TryBuildStableSelection(
+                legal,
+                out var selectedEntityIds,
+                out var reasonKey),
+            Is.True,
+            legal.ActionId + " must expose a valid selection contract: " + reasonKey);
+
+        // The test supplies the deterministic choice explicitly through the
+        // typed request channel. The advertised payload remains untouched, so
+        // revision, identity, and viewer-redaction assertions still exercise
+        // the real boundary rather than a legacy payload mutation.
+        return RuntimeBattlePanelActionModel.ToGameAction(
+            legal,
+            matchId,
+            selectedEntityIds);
     }
 
     private static void AssertRejectedSubmissionDoesNotMutate(

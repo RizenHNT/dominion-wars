@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>PlCsim</AssemblyName>
+    <RootNamespace>PlCsim</RootNamespace>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- another agent keeps a full source/obj copy under p0\ ; keep this
+         project's default glob out of it so both builds stay independent.
+         The patterns are bare directory names on purpose: a pattern whose only
+         wildcard is a trailing "\**" does NOT match the files beneath it, which
+         is how a stale duplicate p0\src\Simulator.cs stayed in this project's
+         compile set and shadowed the real one - producing duplicate generated
+         attributes (CS0579) and baking a wrong MatchRules call into the
+         assembly. matrix\ is excluded wholesale for the same reason: it is the
+         isolated playstyle-matrix harness. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/p0/**;**/p0-machine/**;**/bin-p0/**;**/obj-p0/**;**/matrix/**;**/bin-solo/**;**/obj-solo/**;**/bin/**;**/obj/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- All three assemblies come from the single pinned (Engine, Adapters,
+         Data) pair staged under engine-matrix\, so this project can no longer
+         mix an engine revision with a different adapters revision.
+
+         Two earlier arrangements did exactly that and are deliberately gone:
+         the engine came from ..\pl-verify (a frozen pre-P0 copy whose MatchRules
+         has no MaxPunishResponsesPerRound property, so the T1 rule and the
+         playstyle seam could not even be expressed), while Adapters came from
+         ..\DominionWars.Adapters\bin, a live build output that changes without
+         notice. A report built that way quoted two revisions that were never
+         meant to sit together.
+
+         engine-matrix\PINNED_REVISION.json names the exact hashes, and
+         ProvenanceGuard re-verifies them at run time. The SyncPinnedPair target
+         below re-copies them after every build because MSBuild's incremental
+         copy otherwise leaves a stale DominionWars.Adapters.dll beside the exe. -->
+    <Reference Include="DominionWars.Engine">
+      <HintPath>..\engine-matrix\DominionWars.Engine.dll</HintPath>
+    </Reference>
+    <Reference Include="DominionWars.Data">
+      <HintPath>..\engine-matrix\DominionWars.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\engine-matrix\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <!-- The shipped playstyle/AI boundary, referenced (never forked) so the
+         harness decides through PlaystyleRegistry / AdvertisedActionPolicy /
+         RuntimeSnapshotProjection exactly as production does. -->
+    <Reference Include="DominionWars.Adapters">
+      <HintPath>..\engine-matrix\DominionWars.Adapters.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <Target Name="SyncPinnedPair" AfterTargets="Build">
+    <PropertyGroup>
+      <PinnedPairDir>$(MSBuildThisFileDirectory)engine-matrix\</PinnedPairDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <PinnedPairFile Include="$(PinnedPairDir)DominionWars.Engine.dll" />
+      <PinnedPairFile Include="$(PinnedPairDir)DominionWars.Adapters.dll" />
+      <PinnedPairFile Include="$(PinnedPairDir)DominionWars.Data.dll" />
+      <PinnedPairFile Include="$(PinnedPairDir)Newtonsoft.Json.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PinnedPairFile)" DestinationFolder="$(OutDir)" OverwriteReadOnlyFiles="true" />
+  </Target>
+</Project>

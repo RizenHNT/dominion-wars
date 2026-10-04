@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using DominionWars.Engine.Effects;
 using DominionWars.Engine.Model;
 using NUnit.Framework;
@@ -158,28 +159,87 @@ public sealed class EffectSafetyTests
     }
 
     [Test]
-    public void LoseLifeUsesLeaderGateBeforeEndingGame()
+    public void LoseLifeDoesNotEndTheGameEvenWithBothLeadersFielded()
     {
-        var game = new EffectTestFixture();
-        game.Apply(EffectNames.LoseLife, amount: 20);
-        Assert.Multiple(() =>
-        {
-            Assert.That(game.State.Players[1].Life, Is.EqualTo(1));
-            Assert.That(game.State.WinnerPlayerIndex, Is.Null);
-            Assert.That(game.State.Events.Items[^1].EventType, Is.EqualTo("DEFEAT_PREVENTED"));
-        });
-    }
-
-    [Test]
-    public void LoseLifeEndsGameAfterBothLeadersAreFielded()
-    {
+        // THE PLAYER LIFE POOL IS NOT A DEFEAT CONDITION (docs/RULES.md §1, §7).
+        //
+        // This test used to be `LoseLifeEndsGameAfterBothLeadersAreFielded` and asserted
+        // `WinnerPlayerIndex == 0` after draining the opponent's life to 0 with both leaders
+        // fielded. It passed because `EffectRuntime.CheckAll` had a `lifeDefeated` branch that
+        // declared `win.enemy_life_zero`. That branch has been DELETED: the rule book lists
+        // exactly two victory paths (a leader's declared winCondition, and the deck-cycle
+        // counter) and states the life pool constitutes neither a win nor a loss.
+        //
+        // The fixture gives both players an explicit life pool of 20, so LOSE_LIFE does land
+        // and the value really does drop. The assertion is now the rule's actual content.
         var game = new EffectTestFixture();
         game.State.Players[0].Field.Add(
             new CardInstance(20, 0, game.LeaderDefinition) { IsLeaderEntity = true });
         game.State.Players[1].Field.Add(
             new CardInstance(21, 1, game.LeaderDefinition) { IsLeaderEntity = true });
+
         game.Apply(EffectNames.LoseLife, amount: 20);
-        Assert.That(game.State.WinnerPlayerIndex, Is.Zero);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.GetPlayer(1).Life, Is.Zero, "the life pool must actually reach 0");
+            Assert.That(
+                game.State.WinnerPlayerIndex,
+                Is.Null,
+                "life reaching 0 must NOT declare a winner, even with both leaders fielded");
+            Assert.That(
+                game.State.WinReason,
+                Is.Null,
+                "and no win reason may be recorded, least of all win.enemy_life_zero");
+            Assert.That(
+                game.State.Events.Items.Any(item =>
+                    string.Equals(item.EventType, "DEFEAT_PREVENTED", StringComparison.Ordinal)),
+                Is.False,
+                "nor may the leader gate report a prevented defeat: there was no defeat to prevent");
+        });
+    }
+
+    [Test]
+    public void LoseLifeIsSkippedWhenThePlayerHasNoLifePool()
+    {
+        // THE DEFAULT STATE: a match starts with no life pool at all
+        // (`MatchSetupOptions.PlayerLife` is null), because only a leader declaring `grantLife`
+        // opens one. A life effect against a player with no pool must be SKIPPED rather than
+        // silently clamped, so the situation is visible in the event log.
+        var game = new EffectTestFixture();
+        game.State.GetPlayer(1).Life = null;
+
+        game.Apply(EffectNames.LoseLife, amount: 5);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.GetPlayer(1).Life, Is.Null, "no pool means no pool to drain");
+            Assert.That(game.State.WinnerPlayerIndex, Is.Null);
+            Assert.That(
+                game.State.Events.Items[^1].EventType,
+                Is.EqualTo("EFFECT_SKIPPED"),
+                "a life effect with no life pool must be reported as skipped");
+        });
+    }
+
+    [Test]
+    public void LoseLifeUsesLeaderGateBeforeEndingGame()
+    {
+        // The leader gate still applies to the defeat conditions that REMAIN. A player whose
+        // life pool is drained to 0 must not be spared by the gate, because a drained life pool
+        // is no longer a defeat at all — see the test above. What this test now pins is the
+        // counterpart: the gate is not triggered by life, so nothing about life can be gated.
+        var game = new EffectTestFixture();
+        game.Apply(EffectNames.LoseLife, amount: 20);
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.State.Players[1].Life, Is.Zero);
+            Assert.That(game.State.WinnerPlayerIndex, Is.Null);
+            Assert.That(
+                game.State.Events.Items[^1].EventType,
+                Is.Not.EqualTo("DEFEAT_PREVENTED"),
+                "life must not route through the leader gate; it is not a defeat condition");
+        });
     }
 
     [Test]

@@ -39,7 +39,7 @@ public sealed class AmbushActionHandler : ITurnActionHandler
         if (HasLockdown(player))
             return GameActionResult.Reject("action.ambush_lockdown");
 
-        var cost = CardPlayRules.EffectivePunish(player, card);
+        var cost = CardPlayRules.EffectivePunish(state, player, card);
         var discards = ResolveConvertedCost(player, card, cost, request.SelectedEntityIds);
         if (discards is null)
             return GameActionResult.Reject("action.discard_selection_invalid");

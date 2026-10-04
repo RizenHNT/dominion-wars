@@ -116,6 +116,23 @@ public sealed class RuntimeBattlePanelActionFeedbackEditModeTests
     }
 
     [Test]
+    public void ExplicitLanguageLocalizesTransientFeedbackWithoutChangingEventKind()
+    {
+        var eventEnvelope = Event("evt_damage_zh", "DAMAGE_APPLIED", false);
+        eventEnvelope.Data = new Dictionary<string, object?> { ["amount"] = 3 };
+
+        Assert.That(
+            RuntimeBattlePanelActionFeedbackModel.TryMap(
+                eventEnvelope,
+                "zh-CN",
+                out var cue),
+            Is.True);
+        Assert.That(cue.Kind, Is.EqualTo(RuntimeBattlePanelFeedbackKind.DamageApplied));
+        Assert.That(cue.Message, Is.EqualTo("伤害 3"));
+        Assert.That(cue.Message, Does.Not.Contain("DAMAGE"));
+    }
+
+    [Test]
     public void DamageAppliedDoesNotInventMissingAmountOrTargetIdentity()
     {
         var eventEnvelope = Event("evt_damage_without_fields", "DAMAGE_APPLIED", false);

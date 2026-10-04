@@ -141,16 +141,87 @@ public sealed partial class EffectRuntime
         Commit(_ => player.DamagedThisCycle = false);
     }
 
+    /// <summary>
+    /// Evaluates every seated leader's victory condition and declares a winner.
+    ///
+    /// ONE code path for every condition. The engine asks the condition how far along it
+    /// is and compares nothing itself, so a new way to win — including a compound one —
+    /// needs no change here. The old switch over condition names is gone: it was the
+    /// place where the knowledge of "which number decides this" lived, and it is now in
+    /// the condition classes where a designer writing a new win condition will find it.
+    ///
+    /// A leader whose card declares no objective takes the legacy path below, so a card
+    /// can migrate individually. That is the only remaining name-based branch, and it is
+    /// reachable only for a card that has not migrated.
+    /// </summary>
     private void EvaluateLeaderWinConditions(EffectContext context)
     {
         foreach (var player in State.Players)
         {
             var leader = player.Leader;
-            if (leader is null || leader.Definition.LeaderWinParam <= 0)
+
+            // The legacy path needs a positive threshold to mean anything. A leader that
+            // DESCRIBES its objective does not: the castle break carries no winParam at all
+            // (flame_leader declares none), so requiring one here would skip the migrated
+            // leader completely and it would never report progress.
+            var hasObjective = leader?.Definition.Victory is not null;
+            if (leader is null || (!hasObjective && leader.Definition.LeaderWinParam <= 0))
             {
                 continue;
             }
 
+            // The card data DESCRIBES its own objective: the condition is resolved from
+            // it and asked for a reading. Nothing here knows what the id measures.
+            if (hasObjective)
+            {
+                var objective = leader.Definition.Victory!;
+                var condition = objective.CreateCondition();
+                var reading = condition.Read(State, player.PlayerIndex);
+
+                Emit("VICTORY_PROGRESS", context, Data(
+                    "player", player.PlayerIndex,
+                    "condition", objective.Metric,
+                    "current", reading.Current,
+                    "required", reading.Target,
+                    "direction", objective.Direction,
+                    "measurable", reading.IsMeasurable,
+                    "met", reading.IsMet));
+
+                // An unmeasurable reading never wins. Treating it as progress would let a
+                // condition the engine cannot read decide the game.
+                if (!reading.IsMeasurable)
+                {
+                    continue;
+                }
+
+                // A condition whose victory is decided ELSEWHERE reports progress but does
+                // not declare here. The castle break is the case: its own path compares both
+                // leaders at once, and declaring from this loop as well would hand the win to
+                // whichever seat is evaluated first whenever that path declines to decide.
+                if (!condition.DeclaresWinWhenMet)
+                {
+                    continue;
+                }
+
+                // The WIN REASON KEY still comes from the legacy condition name. That
+                // string is a consumer contract, not an internal label: the Unity
+                // presentation model switches on "win.pull_total_ge" to choose display
+                // copy, and engine and PlayMode tests compare it exactly. Renaming it is a
+                // separate, consumer-visible decision left to the owner.
+                if (reading.IsMet
+                    && TryDeclareWinner(
+                        player.PlayerIndex,
+                        "win." + (leader.Definition.LeaderWinCondition ?? objective.Metric).ToLowerInvariant(),
+                        context))
+                {
+                    return;
+                }
+
+                continue;
+            }
+
+            // Legacy path: a card that has not migrated. Kept so migration can be
+            // per-card and an unmigrated card cannot change behaviour.
             var opponent = State.GetOpponent(player.PlayerIndex);
             var current = 0;
             switch (leader.Definition.LeaderWinCondition)

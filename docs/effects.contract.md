@@ -23,8 +23,12 @@
 
 枚举定义：`data/schema/cards.schema.json` → `$defs/EffectAction`
 91 卡扫描结果（所有普通 `*Effects` 数组）：
-**已用 21 个**：`DAMAGE / HEAL / DRAW / DISCARD_OPP_RANDOM / DISCARD_DRAWN / DESTROY / BUFF / GRANT_KEYWORD / SUMMON / SUMMON_LEADER / END_TURN / ADD_OPP_PUNISH_TURN / CONVERT_PUNISH_TO_DISCARD / PROTECT_TURN / NEGATE / NEGATE_ENEMY_EFFECTS_TURN / SKIP_RESHUFFLE / RESTORE_ATTACKS / DAMAGE_CASTLE / WIN_GAME / ADD_RAMPANT`
-**预留 4 个**：`OPP_DRAW / ADD_SELF_PUNISH_TURN / GAIN_LIFE / LOSE_LIFE`（Effects.java 实现了但当前 91 张卡无引用；`ADD_ROOT` 作为木计数器扩展动作已实现但尚未被 91 张运行时卡数据引用）
+**已用 22 个**：`DAMAGE / HEAL / DRAW / DISCARD_OPP_RANDOM / DISCARD_DRAWN / DESTROY / BUFF / GRANT_KEYWORD / SUMMON / SUMMON_LEADER / END_TURN / ADD_OPP_PUNISH_TURN / CONVERT_PUNISH_TO_DISCARD / PROTECT_TURN / NEGATE / NEGATE_ENEMY_EFFECTS_TURN / SKIP_RESHUFFLE / RESTORE_ATTACKS / DAMAGE_CASTLE / WIN_GAME / ADD_RAMPANT / ADD_ROOT`
+**预留 4 个**：`OPP_DRAW / ADD_SELF_PUNISH_TURN / GAIN_LIFE / LOSE_LIFE`（引擎已实现但当前 91 张卡无引用）
+> 更新（2026-09-09，PL 卡牌落地）：`ADD_ROOT` 已被 10 张古木卡引用（sapling/wisp/guard/druid/bear/treant/stag/owl/warden 的登场效果 + wood_seed 的 chantEffects），用于修复"古木 512 轴不可达"。注意：**层数供给必须走 `ADD_ROOT`/`ADD_RAMPANT` 动作，不能写成 `tags: ["扎根"]`** —— `CardPlayRules.TagsFree` 会让同 tag 卡每回合只能出一张（`TurnFlow.CompleteTurn` 清空 `UsedTags`）。
+>
+> **更新（2026-09-11，P0-7 契约收敛）**：`PlayCardActionHandler.ConsumeTags` 先前**还会按词条直接产层**（带「扎根」词条 → `rootStacks+1`；带「疯长」词条 → `rampantStacks+1`），与显式 `ADD_ROOT`/`ADD_RAMPANT` **形成两个来源**。由于正式卡池已无任何卡把这两个词当 tag 使用，该路径长期休眠，但一旦按旧写法给卡打上词条就会**静默双计**（实测 `rootStacks Expected:2 But was:3`）。该分支已移除。
+> **现行契约（唯一来源）**：扎根/疯长层数**只**由 `ADD_ROOT` / `ADD_RAMPANT` 动作产出；词条**只**用于"每回合同词条限出一张"的限流，**不产层**。既有测试 `PlayCardActionHandlerTests.GrowthTagThrottlesOneCardPerTagPerTurnButDoesNotAdvanceTheCounter` 钉住此契约。
 
 ## 3. 单动作合约（24 节）
 
@@ -289,14 +293,14 @@ public sealed class EffectDispatcher {
 | CONTROL | 操纵 | 短暂控制敌方随从至回合结束归还 | amount=回合数, target |
 | SHUFFLE_INTO_DECK | （并入 BANISH） | — | — |
 
-### 11.2 机械动作（§12.4 区域机制）
+### 11.2 机械动作（§12.4 区域机制；COMMIT/PULL/ROLLBACK 同时也是玩家动作，PUSH 仅为自动时点）
 
 | 动作 | 中文 | 语义 |
 |---|---|---|
 | COMMIT | 提交 | 玩家主动动作：选己方场上机械卡，按 `commitCost` 触发惩罚抽牌/响应后移入提交队列，触发提交效果（出牌≠提交，B 模式） |
 | PUSH | 上传 | 结束阶段按 FIFO 将队列卡送入云端栈并触发上传效果；普通卡默认 `uploadCost=0`，显式值才追加惩罚（非 Upload） |
 | PULL | 下载 | 需己方场上下载载体（tag="机械"）才可发起：按 `downloadCost` 触发惩罚抽牌/响应后拉取云端栈顶，触发被下载卡声明的下载效果（写在卡自身固定值）；单目标效果必须随合法动作明确选择目标；无载体不可下载 |
-| ROLLBACK | 回滚 | 队列卡回手，不回溯已发生的惩罚抽牌 |
+| ROLLBACK | 回滚 | **玩家主动动作（第 9 个，2026-09-11 人类批准，契约条目 `1.31-player-rollback`）**：选己方提交队列中的一张卡移回手牌；复用既有 `EffectRuntime.Rollback`，不触发上传/下载效果；**惩罚值 = 0**（`RULES.md` §12.4「不能回溯已经发生的惩罚抽牌」+ 术语表「费用不返还」⇒ 已付的 `commitCost` 不重收也不退还，故不产生惩罚抽牌、不开惩罚响应窗口）。广告形状：队列非空时每张队列卡一条 `rollback_{instanceId}`，`sourceId` = 该队列卡，reasonKey `action.rollback`。`ROLLBACK` 同时仍在 `data/schema/cards.schema.json` 的 `$defs.EffectAction`（卡牌效果词表）中，两条词表独立 |
 
 ### 11.2.1 Card lifecycle and landmark metadata
 
@@ -332,8 +336,7 @@ the corresponding tiers.
 
 | 动作 | 语义 |
 |---|---|
-| ADD_ROOT | 将来源玩家的 `rootStacks` 增加 `amount`，累计不消耗；非正 amount 拒绝并记录失败事件 |
-| ADD_RAMPANT | 将来源玩家的 `rampantStacks` 增加 `amount`，上限 3；超出部分不生效但可观测 |
+| ADD_ROOT | 将来源玩家的 `rootStacks` 增加 `amount`，累计不消耗；非正 amount 拒绝并记录失败事件 || ADD_RAMPANT | 将来源玩家的 `rampantStacks` 增加 `amount`，上限 3；超出部分不生效但可观测 |
 
 ### 11.4 关键词新值（Keyword 枚举）
 

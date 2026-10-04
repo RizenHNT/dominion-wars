@@ -108,7 +108,7 @@ public sealed class RuntimeCardFaceViewContractEditModeTests
     }
 
     [Test]
-    public void CompactFaceRetainsRuleSummaryAndUsesZoneAppropriateStats()
+    public void CompactFaceKeepsQuickScanAndRoutesFullDetailsToReader()
     {
         GameObject? root = null;
         try
@@ -130,8 +130,16 @@ public sealed class RuntimeCardFaceViewContractEditModeTests
 
             Assert.That(hand.Mode, Is.EqualTo(RuntimeCardFaceMode.Compact));
             Assert.That(hand.RulesText.gameObject.activeInHierarchy, Is.True);
-            Assert.That(hand.RulesText.text, Does.Contain("获得强化"));
+            Assert.That(hand.RulesText.text, Is.EqualTo("点击查看详情"));
+            Assert.That(hand.RulesText.text, Does.Not.Contain("获得强化"));
             Assert.That(hand.MetaText.text, Does.Contain("吟唱 2"));
+            Assert.That(hand.MetaText.text, Does.Contain("[嘲讽]"));
+            Assert.That(hand.MetaText.text, Does.Not.Contain("MINION"));
+            var handInspect = RuntimeCardInspectModel.Build(hand.BoundCard!);
+            Assert.That(handInspect.RulesText, Is.EqualTo("登场：获得强化。"));
+            Assert.That(handInspect.KeywordsLine, Does.Contain("嘲讽"));
+            Assert.That(handInspect.TypeFactionLine, Does.Contain("MINION"));
+            Assert.That(handInspect.TagsLine, Does.Contain("守卫"));
             Assert.That(hand.AttackValue.text, Is.EqualTo("4"));
             Assert.That(hand.HealthValue.text, Is.EqualTo("5"));
             Assert.That(hand.transform.Find("CardPunishBadge")!.gameObject.activeSelf, Is.True,
@@ -205,8 +213,8 @@ public sealed class RuntimeCardFaceViewContractEditModeTests
             Canvas.ForceUpdateCanvases();
 
             Assert.That(face.TitleText.text, Is.EqualTo("Readable Card"));
-            Assert.That(face.MetaText.text, Is.EqualTo("MINION [嘲讽]"));
-            Assert.That(face.RulesText.text, Does.Contain("获得强化"));
+            Assert.That(face.MetaText.text, Is.EqualTo("[嘲讽]"));
+            Assert.That(face.RulesText.text, Is.EqualTo("点击查看详情"));
             Assert.That(face.RulesText.text, Does.Not.Contain("RULES"));
             Assert.That(face.CostBadge.gameObject.activeSelf, Is.True);
             Assert.That(face.transform.Find("CardPunishBadge")!.gameObject.activeSelf, Is.True);

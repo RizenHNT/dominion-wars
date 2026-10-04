@@ -4,7 +4,7 @@ param(
     [ValidateRange(60, 3600)]
     [int]$TimeoutSeconds = 900,
     [ValidateRange(3, 60)]
-    [int]$PlayerSmokeSeconds = 10,
+    [int]$PlayerSmokeSeconds = 30,
     [switch]$ValidateOnly
 )
 
@@ -146,7 +146,6 @@ function Read-UnityTestSummary([string]$Name, [string]$ResultsPath) {
 
 Invoke-UnityStage 'EditMode tests' @(
     '-batchmode',
-    '-nographics',
     '-projectPath', $projectPath,
     '-runTests',
     '-testPlatform', 'EditMode',
@@ -160,7 +159,6 @@ if (Test-Path -LiteralPath $lockFile -PathType Leaf) {
 
 Invoke-UnityStage 'PlayMode tests' @(
     '-batchmode',
-    '-nographics',
     '-projectPath', $projectPath,
     '-runTests',
     '-testPlatform', 'PlayMode',
@@ -185,9 +183,15 @@ if (-not (Test-Path -LiteralPath $playerPath -PathType Leaf)) {
     throw "Unity Windows build returned success without producing $playerPath"
 }
 $generatedData = Join-Path $projectPath 'Assets\StreamingAssets\data'
-$generatedDataMeta = $generatedData + '.meta'
-if ((Test-Path -LiteralPath $generatedData) -or (Test-Path -LiteralPath $generatedDataMeta)) {
-    throw "Unity Windows build succeeded but generated project data was not cleaned: $generatedData"
+$remainingGeneratedDataJson = @()
+if (Test-Path -LiteralPath $generatedData -PathType Container) {
+    $remainingGeneratedDataJson = @(
+        Get-ChildItem -LiteralPath $generatedData -Force -Recurse -File -Filter '*.json' -ErrorAction Stop |
+            Select-Object -First 1
+    )
+}
+if ($remainingGeneratedDataJson.Count -gt 0) {
+    throw "Unity Windows build succeeded but generated JSON payload remains under owned staging: $($remainingGeneratedDataJson[0].FullName)"
 }
 
 $playerStart = [Diagnostics.ProcessStartInfo]::new()

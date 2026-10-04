@@ -1,0 +1,11 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 5,
+  "actionId": "rollback_31",
+  "type": "ROLLBACK",
+  "actor": 0,
+  "sourceId": 31,
+  "cardId": "mech_queue_card",
+  "payload": {}
+}

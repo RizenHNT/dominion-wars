@@ -657,10 +657,21 @@ public sealed class RuntimeBattleCardDragEditModeTests
             drag.Configure(new[] { action }, canvas, candidate => submitted = candidate);
             var originalParent = sourceObject.transform.parent;
             var originalPosition = sourceObject.transform.localPosition;
+            Canvas.ForceUpdateCanvases();
+            var targetCenter = ScreenCenter(targetRect);
+            var outsideTarget = ScreenPointOutside(targetRect);
+            Assert.That(
+                RectTransformUtility.RectangleContainsScreenPoint(targetRect, outsideTarget, null),
+                Is.False,
+                "The initial drag point must be explicitly outside the legal target rectangle.");
+            Assert.That(
+                RectTransformUtility.RectangleContainsScreenPoint(targetRect, targetCenter, null),
+                Is.True,
+                "The calculated target point must be inside the legal target rectangle.");
             var pointer = new PointerEventData(null)
             {
                 pointerDrag = sourceObject,
-                position = new Vector2(240f, 300f),
+                position = outsideTarget,
             };
 
             drag.OnBeginDrag(pointer);
@@ -671,7 +682,7 @@ public sealed class RuntimeBattleCardDragEditModeTests
             Assert.That(submitted, Is.Null,
                 "The arrow is feedback only; pressing/starting a drag must not submit.");
 
-            pointer.position = canvas.pixelRect.center;
+            pointer.position = targetCenter;
             pointer.pointerEnter = targetObject;
             pointer.pointerCurrentRaycast = new RaycastResult { gameObject = targetObject };
             drag.OnDrag(pointer);
@@ -682,7 +693,7 @@ public sealed class RuntimeBattleCardDragEditModeTests
             // to its original slot instead of submitting the attack.
             pointer.pointerEnter = null;
             pointer.pointerCurrentRaycast = new RaycastResult();
-            pointer.position = new Vector2(3f, 3f);
+            pointer.position = outsideTarget;
             drag.OnEndDrag(pointer);
 
             Assert.That(submitted, Is.Null);
@@ -699,6 +710,27 @@ public sealed class RuntimeBattleCardDragEditModeTests
             if (handObject != null) Object.DestroyImmediate(handObject);
             if (canvasObject != null) Object.DestroyImmediate(canvasObject);
         }
+    }
+
+    private static Vector2 ScreenCenter(RectTransform rect)
+    {
+        var corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        var min = RectTransformUtility.WorldToScreenPoint(null, corners[0]);
+        var max = RectTransformUtility.WorldToScreenPoint(null, corners[2]);
+        return (min + max) * 0.5f;
+    }
+
+    private static Vector2 ScreenPointOutside(RectTransform rect)
+    {
+        var center = ScreenCenter(rect);
+        var corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        var min = RectTransformUtility.WorldToScreenPoint(null, corners[0]);
+        var max = RectTransformUtility.WorldToScreenPoint(null, corners[2]);
+        var margin = new Vector2(Mathf.Abs(max.x - min.x), Mathf.Abs(max.y - min.y)) +
+            new Vector2(64f, 64f);
+        return center + margin;
     }
 
     [Test]

@@ -1,0 +1,13 @@
+{
+  "contractVersion": 1,
+  "matchId": "match_fixture",
+  "snapshotRevision": 8,
+  "actionId": "discard_0_2_invalid",
+  "type": "DISCARD",
+  "actor": 0,
+  "selectedEntityIds": [102, 103],
+  "payload": {
+    "requiredCount": 2,
+    "candidateIds": [101, 101, 103]
+  }
+}

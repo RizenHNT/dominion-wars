@@ -221,6 +221,13 @@ public sealed class RuntimeBootstrap : MonoBehaviour
                     PlayerLife = playerLife,
                     CastleEnabled = castleEnabled,
                     CastleHealth = castleHealth,
+                    // 2026-09-11: the shipped data/balance.json is the balance
+                    // authority. Without this line Unity silently uses the
+                    // built-in MatchRules defaults, so flipping a balance knob
+                    // (e.g. maxPunishResponsesPerRound) would apply to the engine
+                    // tests and tooling but NOT to the game. A failed read falls
+                    // back to the built-in defaults inside BalanceTable.
+                    Rules = BalanceTable.LoadRules(),
                 });
 
             var initialization = gateway.GetInitialization(0);

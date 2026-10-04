@@ -16,6 +16,11 @@
   "leader": true,
   "leaderDef": {
    "winCondition": "ROYAL_CASTLE_BREAK",
+   "victory": {
+    "metric": "CASTLE_BREAK",
+    "direction": "DECREASE",
+    "target": 1
+   },
    "vulnerabilities": [
     "DAMAGE"
    ],

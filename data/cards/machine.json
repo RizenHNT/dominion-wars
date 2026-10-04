@@ -12,6 +12,11 @@
   "leader": true,
   "leaderDef": {
    "winCondition": "PULL_TOTAL_GE",
+   "victory": {
+    "metric": "PULL_COUNT",
+    "direction": "INCREASE",
+    "target": 6
+   },
    "vulnerabilities": [
     "DAMAGE"
    ],
@@ -63,6 +68,11 @@
   ],
   "leaderDef": {
    "winCondition": "PULL_TOTAL_GE",
+   "victory": {
+    "metric": "PULL_COUNT",
+    "direction": "INCREASE",
+    "target": 6
+   },
    "vulnerabilities": [
     "DAMAGE"
    ],

@@ -135,6 +135,20 @@ public sealed class RuntimeMatchGateway
             _state, MatchId, _revision, viewerPlayerIndex, _flow);
     }
 
+    /// <summary>
+    /// Projects an already emitted event increment for one viewer. Submission
+    /// deltas and the one-time initialization delta both cross the transport
+    /// boundary through this single viewer-scoped projection, so hidden
+    /// information (a face-down ambush) cannot leak to a non-owner by whichever
+    /// path produced the events.
+    /// </summary>
+    public static IReadOnlyList<GameEvent> GetViewerScopedEvents(
+        IReadOnlyList<GameEvent> events,
+        int viewerPlayerIndex)
+    {
+        return HiddenInformationRedaction.ToViewer(events, viewerPlayerIndex);
+    }
+
     public RuntimeActionSubmission Submit(RuntimeGameAction action)
     {
         if (action is null) throw new ArgumentNullException(nameof(action));
@@ -155,7 +169,7 @@ public sealed class RuntimeMatchGateway
         if (!validation.Accepted)
             return Reject(action, validation.ReasonKey, snapshot);
 
-        if (!TryBuildRequest(action, out var request, out var mappingReason))
+        if (!TryBuildRequest(action, snapshot, out var request, out var mappingReason))
             return Reject(action, mappingReason, snapshot);
 
         var result = _controller.Submit(request);
@@ -174,7 +188,7 @@ public sealed class RuntimeMatchGateway
         _resultCache.TryStore(MatchId, beforeRevision, action.ActionId, transportResult);
         var submission = new RuntimeActionSubmission(
             transportResult,
-            result.Events,
+            GetViewerScopedEvents(result.Events, action.Actor),
             GetSnapshot(action.Actor));
         _submissions.Add(submissionKey, new CachedRuntimeSubmission(CopyAction(action), submission));
         return submission;
@@ -191,7 +205,8 @@ public sealed class RuntimeMatchGateway
             RuntimeActionBoundary.ValuesEqual(left.SourceId, right.SourceId) &&
             RuntimeActionBoundary.ValuesEqual(left.TargetId, right.TargetId) &&
             string.Equals(left.CardId, right.CardId, StringComparison.Ordinal) &&
-            RuntimeActionBoundary.ValuesEqual(left.Payload, right.Payload);
+            RuntimeActionBoundary.ValuesEqual(left.Payload, right.Payload) &&
+            RuntimeActionBoundary.ValuesEqual(left.SelectedEntityIds, right.SelectedEntityIds);
     }
 
     private static RuntimeGameAction CopyAction(RuntimeGameAction action)
@@ -208,6 +223,9 @@ public sealed class RuntimeMatchGateway
             TargetId = CopyWireValue(action.TargetId),
             CardId = action.CardId,
             Payload = CopyPayload(action.Payload),
+            SelectedEntityIds = action.SelectedEntityIds is null
+                ? null
+                : Array.AsReadOnly(new List<long>(action.SelectedEntityIds).ToArray()),
         };
     }
 
@@ -310,7 +328,7 @@ public sealed class RuntimeMatchGateway
         return new RuntimeMatchInitialization(
             _initializationAccepted,
             _initializationReason,
-            _initializationEvents,
+            GetViewerScopedEvents(_initializationEvents, viewerPlayerIndex),
             GetSnapshot(viewerPlayerIndex));
     }
 
@@ -333,6 +351,7 @@ public sealed class RuntimeMatchGateway
 
     private bool TryBuildRequest(
         RuntimeGameAction action,
+        RuntimeSnapshotEnvelope snapshot,
         out GameActionRequest request,
         out string reason)
     {
@@ -356,11 +375,73 @@ public sealed class RuntimeMatchGateway
             return false;
         }
 
-        var isDiscard = string.Equals(action.Type, TurnAction.DiscardComplete, StringComparison.Ordinal);
-        if (!TryReadSelectedIds(action.Payload, isDiscard, out var selected))
+        var advertised = snapshot.LegalActions.FirstOrDefault(item =>
+            item is not null && string.Equals(item.ActionId, action.ActionId, StringComparison.Ordinal));
+        if (advertised is null)
         {
-            reason = "action.selected_ids_invalid";
+            reason = "action.not_advertised";
             return false;
+        }
+
+        if (!RuntimeActionSelection.TryGetSpec(advertised, out var selectionSpec, out reason))
+            return false;
+
+        IReadOnlyList<long> selected;
+        if (selectionSpec is not null)
+        {
+            if (action.SelectedEntityIds is not null)
+            {
+                if (!RuntimeActionSelection.TryValidate(
+                    advertised,
+                    action.SelectedEntityIds,
+                    requireSelection: true,
+                    out reason))
+                    return false;
+
+                selected = action.SelectedEntityIds;
+            }
+            else if (action.Payload.TryGetValue("selectedEntityIds", out var legacyRaw))
+            {
+                // Keep the already-shipped payload selection as a compatibility
+                // path for older AI clients. It is still validated against the
+                // exact advertised candidate/count contract; it is never
+                // synthesized by the gateway.
+                if (legacyRaw is null ||
+                    !TryReadIdList(legacyRaw, out var legacySelected, requirePositiveUnique: true) ||
+                    !RuntimeActionSelection.TryValidate(
+                        advertised,
+                        legacySelected,
+                        requireSelection: true,
+                        out reason))
+                    return false;
+
+                selected = legacySelected;
+            }
+            else
+            {
+                if (!RuntimeActionSelection.TryValidate(
+                    advertised,
+                    selectedEntityIds: null,
+                    requireSelection: true,
+                    out reason))
+                    return false;
+
+                selected = Array.Empty<long>();
+            }
+        }
+        else
+        {
+            if (action.SelectedEntityIds is not null && action.SelectedEntityIds.Count > 0)
+            {
+                reason = RuntimeActionSelection.SelectionNotAllowedReason;
+                return false;
+            }
+
+            if (!TryReadSelectedIds(action.Payload, out selected))
+            {
+                reason = "action.selected_ids_invalid";
+                return false;
+            }
         }
 
         request = new GameActionRequest(
@@ -375,7 +456,6 @@ public sealed class RuntimeMatchGateway
 
     private static bool TryReadSelectedIds(
         IReadOnlyDictionary<string, object?> payload,
-        bool allowDiscardAdvertisement,
         out IReadOnlyList<long> selected)
     {
         selected = Array.Empty<long>();
@@ -384,42 +464,6 @@ public sealed class RuntimeMatchGateway
             if (raw is null) return true;
             return TryReadIdList(raw, out selected, requirePositiveUnique: false);
         }
-
-        // The discard-phase legal action advertises the complete candidate
-        // set and the engine-owned required count. The current presentation
-        // action is intentionally submitted unchanged, so bridge that legacy
-        // advertisement shape into the engine request here. The handler still
-        // validates the actual requirement, hand membership, and uniqueness;
-        // malformed counts/candidate lists therefore remain fail-closed.
-        if (!allowDiscardAdvertisement)
-        {
-            return true;
-        }
-
-        var hasRequiredCount = payload.ContainsKey("requiredCount");
-        var hasCandidateIds = payload.ContainsKey("candidateIds");
-        if (!hasRequiredCount && !hasCandidateIds)
-        {
-            return true;
-        }
-
-        if (!payload.TryGetValue("requiredCount", out var rawRequired) ||
-            !RuntimeWireValue.TryGetInt64(rawRequired!, out var required) ||
-            required < 0 ||
-            !payload.TryGetValue("candidateIds", out var rawCandidates) ||
-            rawCandidates is null ||
-            !TryReadIdList(rawCandidates, out var candidates, requirePositiveUnique: true))
-        {
-            return false;
-        }
-
-        if (required > candidates.Count || required > int.MaxValue)
-        {
-            selected = Array.Empty<long>();
-            return false;
-        }
-
-        selected = candidates.Take((int)required).ToArray();
         return true;
     }
 

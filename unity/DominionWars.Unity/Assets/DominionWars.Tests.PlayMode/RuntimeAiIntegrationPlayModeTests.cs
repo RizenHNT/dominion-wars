@@ -60,7 +60,11 @@ public sealed class RuntimeAiIntegrationPlayModeTests
 
         var sawAiProgress = false;
         var returnedToHumanOrTerminal = false;
-        for (var frame = 0; frame < 16; frame++)
+        // The screen-flow presentation cadence intentionally spaces CPU
+        // submissions by 0.62 s. Keep this fixture bounded but long enough to
+        // observe the first action and the following handoff at normal FPS.
+        var deadline = Time.realtimeSinceStartup + 5f;
+        while (Time.realtimeSinceStartup < deadline)
         {
             yield return null;
             flow.Refresh();
@@ -121,12 +125,14 @@ public sealed class RuntimeAiIntegrationPlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator CoordinatorStopsAtConfiguredThirtyTwoActionLimit()
+    public IEnumerator CoordinatorStopsAtConfiguredThirtyTwoActionLimitInActionPhase()
     {
-        var session = new EndlessAmbushSession();
+        var session = new EndlessActionSession();
         var adapter = new RuntimeAdapter(session);
         adapter.AcceptSnapshot(session.GetSnapshot(0));
-        var coordinator = new RuntimeAiTurnCoordinator(adapter, maxActionsPerTurn: 32);
+        var coordinator = new RuntimeAiTurnCoordinator(adapter);
+
+        Assert.That(RuntimeAiTurnCoordinator.DefaultMaxActionsPerTurn, Is.EqualTo(32));
 
         for (var action = 0; action < 32; action++)
         {
@@ -140,6 +146,58 @@ public sealed class RuntimeAiIntegrationPlayModeTests
         Assert.That(coordinator.Halted, Is.True);
         Assert.That(coordinator.LastReasonKey, Is.EqualTo("ai.action_limit_reached"));
         Assert.That(session.SubmissionCount, Is.EqualTo(32));
+    }
+
+    [UnityTest]
+    public IEnumerator CoordinatorClosesAtConfiguredActionLimitWhenEndTurnIsAdvertised()
+    {
+        var session = new ActionBudgetThenEndTurnSession();
+        var adapter = new RuntimeAdapter(session);
+        adapter.AcceptSnapshot(session.GetSnapshot(0));
+        var coordinator = new RuntimeAiTurnCoordinator(adapter);
+
+        for (var action = 0; action < 32; action++)
+        {
+            Assert.That(coordinator.Pump(), Is.True, "CPU action " + action + " should be accepted.");
+            yield return null;
+        }
+
+        Assert.That(session.SubmissionCount, Is.EqualTo(32));
+        Assert.That(coordinator.ActionsTakenThisTurn, Is.EqualTo(32));
+        Assert.That(coordinator.Pump(), Is.True,
+            "a current-snapshot END_TURN must close the budget boundary without a 33rd optional action.");
+        Assert.That(session.SubmissionCount, Is.EqualTo(33));
+        Assert.That(session.LastSubmitted, Is.Not.Null);
+        Assert.That(session.LastSubmitted!.Type, Is.EqualTo("END_TURN"));
+        Assert.That(coordinator.Halted, Is.False);
+        Assert.That(coordinator.LastReasonKey, Is.EqualTo("ai.action_accepted"));
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator CoordinatorAllowsMandatoryDiscardAfterDefaultActionLimit()
+    {
+        var session = new ActionBudgetThenDiscardSession();
+        var adapter = new RuntimeAdapter(session);
+        adapter.AcceptSnapshot(session.GetSnapshot(0));
+        var coordinator = new RuntimeAiTurnCoordinator(adapter);
+
+        for (var action = 0; action < 32; action++)
+        {
+            Assert.That(coordinator.Pump(), Is.True, "CPU action " + action + " should be accepted.");
+            yield return null;
+        }
+
+        Assert.That(coordinator.ActionsTakenThisTurn, Is.EqualTo(32));
+        Assert.That(coordinator.Halted, Is.False,
+            "Reaching the ACTION budget must not halt before the engine transitions to its mandatory phase.");
+        Assert.That(coordinator.Pump(), Is.True,
+            "The mandatory DISCARD action must remain submit-able after 32 ACTION submissions.");
+        Assert.That(session.SubmissionCount, Is.EqualTo(33));
+        Assert.That(session.LastSubmitted, Is.Not.Null);
+        Assert.That(session.LastSubmitted!.Type, Is.EqualTo("DISCARD"));
+        Assert.That(coordinator.Halted, Is.False);
+        Assert.That(coordinator.LastReasonKey, Is.EqualTo("ai.action_accepted"));
     }
 
     private static long CompleteAdvertisedHumanTurn(RuntimeAdapter adapter)
@@ -313,24 +371,131 @@ public sealed class RuntimeAiIntegrationPlayModeTests
         }
     }
 
-    private sealed class EndlessAmbushSession : FakeSessionBase
+    private sealed class EndlessActionSession : FakeSessionBase
     {
-        public EndlessAmbushSession()
+        public EndlessActionSession()
         {
-            Viewer0 = Snapshot("match_limit_test", 0, 0, 1, "AMBUSH", Array.Empty<RuntimeLegalAction>());
-            Viewer1 = Snapshot("match_limit_test", 0, 1, 1, "AMBUSH", new[] { SkipAction(0) });
+            Viewer0 = Snapshot("match_limit_test", 0, 0, 1, "ACTION", Array.Empty<RuntimeLegalAction>());
+            Viewer1 = Snapshot("match_limit_test", 0, 1, 1, "ACTION", new[] { PlayAction(0) });
         }
 
         public override RuntimeActionSubmission Submit(RuntimeGameAction action)
         {
             SubmissionCount++;
             var revision = SubmissionCount;
-            var actor = Snapshot("match_limit_test", revision, 1, 1, "AMBUSH", new[] { SkipAction(revision) });
-            var presentation = Snapshot("match_limit_test", revision, 0, 1, "AMBUSH", Array.Empty<RuntimeLegalAction>());
+            var actor = Snapshot("match_limit_test", revision, 1, 1, "ACTION", new[] { PlayAction(revision) });
+            var presentation = Snapshot("match_limit_test", revision, 0, 1, "ACTION", Array.Empty<RuntimeLegalAction>());
             Viewer1 = actor;
             Viewer0 = presentation;
             return Accepted(action, actor);
         }
+    }
+
+    private sealed class ActionBudgetThenEndTurnSession : FakeSessionBase
+    {
+        public RuntimeGameAction? LastSubmitted { get; private set; }
+
+        public ActionBudgetThenEndTurnSession()
+        {
+            Viewer0 = Snapshot("match_budget_end_test", 0, 0, 1, "ACTION", Array.Empty<RuntimeLegalAction>());
+            Viewer1 = Snapshot("match_budget_end_test", 0, 1, 1, "ACTION", new[] { PlayAction(0) });
+        }
+
+        public override RuntimeActionSubmission Submit(RuntimeGameAction action)
+        {
+            LastSubmitted = action;
+            SubmissionCount++;
+            var revision = SubmissionCount;
+            RuntimeSnapshotEnvelope actor;
+            if (SubmissionCount < 32)
+            {
+                actor = Snapshot("match_budget_end_test", revision, 1, 1, "ACTION", new[] { PlayAction(revision) });
+            }
+            else if (SubmissionCount == 32)
+            {
+                actor = Snapshot(
+                    "match_budget_end_test",
+                    revision,
+                    1,
+                    1,
+                    "ACTION",
+                    new[] { PlayAction(revision), EndAction(revision) });
+            }
+            else
+            {
+                actor = Snapshot("match_budget_end_test", revision, 1, 0, "START", Array.Empty<RuntimeLegalAction>());
+            }
+
+            var presentation = Snapshot(
+                "match_budget_end_test",
+                revision,
+                0,
+                actor.CurrentPlayer,
+                actor.Phase,
+                Array.Empty<RuntimeLegalAction>());
+            Viewer1 = actor;
+            Viewer0 = presentation;
+            return Accepted(action, actor);
+        }
+    }
+
+    private sealed class ActionBudgetThenDiscardSession : FakeSessionBase
+    {
+        public RuntimeGameAction? LastSubmitted { get; private set; }
+
+        public ActionBudgetThenDiscardSession()
+        {
+            Viewer0 = Snapshot("match_budget_discard_test", 0, 0, 1, "ACTION", Array.Empty<RuntimeLegalAction>());
+            Viewer1 = Snapshot("match_budget_discard_test", 0, 1, 1, "ACTION", new[] { PlayAction(0) });
+        }
+
+        public override RuntimeActionSubmission Submit(RuntimeGameAction action)
+        {
+            LastSubmitted = action;
+            SubmissionCount++;
+            var revision = SubmissionCount;
+            var phase = SubmissionCount == 32 ? "DISCARD" : "ACTION";
+            var legal = SubmissionCount == 32
+                ? new[] { DiscardAction(revision) }
+                : new[] { PlayAction(revision) };
+            var actor = Snapshot("match_budget_discard_test", revision, 1, 1, phase, legal);
+            var presentation = Snapshot("match_budget_discard_test", revision, 0, 1, phase, Array.Empty<RuntimeLegalAction>());
+            Viewer1 = actor;
+            Viewer0 = presentation;
+            return Accepted(action, actor);
+        }
+    }
+
+    private static RuntimeLegalAction PlayAction(long revision)
+    {
+        return new RuntimeLegalAction
+        {
+            ContractVersion = ContractVersionGuard.ExpectedVersion,
+            SnapshotRevision = revision,
+            ActionId = "play_limit_1_" + revision,
+            Type = "PLAY_CARD",
+            Actor = 1,
+            SourceId = 1L,
+            CardId = "machine_card",
+            Payload = new Dictionary<string, object?>(),
+        };
+    }
+
+    private static RuntimeLegalAction DiscardAction(long revision)
+    {
+        return new RuntimeLegalAction
+        {
+            ContractVersion = ContractVersionGuard.ExpectedVersion,
+            SnapshotRevision = revision,
+            ActionId = "discard_limit_1_" + revision,
+            Type = "DISCARD",
+            Actor = 1,
+            Payload = new Dictionary<string, object?>
+            {
+                ["requiredCount"] = 1L,
+                ["candidateIds"] = new[] { 1L },
+            },
+        };
     }
 
     private static RuntimeActionSubmission Accepted(

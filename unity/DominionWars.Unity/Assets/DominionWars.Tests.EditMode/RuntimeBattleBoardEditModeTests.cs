@@ -178,7 +178,84 @@ public sealed class RuntimeBattleBoardEditModeTests
             Assert.That(view.MainBattleRoot.anchorMin.x, Is.EqualTo(1f - view.MainBattleRoot.anchorMax.x).Within(0.001f));
             Assert.That(view.ActionsArea.anchorMin.x, Is.GreaterThan(view.EventsArea.anchorMax.x));
             Assert.That(view.OpponentHandRoot.anchorMin.x, Is.GreaterThan(view.OpponentLeaderRoot.anchorMax.x));
-            Assert.That(view.OwnHandRoot.anchorMin.x, Is.GreaterThan(view.OwnLeaderRoot.anchorMax.x));
+            Assert.That(view.OwnHandScrollRoot.anchorMin.x, Is.GreaterThan(view.OwnLeaderRoot.anchorMax.x));
+        }
+        finally
+        {
+            if (rootObject != null) Object.DestroyImmediate(rootObject);
+        }
+    }
+
+    [Test]
+    public void OwnHandUsesClampedHorizontalScrollWithoutShrinkingReadableCards()
+    {
+        GameObject rootObject = null!;
+        try
+        {
+            rootObject = new GameObject(
+                "RuntimeBattleOwnHandScrollStructureTest",
+                typeof(RectTransform),
+                typeof(Canvas));
+            var root = rootObject.GetComponent<RectTransform>();
+            root.anchorMin = new Vector2(0.5f, 0.5f);
+            root.anchorMax = new Vector2(0.5f, 0.5f);
+            root.pivot = new Vector2(0.5f, 0.5f);
+            root.sizeDelta = new Vector2(1280f, 720f);
+            var view = RuntimeBattlePanelView.Build(root);
+
+            var scroll = view.OwnHandScrollRoot.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.That(scroll, Is.SameAs(view.OwnHandScroll));
+            Assert.That(scroll, Is.Not.Null);
+            Assert.That(scroll!.horizontal, Is.True);
+            Assert.That(scroll.vertical, Is.False);
+            Assert.That(scroll.movementType, Is.EqualTo(UnityEngine.UI.ScrollRect.MovementType.Clamped));
+            Assert.That(scroll.viewport, Is.SameAs(view.OwnHandViewport));
+            Assert.That(scroll.content, Is.SameAs(view.OwnHandRoot));
+            Assert.That(view.OwnHandScrollbar, Is.Not.Null);
+            Assert.That(view.OwnHandRoot.GetComponent<UnityEngine.UI.ContentSizeFitter>()!.horizontalFit,
+                Is.EqualTo(UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize));
+
+            CreateOwnHandCards(view.OwnHandRoot, 29, "ScrollableCard_");
+            ResolveTabletopLayout(root, view);
+
+            var layout = view.OwnHandRoot.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+            Assert.That(layout, Is.Not.Null);
+            Assert.That(layout!.spacing, Is.GreaterThanOrEqualTo(0f));
+            Assert.That(layout.spacing, Is.EqualTo(6f).Within(0.1f));
+            Assert.That(view.OwnHandRoot.rect.width, Is.GreaterThan(view.OwnHandViewport.rect.width));
+            Assert.That(view.OwnHandRoot.GetChild(0).GetComponent<UnityEngine.UI.LayoutElement>()!.preferredWidth,
+                Is.GreaterThanOrEqualTo(80f));
+
+            var wideViewportWidth = view.OwnHandViewport.rect.width;
+            var wideContentWidth = view.OwnHandRoot.rect.width;
+            scroll.horizontalNormalizedPosition = 0.5f;
+            RuntimeBattlePanelView.FitScrollableCardStrip(
+                view.OwnHandScrollRoot,
+                view.OwnHandViewport,
+                view.OwnHandRoot);
+            Assert.That(scroll.horizontalNormalizedPosition, Is.EqualTo(0.5f).Within(0.01f),
+                "Snapshot fitting must preserve the user's browse position when content remains present.");
+
+            root.sizeDelta = new Vector2(1024f, 768f);
+            ResolveTabletopLayout(root, view);
+            var narrowViewportWidth = view.OwnHandViewport.rect.width;
+            var narrowContentWidth = view.OwnHandRoot.rect.width;
+            Assert.That(narrowViewportWidth, Is.LessThan(wideViewportWidth));
+            Assert.That(
+                narrowContentWidth - narrowViewportWidth,
+                Is.GreaterThan(wideContentWidth - wideViewportWidth),
+                "A narrower viewport must expose more horizontal overflow rather than shrinking below the readable minimum.");
+            Assert.That(view.OwnHandRoot.GetChild(0).GetComponent<UnityEngine.UI.LayoutElement>()!.preferredWidth,
+                Is.GreaterThanOrEqualTo(80f));
+
+            scroll.horizontalNormalizedPosition = 1f;
+            Canvas.ForceUpdateCanvases();
+            var viewportCorners = new Vector3[4];
+            var lastCardCorners = new Vector3[4];
+            view.OwnHandViewport.GetWorldCorners(viewportCorners);
+            ((RectTransform)view.OwnHandRoot.GetChild(view.OwnHandRoot.childCount - 1)).GetWorldCorners(lastCardCorners);
+            Assert.That(lastCardCorners[2].x, Is.LessThanOrEqualTo(viewportCorners[2].x + 0.5f),
+                "The last card must be reachable at the clamped horizontal end.");
         }
         finally
         {
@@ -212,7 +289,10 @@ public sealed class RuntimeBattleBoardEditModeTests
                 RuntimeBattlePanelView.CreateCardBack(view.OpponentHandRoot, "ResponsiveBack_" + index, false);
 
             Canvas.ForceUpdateCanvases();
-            RuntimeBattlePanelView.FitCardStrip(view.OwnHandRoot);
+            RuntimeBattlePanelView.FitScrollableCardStrip(
+                view.OwnHandScrollRoot,
+                view.OwnHandViewport,
+                view.OwnHandRoot);
             RuntimeBattlePanelView.FitCardStrip(view.OpponentHandRoot);
             UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(view.LeftRailRoot);
             UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(view.RightRailRoot);
@@ -258,7 +338,10 @@ public sealed class RuntimeBattleBoardEditModeTests
 
             // This is the production ordering that previously persisted 1x1
             // preferred sizes before the Canvas had resolved its dimensions.
-            RuntimeBattlePanelView.FitCardStrip(view.OwnHandRoot);
+            RuntimeBattlePanelView.FitScrollableCardStrip(
+                view.OwnHandScrollRoot,
+                view.OwnHandViewport,
+                view.OwnHandRoot);
             Assert.That(
                 view.OwnHandRoot.GetChild(0).GetComponent<UnityEngine.UI.LayoutElement>()!.preferredWidth,
                 Is.GreaterThan(1f));
@@ -292,7 +375,10 @@ public sealed class RuntimeBattleBoardEditModeTests
             root.sizeDelta = new Vector2(1440f, 900f);
             var view = RuntimeBattlePanelView.Build(root);
             CreateOwnHandCards(view.OwnHandRoot, 6, "ResizeCard_");
-            RuntimeBattlePanelView.FitCardStrip(view.OwnHandRoot);
+            RuntimeBattlePanelView.FitScrollableCardStrip(
+                view.OwnHandScrollRoot,
+                view.OwnHandViewport,
+                view.OwnHandRoot);
             ResolveTabletopLayout(root, view);
             var wideCardWidth = ((RectTransform)view.OwnHandRoot.GetChild(0)).rect.width;
 
@@ -308,7 +394,10 @@ public sealed class RuntimeBattleBoardEditModeTests
             for (var index = view.OwnHandRoot.childCount - 1; index >= 0; index--)
                 Object.DestroyImmediate(view.OwnHandRoot.GetChild(index).gameObject);
             CreateOwnHandCards(view.OwnHandRoot, 8, "RefreshedCard_");
-            RuntimeBattlePanelView.FitCardStrip(view.OwnHandRoot);
+            RuntimeBattlePanelView.FitScrollableCardStrip(
+                view.OwnHandScrollRoot,
+                view.OwnHandViewport,
+                view.OwnHandRoot);
             ResolveTabletopLayout(root, view);
 
             Assert.That(view.OwnHandRoot.childCount, Is.EqualTo(8));
@@ -344,8 +433,12 @@ public sealed class RuntimeBattleBoardEditModeTests
             root.sizeDelta = new Vector2(width, height);
             var view = RuntimeBattlePanelView.Build(root);
 
-            Assert.That(view.OwnHandRoot.anchorMin.y, Is.EqualTo(0.02f).Within(0.0001f));
-            Assert.That(view.OwnHandRoot.anchorMax.y, Is.EqualTo(0.76f).Within(0.0001f));
+            Assert.That(view.OwnHandScrollRoot.anchorMin, Is.EqualTo(new Vector2(0.31f, 0.02f)));
+            Assert.That(view.OwnHandScrollRoot.anchorMax, Is.EqualTo(new Vector2(0.99f, 0.76f)));
+            Assert.That(view.OwnHandViewport.anchorMin, Is.EqualTo(Vector2.zero));
+            Assert.That(view.OwnHandViewport.anchorMax, Is.EqualTo(Vector2.one));
+            Assert.That(view.OwnHandRoot.anchorMin, Is.EqualTo(new Vector2(0f, 0f)));
+            Assert.That(view.OwnHandRoot.anchorMax, Is.EqualTo(new Vector2(0f, 1f)));
 
             CreateOwnHandCards(view.OwnHandRoot, cardCount, "ReadabilityCard_");
             ResolveTabletopLayout(root, view);
@@ -372,7 +465,7 @@ public sealed class RuntimeBattleBoardEditModeTests
             }
             else
             {
-                Assert.That(cardWidth, Is.EqualTo(80f).Within(0.1f));
+                Assert.That(cardWidth, Is.EqualTo(96f).Within(0.1f));
             }
 
             for (var index = 1; index < cards.Length; index++)
@@ -384,11 +477,14 @@ public sealed class RuntimeBattleBoardEditModeTests
                     visibleLeadingEdge,
                     Is.GreaterThanOrEqualTo(44f),
                     "Each card must retain at least 44 px of visible leading edge.");
-                if (cardCount == 5)
-                    Assert.That(visibleLeadingEdge, Is.GreaterThanOrEqualTo(cardWidth - 0.1f));
-                else
-                    Assert.That(visibleLeadingEdge, Is.LessThan(cardWidth - 0.1f));
+                Assert.That(
+                    visibleLeadingEdge,
+                    Is.GreaterThanOrEqualTo(cardWidth + 5.9f),
+                    "The horizontal hand viewport must keep cards separated; browsing replaces overlap.");
             }
+
+            if (cardCount >= 10)
+                Assert.That(view.OwnHandRoot.rect.width, Is.GreaterThan(view.OwnHandViewport.rect.width));
         }
         finally
         {
@@ -528,6 +624,10 @@ public sealed class RuntimeBattleBoardEditModeTests
         UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(root);
         UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(view.ContentRoot);
         UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(view.OwnRoot);
+        RuntimeBattlePanelView.FitScrollableCardStrip(
+            view.OwnHandScrollRoot,
+            view.OwnHandViewport,
+            view.OwnHandRoot);
         UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(view.OwnHandRoot);
         Canvas.ForceUpdateCanvases();
     }

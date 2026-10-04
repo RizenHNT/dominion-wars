@@ -421,6 +421,7 @@ public sealed partial class EffectRuntime
             sourceCard: leader,
             playedCard: context.PlayedCard,
             drawnCards: context.DrawnCards);
+        leaderContext.DeferDeaths = context.DeferDeaths;
         var dispatcher = EffectDispatcher.CreateDefault(this);
         if (leader.Definition.LeaderEnterEffects.Count > 0)
         {

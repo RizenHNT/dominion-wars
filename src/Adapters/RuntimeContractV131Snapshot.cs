@@ -46,10 +46,23 @@ public static class RuntimeSnapshotProjection
                 PullCount = player.PullCount,
                 CommitQueueCount = player.CommitQueue.Count,
                 CloudStackCount = player.CloudStack.Count,
+                // Public event counters. These carry no hidden card identity: a
+                // discard, a punish draw and a no-damage turn are all visible to
+                // both sides, so they are published for both players alike.
+                PunishDeltaThisTurn = player.PunishDeltaThisTurn,
+                PunishDrawnThisTurn = player.PunishDrawnThisTurn,
+                TotalDiscarded = player.TotalDiscarded,
+                NoDamageTurns = player.NoDamageTurns,
+                DamagedThisCycle = player.DamagedThisCycle,
+                PunishToSelfDiscardThisTurn = player.PunishToSelfDiscardThisTurn,
+                ProtectedThisTurn = player.ProtectedThisTurn,
+                EffectsNegatedThisTurn = player.EffectsNegatedThisTurn,
                 Hand = isViewer ? Cards(player.Hand) : Array.Empty<RuntimeCardSnapshot>(),
                 Ambush = isViewer ? Cards(player.AmbushZone) : Array.Empty<RuntimeCardSnapshot>(),
                 Field = Cards(player.Field),
-                LeaderZone = Cards(player.LeaderZone),
+                // The leader zone carries the victory objective with its current value,
+                // so state is passed here specifically to read that metric.
+                LeaderZone = Cards(player.LeaderZone, state),
                 Graveyard = Cards(player.Graveyard),
                 CommitQueue = Cards(player.CommitQueue),
                 CloudStack = Cards(player.CloudStack),
@@ -145,7 +158,7 @@ public static class RuntimeSnapshotProjection
         return copy;
     }
 
-    private static IReadOnlyList<RuntimeCardSnapshot> Cards(IList<CardInstance> cards)
+    private static IReadOnlyList<RuntimeCardSnapshot> Cards(IList<CardInstance> cards, GameState? state = null)
     {
         var result = new List<RuntimeCardSnapshot>(cards.Count);
         foreach (var card in cards)
@@ -162,9 +175,71 @@ public static class RuntimeSnapshotProjection
                 LandmarkPullCount = card.Definition.IsLandmark
                     ? card.LandmarkPullCount
                     : (int?)null,
+                // The card's own description of its victory condition, plus the metric's
+                // current value read by the ENGINE'S own reader. Public by design — a
+                // win condition is printed on the card — and absent when the card does
+                // not declare one, so a consumer reads the rule rather than inferring it
+                // from a condition name.
+                Victory = PublishVictory(card, state),
             });
         }
         return result.AsReadOnly();
+    }
+
+    /// <summary>
+    /// Builds the published objective, including its current value.
+    ///
+    /// The value comes from the CARD'S OWN condition object, which is the same object the
+    /// engine asks when it decides whether the leader has won. Reusing it is the point: a
+    /// consumer that computed progress its own way could disagree with the engine about
+    /// who is about to win, and that disagreement would be invisible until it mattered.
+    ///
+    /// Nothing here knows what the condition id measures. That is what keeps a new win
+    /// condition from needing a change in this file.
+    ///
+    /// Conditions are read for the card's OWNER, which is the side the condition
+    /// describes. <paramref name="state"/> is optional so a card can still be published
+    /// without a live state; the objective is then published with no current value rather
+    /// than a fabricated zero.
+    /// </summary>
+    private static RuntimeVictoryObjectiveSnapshot? PublishVictory(CardInstance card, GameState? state)
+    {
+        var definition = card.Definition.Victory;
+        if (definition is null) return null;
+
+        int? current = null;
+        int? remaining = null;
+        bool? met = null;
+        string? unmeasurable = null;
+
+        if (state is not null && card.OwnerPlayerIndex is >= 0 and <= 1)
+        {
+            var reading = definition.CreateCondition().Read(state, card.OwnerPlayerIndex);
+            if (reading.IsMeasurable)
+            {
+                current = reading.Current;
+                remaining = reading.Remaining;
+                met = reading.IsMet;
+            }
+            else
+            {
+                // A published objective that cannot be measured must SAY so. Publishing a
+                // silent zero would read as "no progress yet", which is the one thing an
+                // unmeasurable condition is not.
+                unmeasurable = reading.UnmeasurableReason;
+            }
+        }
+
+        return new RuntimeVictoryObjectiveSnapshot
+        {
+            Metric = definition.Metric,
+            Direction = definition.Direction,
+            Target = definition.Target,
+            Current = current,
+            Remaining = remaining,
+            Met = met,
+            UnmeasurableReason = unmeasurable,
+        };
     }
 
     private static long? EntityId(long? id) => id.HasValue ? EntityId(id.Value) : null;

@@ -71,6 +71,19 @@ public sealed class CardDto
     public int Durability { get; set; }
     public string? LeaderWinCondition { get; set; }
     public int LeaderWinParam { get; set; }
+
+    /// <summary>
+    /// The victory objective the CARD DATA declares, published so a consumer never has
+    /// to reconstruct it from <see cref="LeaderWinCondition"/>.
+    ///
+    /// Null when the card has not migrated. The AI's WinConditionCounters exists only
+    /// because that reconstruction used to be the only option: it parses the id into a
+    /// metric family and a comparison suffix, which is why it had to guess twice in one
+    /// session (the plural "TURNS_GE", and "ROYAL_CASTLE_BREAK" with no suffix at all).
+    /// With this field the consumer reads the metric instead of guessing it.
+    /// </summary>
+    public VictoryObjectiveDto? Victory { get; set; }
+
     public bool KingSlayer { get; set; }
     public IReadOnlyList<string> Vulnerabilities { get; set; } = Array.Empty<string>();
     public int Attack { get; set; }
@@ -82,6 +95,28 @@ public sealed class CardDto
     public bool Sealed { get; set; }
     public IReadOnlyList<string> Keywords { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// One victory objective as the CARD DATA declares it: a closed-set metric, a
+/// direction, and a threshold. Deliberately free of condition names, so a consumer
+/// can ask "how much further" without knowing whether the number came from discards,
+/// pulls or a sealed minion's health.
+///
+/// This is the machine-readable form of the rule. The engine's own win evaluation
+/// reads the same fields, so there is one source of truth rather than a name that
+/// every consumer re-parses.
+/// </summary>
+public sealed class VictoryObjectiveDto
+{
+    /// <summary>One of VictoryMetric's closed set.</summary>
+    public string Metric { get; set; } = string.Empty;
+
+    /// <summary>INCREASE or DECREASE.</summary>
+    public string Direction { get; set; } = string.Empty;
+
+    /// <summary>The threshold the metric is compared against.</summary>
+    public int Target { get; set; }
 }
 
 public sealed class CastleDto

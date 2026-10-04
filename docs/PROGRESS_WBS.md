@@ -1,5 +1,11 @@
 # Progress WBS — Dominion Wars 重做
 
+> **当前工期主文档**：[WBS_EXECUTION_PLAN_2026-08-30.md](WBS_EXECUTION_PLAN_2026-08-30.md)。请先读该文档首页的 2026-09-29 当前规划；其范围为 Windows 单机对 AI 与首发稳定卡组，不含联网、移动端、Mod/创意工坊和其他平台。
+>
+> **历史正文警告**：本文件下方的完成率、旧日期、旧周期目标和旧阻塞表是历史 WBS 记录，保留用于追溯，不是当前真相，不应继续按旧百分比或旧规则任务执行；不得据此推算当前完成百分比。
+>
+> **当前证据边界**：`build-output/unity-mainline-20260927` 只证明其中已记录的菜单/选组/AI/终局等局部路径；`build-output/unity-ui-20260929/reader-width-status.json` 所述 reader/暂停 WIP 仍是 source-only，Pipeline 超时，当前改动没有新的编译、截图或聚焦交互证据。旧证据不得覆盖最新 WIP。
+
 > **更新时间**：2026-08-23 · **负责人**：PL (MiniMax M3 / DeepSeek v4) / Codex implementation evidence
 > **更新**：10.10.2-10.10.9 attended 批已复核并 push 到 origin/main（0/0 分叉）；工作树已清理（.meta 全部入库 + 旧文档归档 + Java 冻结修复提交）— 见 10.10 节；wire 实体 ID 决策落地（80591fe）；**10.10.6 Unity EditMode 已解锁（2026-08-15 凌晨人类 Hub 打开 + Test Runner 通过）**；**8/21 Codex Unity runtime slice 实机验收通过（EditMode 24/24、PlayMode 2/2、Windows build 0 error 0 warning），证据 docs/UNITY_RUNTIME_VERIFICATION_2026-08-21.md**；**8/23 人类已答 5 项阻塞决策（①-③ 冻结、④-⑤ 委托策划），见 §10.11**
 > **目的**：树状分解 + 完成度 % + 阻塞标记；替代 / 增强 `IMPLEMENTATION_TODO.csv` 的平铺视图

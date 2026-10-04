@@ -130,6 +130,29 @@
 | 1.31-chant-landmark-runtime-state | 2026-09-10 | snapshot 可见 card 增加 optional `chantRemaining` 与公开地标 `landmarkPullCount`；CardCatalog metadata 携带打印吟唱要求，旧 payload 与无活动吟唱卡保持兼容；不扩展隐藏手牌可见性 |
 | 1.31-manual-commit | 2026-09-01 | 为已冻结的机械生命周期加入兼容性 `COMMIT` 玩家动作与 COMMIT/PUSH UI 事件；生命周期值按现有惩罚抽牌/响应链结算，不引入独立支付资源；PUSH 仍为结束阶段 FIFO 自动结算 |
 | 1.31-ambush-runtime | 2026-09-01 | `SET_AMBUSH` 接入 AMBUSH 阶段 LegalAction；viewer-owned snapshot 增加 optional `ambush` 列表且不扩大对手身份可见性；攻击/出牌/召唤/抽牌触发窗口接入 `AMBUSH_TRIGGERED`，旧 payload 缺字段仍兼容 |
+| 1.31-player-rollback | 2026-09-11 | 人类负责人批准：将 `ROLLBACK`（回滚）登入**玩家动作**枚举，`game_action.schema.json` 与 `game_snapshot.schema.json` 的 `type` 枚举同步由 8 项扩为 **9 项**（新增项插在 `PULL` 与 `DISCARD` 之间）。`contractVersion` 仍为 `1`；本次为**兼容新增**，不改变任何既有动作的字段形状。形状：队列非空时按提交队列**每张**卡广告一条 `rollback_{instanceId}`，`sourceId` = 该队列卡实体，reasonKey `action.rollback`，**惩罚值 = 0**（依据 `RULES.md` §12.4「不能回溯已经发生的惩罚抽牌」+ 术语表「费用不返还」：之前 COMMIT 已付的 `commitCost` 既不重收也不退还，故不产生惩罚抽牌、也不开惩罚响应窗口），效果复用既有 `EffectRuntime.Rollback`，不触发上传/下载效果。**迁移说明（旧客户端）：** 不认识 `ROLLBACK` 的客户端必须按"未知动作"**安全忽略**——从 `legalActions` 中丢弃该条、不要渲染按钮、不要因未知枚举值**拒绝或丢弃整份 snapshot**，其余 8 个动作与全部既有字段语义不变；只能播放已知动作的观战端会少一个可选按钮，但不会破坏回放。前端/Bot 如需支持回滚，按 `actionId` = `rollback_{instanceId}`、`sourceId` = 提交队列卡实体、`payload` 为 `{}` 提交即可 |
+| 1.31-explicit-discard-selection | 2026-09-13 | 为需要自弃牌/阶段弃牌的已广告动作增加可选顶层 `selectedEntityIds` 请求字段；广告 `payload` 保持不可变，选择必须按广告候选、数量和唯一性校验并使用当前 `snapshotRevision`。旧的 payload 选择兼容路径保留；同一请求同时提供两种选择通道一律拒绝；网关不再替玩家从候选集中默选 |
+
+## 8.1 迁移说明：1.31-player-rollback 新增玩家动作 `ROLLBACK`（2026-09-11）
+
+> 本节按 `AGENTS.md`「Before changing a contract, preserve backward compatibility or document the migration explicitly.」逐条写明兼容性与旧客户端行为。
+
+- **变更面**：只有两个 schema 的 `type` 枚举（`schemas/game_action.schema.json`、`schemas/game_snapshot.schema.json` 内 `$defs`/`properties.legalAction`）各追加一个字符串枚举值 `ROLLBACK`。**没有**新增/删除/改名任何字段、没有收紧任何既有约束、没有修改快照字段语义。
+- **兼容性判定**：**兼容新增**。`contractVersion` 保持 `1`（§3 版本规则：wire format 兼容性信号不变则兼容）。`ROLLBACK` 只是旧枚举的一个超集元素，因此新引擎产生的 payload 对旧客户端是"多了它不认识的枚举值"，而不是"字段缺失/类型变化"。
+- **旧客户端该怎么处理未知的 `ROLLBACK`**：
+  1. **必须安全忽略（forward-compatible unknown action）**：遇到 `legalActions[]` 里 `type === "ROLLBACK"` 的条目，丢弃该条即可；**不得**因为它而拒绝整份 snapshot、报错、卡住回合或清空 `legalActions`。
+  2. 不渲染对应按钮；不把它加入本地动作缓存；不因未知 `type` 关闭 `additionalProperties` 之外的兜底路径。
+  3. 已经处于提交队列中的卡依旧受既有 `commitQueue` 快照字段描述，**回滚不是旧客户端维持可用性所必需的动作**：不支持回滚的客户端只是少一个可选按钮，对局仍可正常推进（提交 / 上传 / 下载 / 结束回合均不变）。
+  4. 反向（新客户端 + 旧引擎）无需处理：旧引擎从不广告 `ROLLBACK`，新客户端只会看到 8 个动作。
+- **旧回放/录像**：不涉及。`ROLLBACK` 只出现在本版本之后产生的 snapshot/action；旧录像里没有该动作，`ROLLBACK` 的渲染缺失不会影响旧回放。
+- **惩罚语义（为何是 0）**：`RULES.md` §12.4「不能回溯已经发生的惩罚抽牌」+ §13 术语表「费用不返还」⇒ 回滚**不结算任何费用**：之前那次 COMMIT 已付的 `commitCost` 既不重收也不退还，因此不产生惩罚抽牌、也不开惩罚响应窗口。若将来要改成"付费回滚"，那是一条新规则，需另立条款并另开契约条目。
+- **效果动作 vs 玩家动作**：`data/schema/cards.schema.json` 的 `$defs.EffectAction` 早已包含 `ROLLBACK`（卡牌效果词表），本次**不动**；本变更只是在**玩家动作**词表里补上同一个名字。两侧词表仍然独立（`SET_AMBUSH` 只在玩家侧，`COMMIT`/`PUSH`/`PULL`/`ROLLBACK` 两侧都有）。
+
+## 8.2 迁移说明：1.31-explicit-discard-selection（2026-09-13）
+
+- `game_action.schema.json` 与 `game_snapshot.schema.json` 的 LegalAction `payload` 白名单现在明确声明引擎已广告的 `punish`、`discardRequired`、`discardCandidateIds`、`requiredCount`、`candidateIds` 字段；这只是把既有 LegalAction 形状纳入 strict schema，不新增规则字段。
+- 新客户端把玩家/AI 的弃牌选择放在顶层 `selectedEntityIds`，广告 `payload` 原样转发。旧 self-discard 客户端仍可在 `payload.selectedEntityIds` 发送选择；两种通道同时出现由运行时 Boundary 拒绝，schema 负责结构/类型，数量、候选、唯一性与 revision 由 Boundary/Gateway 负责。
+- 未认识顶层字段的旧客户端按已有未知字段策略安全忽略该请求字段；它们仍可使用旧的 self-discard payload 兼容路径。普通 `DISCARD` 不再由网关从候选集默选，缺少选择必须由调用方补齐。
 
 ## 9. 批准记录
 

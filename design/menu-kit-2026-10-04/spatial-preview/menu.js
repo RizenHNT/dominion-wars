@@ -1,0 +1,26 @@
+const stage=document.querySelector('#stage'),content=document.querySelector('#content'),wipe=document.querySelector('#wipe');
+let page=new URLSearchParams(location.search).get('screen')||'title',selected=0,busy=false;
+function read(k,d){try{return localStorage.getItem(k)??d}catch{return d}}
+let volume=Number(read('dw-menu-preview-volume','80')),reduced=read('dw-menu-preview-reduced','false')==='true'||matchMedia('(prefers-reduced-motion: reduce)').matches;
+function save(k,v){try{localStorage.setItem(k,String(v))}catch{}}
+function scale(){stage.style.transform=`translate(-50%,-50%) scale(${Math.min(innerWidth/1600,(innerHeight-54)/900)})`};addEventListener('resize',scale);scale();
+const brand=()=>'<div class="brand"><h1>统御战纪</h1><div class="slash"></div><div class="english">DOMINION WARS</div><p>来自九十年代的未来</p></div>';
+const chrome=()=>'<div class="edition"><i></i><span>DOMINION / PLAY SYSTEM</span></div><div class="foot"><span class="tiny-index">策略，从一张牌开始</span><span>01 / 向未来</span></div>';
+function item(label,action,code=''){return `<button class="menu-item" data-action="${action}"><span class="back"></span><span class="tab-red"></span><span class="tab-yellow"></span><span class="plate"></span><span class="holes"><i></i><i></i><i></i></span><span class="label">${label}</span><span class="code">${code}</span><span class="cursor"></span></button>`}
+function render(){stage.classList.toggle('reduced',reduced);selected=0;
+if(page==='boot')content.innerHTML=`<section class="boot">${chrome()}<div class="boot-banner"><h1>统御战纪</h1><p>DOMINION WARS</p></div><div class="boot-index">01</div><div class="boot-continue">${item('进入标题','title','ENTER')}</div></section>`;
+else if(page==='title')content.innerHTML=`<section class="title">${chrome()}<div class="title-ribbon"></div>${brand()}<div class="title-button">${item('进入游戏','menu','ENTER')}</div></section>`;
+else if(page==='settings')content.innerHTML=`<section class="settings">${chrome()}${brand()}<div class="settings-side">${item('设置','settings','SETTINGS')}</div><div class="settings-panel"><h2>声音 / 动态</h2><div class="setting-row"><label for="volume">主音量</label><input id="volume" type="range" min="0" max="100" value="${volume}"><output id="volumeValue">${volume}%</output></div><div class="setting-row"><span class="setting-name" id="motionLabel">减少动画</span><button id="motion" aria-labelledby="motionLabel" aria-pressed="${reduced}">${reduced?'已开启':'已关闭'}</button><span></span></div><p class="setting-help">减少动画后，保留选中提示，页面即时切换。<br>调整自动保存。</p></div><div class="settings-back">${item('返回','menu','ESC')}</div></section>`;
+else if(page==='duel')content.innerHTML=`<section>${chrome()}<div class="duel-heading">对战准备</div><div class="duel-back">${item('返回主菜单','menu','BACK')}</div></section>`;
+else{page='menu';content.innerHTML=`<section class="menu">${chrome()}${brand()}<div class="menu-stack">${item('开始对战','duel','DUEL')}${item('设置','settings','SETTINGS')}${item('返回标题','title','BACK')}</div></section>`}
+document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('selected',b.dataset.view===page));document.querySelector('#reviewNote').textContent=page==='duel'?'入口转场演示；正式游戏继续使用现有选组流程':page==='settings'?'本地设置预览；此页无音频，音量只保存数值':'鼠标选择 · ↑↓移动 · Enter确认 · Esc返回';
+window.menuScene?.setPage(page);select(0,false);
+content.querySelectorAll('.menu-item').forEach((b,i)=>{b.addEventListener('pointerenter',()=>{if(!busy)select(i,false)});b.addEventListener('focus',()=>select(i,false))});
+const slider=document.querySelector('#volume');if(slider)slider.addEventListener('input',()=>{volume=Number(slider.value);document.querySelector('#volumeValue').textContent=volume+'%';save('dw-menu-preview-volume',volume)});
+const toggle=document.querySelector('#motion');if(toggle)toggle.addEventListener('click',()=>{reduced=!reduced;save('dw-menu-preview-reduced',reduced);stage.classList.toggle('reduced',reduced);toggle.setAttribute('aria-pressed',String(reduced));toggle.textContent=reduced?'已开启':'已关闭'});
+}
+function select(i,focus){const buttons=[...content.querySelectorAll('.menu-item')];selected=(i+buttons.length)%buttons.length;window.menuScene?.select(selected);buttons.forEach((b,n)=>b.classList.toggle('active',n===selected));if(focus)buttons[selected]?.focus()}
+function change(next){if(busy||next===page)return;const words={menu:'进入',settings:'设置',title:'统御',duel:'对战',boot:'启动'};if(reduced){page=next;render();return}busy=true;stage.classList.add('busy');document.querySelector('#wipeWord').textContent=words[next]||'进入';wipe.classList.add('run');setTimeout(()=>{page=next;render()},260);setTimeout(()=>{wipe.classList.remove('run');stage.classList.remove('busy');busy=false},570)}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.action)change(b.dataset.action);if(b.dataset.view)change(b.dataset.view)});
+document.addEventListener('keydown',e=>{if(busy)return;const input=e.target.closest('input,#motion');if(input){if(e.key==='Escape'){e.preventDefault();change('menu')}return}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();select(selected+(e.key==='ArrowDown'?1:-1),true)}if(e.key==='Enter'&&!e.target.closest('button')){e.preventDefault();content.querySelectorAll('.menu-item')[selected]?.click()}if(e.key==='Escape'){e.preventDefault();change(page==='menu'?'title':'menu')}});render();
+

@@ -1,27 +1,34 @@
 using System;
 using DominionWars.Adapters;
+using DominionWars.Adapters.Ai;
 
 namespace DominionWars.Unity.Runtime
 {
 
 /// <summary>
-/// Bounded one-action-per-pump CPU turn driver. A host calls Pump once per
-/// frame; the coordinator obtains an AI-view snapshot, submits one complete
-/// advertised action, and waits for the next pump before continuing.
+/// Unity-side facade for the bounded CPU turn driver.
+///
+/// This file is compiled by Unity only. It is not part of DominionWars.sln and
+/// is therefore NOT covered by the .NET test run (dotnet test / the in-process
+/// NUnit runner); the behaviour it delegates to lives in
+/// DominionWars.Adapters.Ai.AiTurnCoordinator, which the .NET acceptance tests
+/// in src/Engine/Tests/AiTurnCoordinatorTests.cs do exercise against a real
+/// machine-deck match. Keep the two in step: this class must stay a pure
+/// delegation with no pacing, ordering, or legality logic of its own.
+///
+/// The paced behaviour is unchanged from the host's point of view: a host calls
+/// Pump once per frame, each pump performs at most one submission, and the
+/// coordinator obtains an AI-view snapshot, submits one complete advertised
+/// action, and waits for the next pump before continuing.
 /// </summary>
 public sealed class RuntimeAiTurnCoordinator
 {
-    public const int DefaultMaxActionsPerTurn = 32;
+    public const int DefaultMaxActionsPerTurn = AiTurnCoordinator.DefaultMaxActionsPerTurn;
 
-    private readonly RuntimeAdapter _adapter;
-    private readonly RuntimeAiPolicy _policy;
-    private readonly int _aiPlayerIndex;
-    private readonly int _presentationViewerIndex;
-    private readonly int _maxActionsPerTurn;
-    private int _turn = -1;
-    private int _actionPhaseActions;
-    private long _lastSubmittedRevision = -1;
-    private string _lastSubmittedActionId = string.Empty;
+    public const string ActionPhase = AdvertisedActionPolicy.ActionPhase;
+    public const string EndTurnAction = AdvertisedActionPolicy.EndTurnAction;
+
+    private readonly AiTurnCoordinator _coordinator;
 
     public RuntimeAiTurnCoordinator(
         RuntimeAdapter adapter,
@@ -30,128 +37,53 @@ public sealed class RuntimeAiTurnCoordinator
         RuntimeAiPolicy policy = null,
         int maxActionsPerTurn = DefaultMaxActionsPerTurn)
     {
-        _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
-        if (aiPlayerIndex is < 0 or > 1)
-            throw new ArgumentOutOfRangeException(nameof(aiPlayerIndex));
-        if (presentationViewerIndex is < 0 or > 1)
-            throw new ArgumentOutOfRangeException(nameof(presentationViewerIndex));
-        if (maxActionsPerTurn <= 0)
-            throw new ArgumentOutOfRangeException(nameof(maxActionsPerTurn));
-
-        _aiPlayerIndex = aiPlayerIndex;
-        _presentationViewerIndex = presentationViewerIndex;
-        _policy = policy ?? new RuntimeAiPolicy();
-        _maxActionsPerTurn = maxActionsPerTurn;
+        if (adapter is null) throw new ArgumentNullException(nameof(adapter));
+        _coordinator = new AiTurnCoordinator(
+            new RuntimeAdapterAiTurnHost(adapter),
+            aiPlayerIndex,
+            presentationViewerIndex,
+            policy?.InnerPolicy,
+            maxActionsPerTurn);
     }
 
-    public int ActionsTakenThisTurn { get; private set; }
-    public bool Halted { get; private set; }
-    public string LastReasonKey { get; private set; } = string.Empty;
+    public int ActionsTakenThisTurn => _coordinator.ActionsTakenThisTurn;
+
+    public bool Halted => _coordinator.Halted;
+
+    public string LastReasonKey => _coordinator.LastReasonKey;
 
     /// <summary>
     /// Performs at most one AI action. False means no submission was made for
     /// this pump; a stopped/terminal/non-AI turn is intentionally fail-closed.
     /// </summary>
-    public bool Pump()
+    public bool Pump() => _coordinator.Pump();
+
+    public void Reset() => _coordinator.Reset();
+
+    public void Halt(string reasonKey) => _coordinator.Halt(reasonKey);
+
+    /// <summary>
+    /// Adapts the Unity presentation adapter (RuntimeAdapter, which wraps
+    /// IRuntimeSession) to the renderer-neutral IAiTurnHost seam the ported
+    /// coordinator consumes. No rules live here: it forwards the two transport
+    /// calls only.
+    /// </summary>
+    private sealed class RuntimeAdapterAiTurnHost : IAiTurnHost
     {
-        if (Halted) return false;
+        private readonly RuntimeAdapter _adapter;
 
-        var snapshot = _adapter.GetSnapshotForViewer(_aiPlayerIndex);
-        if (snapshot is null || snapshot.WinnerPlayerIndex.HasValue ||
-            string.Equals(snapshot.Phase, "OVER", StringComparison.Ordinal))
+        public RuntimeAdapterAiTurnHost(RuntimeAdapter adapter)
         {
-            Halted = true;
-            LastReasonKey = "ai.match_over";
-            return false;
+            _adapter = adapter;
         }
 
-        if (snapshot.CurrentPlayer != _aiPlayerIndex)
-        {
-            ResetTurnState();
-            LastReasonKey = "ai.waiting_for_turn";
-            return false;
-        }
+        public RuntimeSnapshotEnvelope GetSnapshotForViewer(int viewerPlayerIndex)
+            => _adapter.GetSnapshotForViewer(viewerPlayerIndex);
 
-        if (_turn != snapshot.Turn)
-        {
-            _turn = snapshot.Turn;
-            ActionsTakenThisTurn = 0;
-            _actionPhaseActions = 0;
-        }
-
-        if (!string.Equals(snapshot.Phase, RuntimeAiPolicy.ActionPhase, StringComparison.Ordinal))
-            _actionPhaseActions = 0;
-
-        if (ActionsTakenThisTurn >= _maxActionsPerTurn)
-        {
-            Halted = true;
-            LastReasonKey = "ai.action_limit_reached";
-            return false;
-        }
-
-        var forceEndTurn = string.Equals(snapshot.Phase, RuntimeAiPolicy.ActionPhase, StringComparison.Ordinal) &&
-            _actionPhaseActions > 0;
-        if (!_policy.TryChoose(snapshot, _aiPlayerIndex, forceEndTurn, out var legal))
-        {
-            Halted = true;
-            LastReasonKey = snapshot.LegalActions is null || snapshot.LegalActions.Count == 0
-                ? "ai.no_legal_actions"
-                : "ai.no_action_selected";
-            return false;
-        }
-
-        if (_lastSubmittedRevision == snapshot.SnapshotRevision &&
-            string.Equals(_lastSubmittedActionId, legal.ActionId, StringComparison.Ordinal))
-        {
-            Halted = true;
-            LastReasonKey = "ai.duplicate_action";
-            return false;
-        }
-
-        var action = RuntimeAiPolicy.ToGameAction(snapshot, legal);
-        var submission = _adapter.SubmitForViewer(action, _presentationViewerIndex);
-        _lastSubmittedRevision = action.SnapshotRevision;
-        _lastSubmittedActionId = action.ActionId ?? string.Empty;
-        if (submission is null || submission.Result is null || !submission.Result.Accepted)
-        {
-            Halted = true;
-            LastReasonKey = submission?.Result?.ReasonKey ?? "ai.action_rejected";
-            return false;
-        }
-
-        ActionsTakenThisTurn++;
-        if (string.Equals(snapshot.Phase, RuntimeAiPolicy.ActionPhase, StringComparison.Ordinal) &&
-            !string.Equals(legal.Type, RuntimeAiPolicy.EndTurnAction, StringComparison.Ordinal))
-        {
-            _actionPhaseActions++;
-        }
-
-        LastReasonKey = "ai.action_accepted";
-        return true;
-    }
-
-    public void Reset()
-    {
-        Halted = false;
-        LastReasonKey = string.Empty;
-        ResetTurnState();
-        _lastSubmittedRevision = -1;
-        _lastSubmittedActionId = string.Empty;
-    }
-
-    public void Halt(string reasonKey)
-    {
-        Halted = true;
-        LastReasonKey = string.IsNullOrWhiteSpace(reasonKey)
-            ? "ai.halted"
-            : reasonKey;
-    }
-
-    private void ResetTurnState()
-    {
-        _turn = -1;
-        ActionsTakenThisTurn = 0;
-        _actionPhaseActions = 0;
+        public RuntimeActionSubmission SubmitForViewer(
+            RuntimeGameAction action,
+            int presentationViewerIndex)
+            => _adapter.SubmitForViewer(action, presentationViewerIndex);
     }
 }
 }

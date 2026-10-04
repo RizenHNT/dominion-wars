@@ -110,7 +110,7 @@ public sealed class RuntimeContentContextIntegrationEditModeTests
             panel.Bind(bootstrap);
             Assert.That(panel.ContentContext, Is.SameAs(context));
             Assert.That(panel.ContentResolverOwnership,
-                Is.EqualTo(RuntimeContentResolverOwnership.None));
+                Is.EqualTo(RuntimeContentResolverOwnership.Borrowed));
 
             bootstrap.StartSession();
             panel.Bind(bootstrap);

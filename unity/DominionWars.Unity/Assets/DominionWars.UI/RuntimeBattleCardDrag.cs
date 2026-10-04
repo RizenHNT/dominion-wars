@@ -42,6 +42,8 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
     private bool _retired;
     private bool _diagnosticDragLogged;
     private RuntimeAttackDragArrow? _attackDragArrow;
+    private UnityEngine.UI.ScrollRect? _dragScrollRect;
+    private bool _dragScrollRectWasEnabled;
 
     // Opt-in diagnostics for foreground input investigations. The flag is
     // false by default so ordinary editor sessions and development players do
@@ -232,6 +234,7 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         _originalLocalPosition = transform.localPosition;
         _originalLocalRotation = transform.localRotation;
         _originalScale = transform.localScale;
+        DisableParentScrollForDrag();
         EnsureAttackDragArrow().Begin(eventData);
         if (_canvas != null) transform.SetParent(_canvas.transform, true);
 
@@ -343,6 +346,7 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         _dropAccepted = true;
         EnsureAttackDragArrow().End();
         if (_dragging) RuntimeBattleDropZone.NotifyDragEnded(this);
+        RestoreParentScrollAfterDrag();
         _dragging = false;
         RestoreButtonsAfterDrag();
         _retired = true;
@@ -367,6 +371,7 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         _suppressClickUntilFrame = Time.frameCount;
         EnsureAttackDragArrow().End();
         RuntimeBattleDropZone.NotifyDragEnded(this);
+        RestoreParentScrollAfterDrag();
         if (!_dropAccepted) RestoreOriginalTransform();
         RestoreButtonsAfterDrag();
         if (_canvasGroup != null) _canvasGroup.blocksRaycasts = true;
@@ -501,6 +506,24 @@ public sealed class RuntimeBattleCardDrag : MonoBehaviour, IBeginDragHandler, ID
         // the same deterministic cancellation so target highlights and button
         // state cannot leak into the next authoritative snapshot.
         if (_dragging) CancelDragVisual();
+        else RestoreParentScrollAfterDrag();
+    }
+
+    private void DisableParentScrollForDrag()
+    {
+        var scroll = GetComponentInParent<UnityEngine.UI.ScrollRect>();
+        if (scroll == null || !scroll.horizontal || scroll.vertical) return;
+        _dragScrollRect = scroll;
+        _dragScrollRectWasEnabled = scroll.enabled;
+        scroll.StopMovement();
+        scroll.enabled = false;
+    }
+
+    private void RestoreParentScrollAfterDrag()
+    {
+        var scroll = _dragScrollRect;
+        _dragScrollRect = null;
+        if (scroll != null) scroll.enabled = _dragScrollRectWasEnabled;
     }
 
     private static bool MatchesDrop(

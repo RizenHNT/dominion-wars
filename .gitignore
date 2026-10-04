@@ -41,6 +41,31 @@ Thumbs.db
 codex-ui-*.png
 web.backup-*/
 
+# Local NUnit internal traces; preserve on disk, never publish in checkpoints.
+/InternalTrace.[0-9]*.log
+
+# Exact generated Unity test evidence, not production art or QA source.
+/unity/DominionWars.Unity/Assets/ai-pacing-battle-1024x768.png*
+/unity/DominionWars.Unity/Assets/ai-pacing-battle-1280x720.png*
+/unity/DominionWars.Unity/Assets/discard-selector-all-clear-1024x768.png*
+/unity/DominionWars.Unity/Assets/discard-selector-all-clear-1280x720.png*
+/unity/DominionWars.Unity/Assets/discard-selector-all-selected-1024x768.png*
+/unity/DominionWars.Unity/Assets/discard-selector-all-selected-1280x720.png*
+/unity/DominionWars.Unity/Assets/drag-many-1024x768-20260930.png*
+/unity/DominionWars.Unity/Assets/drag-many-1280x720-20260930.png*
+/unity/DominionWars.Unity/Assets/QA/selected-action-start.png*
+/unity/DominionWars.Unity/Assets/QA/selected-action-after-enter.png*
+/unity/DominionWars.Unity/Assets/QA.meta
+/unity/DominionWars.Unity/Assets/InitTestScenee53ddd85-c411-40d6-8f09-6239fd8317d0.unity*
+/unity/DominionWars.Unity/Assets/build-output.meta
+/src/Engine/Tests/TestResults.meta
+
+# Owned build-staging markers are generated with the payload, not authored content.
+/unity/DominionWars.Unity/Assets/StreamingAssets/content/
+/unity/DominionWars.Unity/Assets/StreamingAssets/content.meta
+/unity/DominionWars.Unity/Assets/StreamingAssets/content/.content-generated
+/unity/DominionWars.Unity/Assets/StreamingAssets/content/.gitignore
+
 # Local source packages (verified contents live under design/)
 /Dominion_Wars_Runtime_Design_Kit_*.zip
 .nightshift/

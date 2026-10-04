@@ -17,6 +17,7 @@ public class Balance {
     public int reshuffleLoseAt = 10;       // 胜利计数阈值：对手每次有效牌库循环时 +1
     public boolean reshuffleIncludesHand = false; // 洗牌阶段是否将手牌一并洗回（默认仅墓地）
     public int chainLimit = 20;            // 惩罚连锁硬上限
+    public int maxPunishResponsesPerRound = 0; // 与 C# 缺省回退一致；0 表示不限制，正式配置可设为 1
     public int deckMin = 60, deckMax = 80; // 卡组张数
     // 先驱威压
     public int pioneerOpponentPunishBonus = 1; // 仅一方统领在场时，对方卡牌惩罚值+N
@@ -24,23 +25,40 @@ public class Balance {
     public int pioneerHandLimitBonus = 2;      // 统领方弃牌上限+N
 
     // 共享王城：一个全局公共目标。所有“打敌方统领/玩家”的伤害在王城存在时优先打王城。
-    public boolean royalCastleEnabled = false;
-    public int royalCastleMaxHp = 60;
+    // 注意：内置默认值必须与 data/balance.json 一致——否则读盘失败时会静默换一套规则。
+    public boolean royalCastleEnabled = true;
+    public int royalCastleMaxHp = 75;
     public int royalCastleBreakVictoryCount = 9;   // 破城者自己的胜利计数至少设为该值
 
     public Map<String, Object> custom = new LinkedHashMap<>();
 
+    /**
+     * 读取平衡值。读盘失败时不抛异常（调用方大多是 UI/服务进程，抛异常会直接崩掉整局），
+     * 而是退回内置默认值，并把「已进入回退」这件事明确写到 stderr。缺失的配置项保留兼容缺省值，
+     * 因而个别值（例如惩罚响应上限）可能与显式配置文件不同。
+     */
     public static Balance load(Path file) {
         Balance b = new Balance();
         try {
-            if (Files.exists(file)) b.apply(Json.parseObject(Files.readString(file)));
+            if (Files.exists(file)) {
+                b.apply(Json.parseObject(Files.readString(file)));
+                return b;
+            }
+            System.err.println("[Balance] 未找到平衡表 " + file.toAbsolutePath()
+                    + "，使用内置默认值（缺省值可能与 data/balance.json 不同）。");
         } catch (Exception e) {
-            System.err.println("balance.json 读取失败，使用默认值: " + e.getMessage());
+            System.err.println("[Balance] 平衡表 " + file.toAbsolutePath() + " 读取/解析失败："
+                    + e.getMessage());
+            System.err.println("[Balance] 已回退到内置默认值（无法确认与磁盘数据一致，可能改变本局规则）。");
         }
         return b;
     }
 
     public void apply(Map<String, Object> m) {
+        int punishResponseLimit = Json.integer(m, "maxPunishResponsesPerRound", maxPunishResponsesPerRound);
+        if (punishResponseLimit < 0) {
+            throw new IllegalArgumentException("maxPunishResponsesPerRound 不能小于 0");
+        }
         openingHand = Json.integer(m, "openingHand", openingHand);
         drawPerTurn = Json.integer(m, "drawPerTurn", drawPerTurn);
         secondPlayerBonusDraw = Json.integer(m, "secondPlayerBonusDraw", secondPlayerBonusDraw);
@@ -48,6 +66,7 @@ public class Balance {
         reshuffleLoseAt = Json.integer(m, "reshuffleLoseAt", reshuffleLoseAt);
         reshuffleIncludesHand = Json.bool(m, "reshuffleIncludesHand", reshuffleIncludesHand);
         chainLimit = Json.integer(m, "chainLimit", chainLimit);
+        maxPunishResponsesPerRound = punishResponseLimit;
         deckMin = Json.integer(m, "deckMin", deckMin);
         deckMax = Json.integer(m, "deckMax", deckMax);
         pioneerOpponentPunishBonus = Json.integer(m, "pioneerOpponentPunishBonus", pioneerOpponentPunishBonus);
@@ -69,6 +88,7 @@ public class Balance {
         m.put("reshuffleLoseAt", (long) reshuffleLoseAt);
         m.put("reshuffleIncludesHand", reshuffleIncludesHand);
         m.put("chainLimit", (long) chainLimit);
+        m.put("maxPunishResponsesPerRound", (long) maxPunishResponsesPerRound);
         m.put("deckMin", (long) deckMin);
         m.put("deckMax", (long) deckMax);
         m.put("pioneerOpponentPunishBonus", (long) pioneerOpponentPunishBonus);

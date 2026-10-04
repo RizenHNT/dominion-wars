@@ -1,0 +1,77 @@
+{
+  "scope": "browser visual prototype only; not Unity gameplay validation",
+  "checks": [
+    "keyboard selection",
+    "confirm transition",
+    "Escape return",
+    "setting persistence",
+    "reduced-motion persistence",
+    "three viewport control geometry"
+  ],
+  "errors": [],
+  "geometry": [
+    {
+      "width": 1600,
+      "overflow": false,
+      "controls": [
+        {
+          "visible": true,
+          "width": 431.07696533203125,
+          "height": 92.30386352539062
+        },
+        {
+          "visible": true,
+          "width": 148.4647216796875,
+          "height": 77.4927978515625
+        },
+        {
+          "visible": true,
+          "width": 337.0240478515625,
+          "height": 123.39990234375
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "overflow": false,
+      "controls": [
+        {
+          "visible": true,
+          "width": 344.86163330078125,
+          "height": 73.84307861328125
+        },
+        {
+          "visible": true,
+          "width": 118.771728515625,
+          "height": 61.994232177734375
+        },
+        {
+          "visible": true,
+          "width": 269.6192626953125,
+          "height": 98.71990966796875
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "overflow": false,
+      "controls": [
+        {
+          "visible": true,
+          "width": 275.8892822265625,
+          "height": 59.074462890625
+        },
+        {
+          "visible": true,
+          "width": 95.0174560546875,
+          "height": 49.59539794921875
+        },
+        {
+          "visible": true,
+          "width": 215.69540405273438,
+          "height": 78.9759521484375
+        }
+      ]
+    }
+  ]
+}
