@@ -16,7 +16,7 @@ namespace DominionWars.Data
         /// <summary>The file existed, parsed, and every rule key was applied.</summary>
         Loaded = 0,
 
-        /// <summary>The file did not exist. The fallback is exactly the built-in default.</summary>
+        /// <summary>The file did not exist. The loader fallback uses T1=1 and built-in defaults for other MatchRules fields.</summary>
         MissingFile = 1,
 
         /// <summary>The file existed but could not be read, parsed, or validated. The fallback may differ from disk.</summary>
@@ -25,8 +25,9 @@ namespace DominionWars.Data
 
     /// <summary>
     /// One balance-table read. <see cref="Rules"/> is never null: a failed read
-    /// falls back to <c>new MatchRules()</c>, which is the shipping behaviour
-    /// that existed before this loader.
+    /// falls back to the loader's configured fallback (T1=1; other MatchRules
+    /// fields use their constructor defaults). Direct <c>new MatchRules()</c>
+    /// remains T1=0.
     /// </summary>
     public sealed class BalanceLoad
     {
@@ -44,7 +45,7 @@ namespace DominionWars.Data
 
         public BalanceStatus Status { get; }
 
-        /// <summary>The loaded rules, or the built-in default when <see cref="Status"/> is not <see cref="BalanceStatus.Loaded"/>.</summary>
+        /// <summary>The loaded rules, or the BalanceTable loader fallback when <see cref="Status"/> is not <see cref="BalanceStatus.Loaded"/>.</summary>
         public MatchRules Rules { get; }
 
         /// <summary>Human-readable diagnosis. Empty when <see cref="Status"/> is <see cref="BalanceStatus.Loaded"/>.</summary>
@@ -56,9 +57,9 @@ namespace DominionWars.Data
         public bool IsLoaded => Status == BalanceStatus.Loaded;
 
         /// <summary>
-        /// True when <see cref="Rules"/> is only a fallback. A missing file falls
-        /// back to a value that is known identical to the built-in default; a
-        /// corrupt file falls back to a value that cannot be confirmed against disk.
+        /// True when <see cref="Rules"/> is only a fallback. T1=1 matches the
+        /// published baseline; other fields use engine defaults, which are not
+        /// guaranteed to match every field in a missing or unreadable file.
         /// </summary>
         public bool UsedFallback => Status != BalanceStatus.Loaded;
 
@@ -89,11 +90,12 @@ namespace DominionWars.Data
     /// built-in default or wider than it.
     /// </para>
     /// <para>
-    /// A read never throws for missing or malformed input, matching the Java
-    /// engine's <c>com.dominionwars.data.Balance.load</c> policy: both cases fall
-    /// back to <c>new MatchRules()</c> and both are reported distinctly and
-    /// loudly on stderr. "Missing" is known identical to the built-in default;
-    /// "corrupt" is not confirmable, and the message says so.
+    /// A read never throws for missing or malformed input. Missing/invalid paths
+    /// and malformed files are reported distinctly and loudly. The loader
+    /// fallback sets maxPunishResponsesPerRound to the shipped T1 value (1) and
+    /// leaves the other MatchRules fields at constructor defaults; direct
+    /// <c>new MatchRules()</c> still defaults that field to 0. A corrupt file
+    /// cannot be confirmed against disk, and the message says so.
     /// </para>
     /// </summary>
     public static class BalanceTable
@@ -135,17 +137,17 @@ namespace DominionWars.Data
             if (string.IsNullOrWhiteSpace(file) || file.IndexOfAny(InvalidPathChars) >= 0)
             {
                 var invalid = "invalid balance table path '" + file + "'";
-                sink("[Balance] " + invalid + "：使用内置默认值（与 data/balance.json 一致）。");
-                return new BalanceLoad(file, BalanceStatus.MissingFile, new MatchRules(), invalid, null);
+                sink("[Balance] " + invalid + "：使用配置加载器回退值（maxPunishResponsesPerRound=1，与已发布基准一致；其他字段沿用引擎默认值，不保证与磁盘全部字段一致）。");
+                return new BalanceLoad(file, BalanceStatus.MissingFile, CreateLoaderFallbackRules(), invalid, null);
             }
 
             try
             {
                 if (!File.Exists(file))
                 {
-                    var missing = "未找到平衡表 " + file + "，使用内置默认值（与 data/balance.json 一致）。";
+                    var missing = "未找到平衡表 " + file + "，使用配置加载器回退值（maxPunishResponsesPerRound=1，与已发布基准一致；其他字段沿用引擎默认值，不保证与磁盘全部字段一致）。";
                     sink("[Balance] " + missing);
-                    return new BalanceLoad(file, BalanceStatus.MissingFile, new MatchRules(), missing, null);
+                    return new BalanceLoad(file, BalanceStatus.MissingFile, CreateLoaderFallbackRules(), missing, null);
                 }
 
                 var text = ReadText(file);
@@ -171,8 +173,8 @@ namespace DominionWars.Data
             {
                 var corrupt = "平衡表 " + file + " 读取/解析失败：" + exception.Message;
                 sink("[Balance] " + corrupt);
-                sink("[Balance] 已回退到内置默认值（无法确认与磁盘数据一致，可能改变本局规则）。");
-                return new BalanceLoad(file, BalanceStatus.Corrupt, new MatchRules(), corrupt, exception);
+                sink("[Balance] 已回退到配置加载器回退值（maxPunishResponsesPerRound=1，与已发布基准一致；其他字段沿用引擎默认值；无法确认与磁盘全部字段一致，可能改变本局规则）。");
+                return new BalanceLoad(file, BalanceStatus.Corrupt, CreateLoaderFallbackRules(), corrupt, exception);
             }
         }
 
@@ -192,9 +194,9 @@ namespace DominionWars.Data
             if (path is null)
             {
                 var sink = diagnostic ?? DefaultDiagnostic;
-                var unresolved = "未能在运行目录之上找到 " + RelativePath + "，使用内置默认值（与 data/balance.json 一致）。";
+                var unresolved = "未能在运行目录之上找到 " + RelativePath + "，使用配置加载器回退值（maxPunishResponsesPerRound=1，与已发布基准一致；其他字段沿用引擎默认值，不保证与磁盘全部字段一致）。";
                 sink("[Balance] " + unresolved);
-                return new BalanceLoad(string.Empty, BalanceStatus.MissingFile, new MatchRules(), unresolved, null);
+                return new BalanceLoad(string.Empty, BalanceStatus.MissingFile, CreateLoaderFallbackRules(), unresolved, null);
             }
 
             return Load(path, warning, diagnostic);
@@ -202,7 +204,8 @@ namespace DominionWars.Data
 
         /// <summary>
         /// Convenience wrapper returning the rules alone. A failed read yields
-        /// <c>new MatchRules()</c>, never an exception.
+        /// the BalanceTable loader fallback (T1=1; other fields use constructor
+        /// defaults), never an exception.
         /// </summary>
         public static MatchRules LoadRules(
             string? file = null,
@@ -263,6 +266,11 @@ namespace DominionWars.Data
             return Load(file, null, diagnostic);
         }
 
+        private static MatchRules CreateLoaderFallbackRules()
+        {
+            return new MatchRules(maxPunishResponsesPerRound: 1);
+        }
+
         private static MatchRules MapRules(
             JToken root,
             string source,
@@ -273,7 +281,15 @@ namespace DominionWars.Data
             var pioneerHandLimitBonus = ReadInt(root, "pioneerHandLimitBonus", 2, 0, 99, source, notes);
             var pioneerOpponentPunishBonus = ReadInt(root, "pioneerOpponentPunishBonus", 1, 0, 99, source, notes);
             var pioneerSelfPunishDiscount = ReadInt(root, "pioneerSelfPunishDiscount", 0, 0, 99, source, notes);
-            var maxPunishResponsesPerRound = ReadInt(root, "maxPunishResponsesPerRound", 0, 0, 99, source, notes);
+            var maxPunishResponsesPerRound = ReadInt(
+                root,
+                "maxPunishResponsesPerRound",
+                1,
+                0,
+                99,
+                source,
+                notes,
+                "BalanceTable loader fallback");
 
             var unread = new List<string>();
             var unknown = new List<string>();
@@ -319,11 +335,12 @@ namespace DominionWars.Data
             int min,
             int max,
             string source,
-            List<string> notes)
+            List<string> notes,
+            string fallbackDescription = "built-in default")
         {
             if (root[property] is not JToken value)
             {
-                notes.Add(property + " absent, using built-in default " + fallback);
+                notes.Add(property + " absent, using " + fallbackDescription + " " + fallback);
                 return fallback;
             }
 

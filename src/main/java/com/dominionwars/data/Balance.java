@@ -17,7 +17,7 @@ public class Balance {
     public int reshuffleLoseAt = 10;       // 胜利计数阈值：对手每次有效牌库循环时 +1
     public boolean reshuffleIncludesHand = false; // 洗牌阶段是否将手牌一并洗回（默认仅墓地）
     public int chainLimit = 20;            // 惩罚连锁硬上限
-    public int maxPunishResponsesPerRound = 0; // 与 C# 缺省回退一致；0 表示不限制，正式配置可设为 1
+    public int maxPunishResponsesPerRound = 0; // 直接构造/apply 缺省仍为 0；loader-only 回退为 1
     public int deckMin = 60, deckMax = 80; // 卡组张数
     // 先驱威压
     public int pioneerOpponentPunishBonus = 1; // 仅一方统领在场时，对方卡牌惩罚值+N
@@ -33,25 +33,34 @@ public class Balance {
     public Map<String, Object> custom = new LinkedHashMap<>();
 
     /**
-     * 读取平衡值。读盘失败时不抛异常（调用方大多是 UI/服务进程，抛异常会直接崩掉整局），
-     * 而是退回内置默认值，并把「已进入回退」这件事明确写到 stderr。缺失的配置项保留兼容缺省值，
-     * 因而个别值（例如惩罚响应上限）可能与显式配置文件不同。
+     * 读取平衡值。文件缺失、读取/解析/校验失败时不抛异常，而是返回完整的
+     * loader 回退对象：maxPunishResponsesPerRound=1，其余字段保留构造默认值；
+     * 并把「已进入回退」明确写到 stderr。可读配置中缺少该键时也使用 1。
+     * 这不改变直接 new Balance() 或 apply({}) 的默认 0；可读文件中的显式 0/1
+     * 仍按文件原值生效。解析失败时丢弃候选对象，避免返回部分 apply 后的状态。
      */
     public static Balance load(Path file) {
-        Balance b = new Balance();
+        Balance fallback = loaderFallback();
         try {
             if (Files.exists(file)) {
-                b.apply(Json.parseObject(Files.readString(file)));
-                return b;
+                Balance loaded = loaderFallback();
+                loaded.apply(Json.parseObject(Files.readString(file)));
+                return loaded;
             }
             System.err.println("[Balance] 未找到平衡表 " + file.toAbsolutePath()
-                    + "，使用内置默认值（缺省值可能与 data/balance.json 不同）。");
+                    + "，使用 loader 回退值（maxPunishResponsesPerRound=1；其他字段为内置默认值）。");
         } catch (Exception e) {
             System.err.println("[Balance] 平衡表 " + file.toAbsolutePath() + " 读取/解析失败："
                     + e.getMessage());
-            System.err.println("[Balance] 已回退到内置默认值（无法确认与磁盘数据一致，可能改变本局规则）。");
+            System.err.println("[Balance] 已回退到 loader 回退值（maxPunishResponsesPerRound=1；其他字段为内置默认值；无法确认与磁盘数据一致，可能改变本局规则）。");
         }
-        return b;
+        return fallback;
+    }
+
+    private static Balance loaderFallback() {
+        Balance fallback = new Balance();
+        fallback.maxPunishResponsesPerRound = 1;
+        return fallback;
     }
 
     public void apply(Map<String, Object> m) {

@@ -17,12 +17,11 @@ namespace DominionWars.Engine.Tests
 /// Coverage for the balance-table loader that makes <c>data/balance.json</c> the
 /// real configuration source for the .NET engine.
 /// <para>
-/// The contract under test is behaviour preservation: the shipped file must
-/// produce rules identical to the built-in defaults, so enabling the loader
-/// cannot change a single shipped match. The tests also pin that a changed
-/// value does take effect, that a missing file and a corrupt file fall back
-/// identically but are reported differently, and that unread keys are tolerated
-/// rather than silently applied.
+/// The shipped file is the configuration source of truth: its T1 response cap
+/// is explicitly 1 while the direct MatchRules constructor still defaults to
+/// 0. Loader failures use T1=1 and constructor defaults for the other fields.
+/// The tests also pin changed-value loading, separate missing/corrupt reports,
+/// and tolerance of unread keys without silently applying them.
 /// </para>
 /// </summary>
 [TestFixture]
@@ -39,14 +38,10 @@ public sealed class BalanceTableTests
     }
 
     /// <summary>
-    /// 2026-09-11：本测试**改过一次语义**。它原本断言"发行平衡表逐字段等于内建默认值"，
-    /// 那是用来证明"接上 loader 不改变行为"的。owner 随后**有意**把
-    /// `maxPunishResponsesPerRound` 从 0（不限制）改成 1（一轮 1 张响应），
-    /// 于是"逐字段相等"不再成立、也不再是想要的性质。
-    /// 现在断言的是两件真正长期成立的事：
-    ///   ① loader 能解析发行文件、且没有走回退；
-    ///   ② 尚未被改动的四个字段仍等于内建默认值；而 T1 字段是**发行值 1**、
-    ///      内建回退仍是 **0**（回退永远保持"不限制"这一保守语义）。
+    /// 2026-09-11：发行配置显式启用 T1=1；2026-10-05：owner 将 loader
+    /// 缺省/失败回退对齐到该发行值。直接 new MatchRules() 的全局默认仍为 0。
+    /// 本测试同时确认发行文件被解析、四个其它字段保持构造默认，且 T1
+    /// 的发行值与直接构造默认有意不同。
     /// </summary>
     [Test]
     public void ShippedFileLoadsAndReflectsTheOwnerConfiguredCap()
@@ -74,7 +69,7 @@ public sealed class BalanceTableTests
             Assert.That(
                 builtIn.MaxPunishResponsesPerRound,
                 Is.Zero,
-                "内建回退必须保持 0 = 不限制：文件缺失/损坏时不能悄悄改变规则语义");
+                "直接构造 MatchRules 的全局默认保持 0；loader 回退由 BalanceTable 单独设为 1");
         });
     }
 
@@ -140,6 +135,11 @@ public sealed class BalanceTableTests
             });
     }
 
+    /// <summary>
+    /// "Identically" means that missing and corrupt inputs use the same
+    /// BalanceTable loader fallback (T1=1 plus constructor defaults for the
+    /// other fields), not that the fallback equals <c>new MatchRules()</c>.
+    /// </summary>
     [Test]
     public void MissingFileFallsBackIdenticallyAndIsReported()
     {
@@ -157,13 +157,56 @@ public sealed class BalanceTableTests
             Assert.That(load.Rules.PioneerHandLimitBonus, Is.EqualTo(new MatchRules().PioneerHandLimitBonus));
             Assert.That(load.Rules.PioneerOpponentPunishBonus, Is.EqualTo(new MatchRules().PioneerOpponentPunishBonus));
             Assert.That(load.Rules.PioneerSelfPunishDiscount, Is.EqualTo(new MatchRules().PioneerSelfPunishDiscount));
-            Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(new MatchRules().MaxPunishResponsesPerRound));
+            Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(1));
+            Assert.That(new MatchRules().MaxPunishResponsesPerRound, Is.Zero, "the direct constructor default remains 0");
             Assert.That(_diagnostics, Has.Count.EqualTo(1), "a missing file is reported exactly once");
             Assert.That(
                 _diagnostics[0],
-                Does.Contain("与 data/balance.json 一致"),
-                "the missing-file report must state that the fallback is known identical to disk");
+                Does.Contain("maxPunishResponsesPerRound=1，与已发布基准一致"),
+                "the missing-file report may claim only that the T1 fallback matches the published baseline");
+            Assert.That(_diagnostics[0], Does.Contain("不保证与磁盘全部字段一致"));
         });
+    }
+
+    [Test]
+    public void InvalidPathUsesLoaderFallbackAndIsReported()
+    {
+        var load = BalanceTable.Load(string.Empty, _warnings.Add, _diagnostics.Add);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(load.Status, Is.EqualTo(BalanceStatus.MissingFile));
+            Assert.That(load.UsedFallback, Is.True);
+            Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(1));
+            Assert.That(new MatchRules().MaxPunishResponsesPerRound, Is.Zero);
+            Assert.That(_diagnostics, Has.Count.EqualTo(1));
+            Assert.That(_diagnostics[0], Does.Contain("maxPunishResponsesPerRound=1，与已发布基准一致"));
+            Assert.That(_diagnostics[0], Does.Contain("不保证与磁盘全部字段一致"));
+        });
+    }
+
+    [Test]
+    public void MissingT1KeyUsesLoaderFallbackWithoutChangingOtherDefaults()
+    {
+        WithBalanceFile(
+            "{ \"handLimit\": 6 }",
+            path =>
+            {
+                var load = BalanceTable.Load(path, _warnings.Add, _diagnostics.Add);
+                var builtIn = new MatchRules();
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(load.Status, Is.EqualTo(BalanceStatus.Loaded));
+                    Assert.That(load.Rules.HandLimit, Is.EqualTo(6));
+                    Assert.That(load.Rules.PioneerHandLimitBonus, Is.EqualTo(builtIn.PioneerHandLimitBonus));
+                    Assert.That(load.Rules.PioneerOpponentPunishBonus, Is.EqualTo(builtIn.PioneerOpponentPunishBonus));
+                    Assert.That(load.Rules.PioneerSelfPunishDiscount, Is.EqualTo(builtIn.PioneerSelfPunishDiscount));
+                    Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(1));
+                    Assert.That(load.Message, Does.Contain("BalanceTable loader fallback 1"));
+                    Assert.That(new MatchRules().MaxPunishResponsesPerRound, Is.Zero);
+                });
+            });
     }
 
     [Test]
@@ -185,7 +228,8 @@ public sealed class BalanceTableTests
                     Assert.That(load.Rules.PioneerHandLimitBonus, Is.EqualTo(new MatchRules().PioneerHandLimitBonus));
                     Assert.That(load.Rules.PioneerOpponentPunishBonus, Is.EqualTo(new MatchRules().PioneerOpponentPunishBonus));
                     Assert.That(load.Rules.PioneerSelfPunishDiscount, Is.EqualTo(new MatchRules().PioneerSelfPunishDiscount));
-                    Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(new MatchRules().MaxPunishResponsesPerRound));
+                    Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(1));
+                    Assert.That(new MatchRules().MaxPunishResponsesPerRound, Is.Zero, "the direct constructor default remains 0");
                     Assert.That(_diagnostics, Has.Count.EqualTo(2), "a corrupt table reports the failure and the fallback");
                     Assert.That(
                         _diagnostics[0],
@@ -193,14 +237,15 @@ public sealed class BalanceTableTests
                         "the corrupt report must be distinguishable from the missing-file report");
                     Assert.That(
                         _diagnostics[1],
-                        Does.Contain("无法确认与磁盘数据一致"),
+                        Does.Contain("无法确认与磁盘全部字段一致"),
                         "the corrupt fallback must state that it is not confirmable against disk");
+                    Assert.That(_diagnostics[1], Does.Contain("maxPunishResponsesPerRound=1，与已发布基准一致"));
                 });
             });
     }
 
     [Test]
-    public void CorruptFileThatIsNotAnObjectFallsBackIdentically()
+    public void CorruptFileThatIsNotAnObjectUsesLoaderFallback()
     {
         WithBalanceFile(
             "[1, 2, 3]",
@@ -212,6 +257,7 @@ public sealed class BalanceTableTests
                     Assert.That(load.Status, Is.EqualTo(BalanceStatus.Corrupt));
                     Assert.That(load.Rules, Is.Not.Null);
                     Assert.That(load.Rules.HandLimit, Is.EqualTo(new MatchRules().HandLimit));
+                    Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(1));
                 });
             });
     }
@@ -229,6 +275,7 @@ public sealed class BalanceTableTests
                 {
                     Assert.That(load.Status, Is.EqualTo(BalanceStatus.Loaded), "unknown keys must not make the table corrupt");
                     Assert.That(load.Rules.HandLimit, Is.EqualTo(8));
+                    Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.Zero, "an explicit file value of 0 still means unlimited");
                     Assert.That(load.Message, Does.Contain("someFutureKnob"));
                     Assert.That(load.Message, Does.Contain("nested"));
                     Assert.That(_warnings.Any(message => message.Contains("someFutureKnob")), Is.True);
@@ -252,7 +299,8 @@ public sealed class BalanceTableTests
                 {
                     Assert.That(load.Status, Is.EqualTo(BalanceStatus.Corrupt));
                     Assert.That(load.Exception, Is.Not.Null);
-                    Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.Zero);
+                    Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(1));
+                    Assert.That(new MatchRules().MaxPunishResponsesPerRound, Is.Zero, "invalid loader data does not alter the direct constructor default");
                     Assert.That(direct!.ParamName, Is.EqualTo("maxPunishResponsesPerRound"));
                     Assert.That(
                         load.Message,
@@ -275,6 +323,7 @@ public sealed class BalanceTableTests
                     Assert.That(load.Status, Is.EqualTo(BalanceStatus.Corrupt));
                     Assert.That(load.Message, Does.Contain("must be a whole number"));
                     Assert.That(load.Rules.HandLimit, Is.EqualTo(new MatchRules().HandLimit));
+                    Assert.That(load.Rules.MaxPunishResponsesPerRound, Is.EqualTo(1));
                 });
             });
     }
@@ -290,6 +339,7 @@ public sealed class BalanceTableTests
             Assert.That(second, Is.SameAs(first));
             Assert.That(first.Rules, Is.Not.Null);
             Assert.That(first.Rules.HandLimit, Is.EqualTo(new MatchRules().HandLimit));
+            Assert.That(first.Rules.MaxPunishResponsesPerRound, Is.EqualTo(1));
         });
     }
 
