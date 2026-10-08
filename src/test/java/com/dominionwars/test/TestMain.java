@@ -1547,6 +1547,7 @@ public class TestMain {
         });
 
         T1PunishResponseWindowTests.run();
+        PlaySourceOwnershipTests.run();
 
         // ===================== 条件语法（卡面发动条件的引擎支持） =====================
         // 卡面文案是手写的，所以"卡面写「若……则……」"只有在引擎真能求值那句话时才诚实。

@@ -214,6 +214,12 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
         PunishRound round)
     {
         var opponent = state.GetOpponent(player.PlayerIndex);
+        // Prepare has accepted the play and frozen its target/cost. The source
+        // is now resolving, so it must leave the hand before response effects
+        // select cards to discard. Keeping it in the hand let a response put
+        // the same instance in the graveyard before this play added it to the
+        // field (or to the graveyard a second time).
+        ExecuteMutation(state, _ => player.Hand.Remove(card));
         if (player.PunishToSelfDiscardThisTurn && preparation.Cost > 0)
         {
             ExecuteMutation(state, _ =>
@@ -235,6 +241,7 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
                 new EffectContext(player.PlayerIndex, rootEventId));
             if (state.WinnerPlayerIndex.HasValue)
             {
+                ExecuteMutation(state, _ => player.Graveyard.Add(card));
                 return;
             }
         }
@@ -259,6 +266,7 @@ public sealed class PlayCardActionHandler : ITurnActionHandler
             ResolvePunishResponses(state, drawn, rootEventId, chainDepth + 1, round);
             if (state.WinnerPlayerIndex.HasValue)
             {
+                ExecuteMutation(state, _ => player.Graveyard.Add(card));
                 return;
             }
         }

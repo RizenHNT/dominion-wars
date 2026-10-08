@@ -523,6 +523,9 @@ public class Game {
         PlayerState opp = opponentOf(p.idx);
         if (!tagsFree(p, card.def)) { log(p.name + " 词条受限，无法使用【" + card.def.name + "】"); return false; }
         int cost = effectivePunish(p.idx, card, asPunish);
+        // An accepted play is already resolving. It is no longer a hand card
+        // that an opponent's punishment response can randomly discard.
+        p.hand.remove(card);
 
         // ---- 支付惩罚 ----
         if (p.punishToSelfDiscardThisTurn && cost > 0) {
@@ -537,6 +540,7 @@ public class Game {
                 }
                 discardFromHand(p, d, "惩罚转化");
             }
+            if (over()) { p.graveyard.add(card); return true; }
         } else if (cost > opp.deck.size()) {
             consumeTags(p, card.def);
             moveToGrave(p, card);
@@ -555,7 +559,7 @@ public class Game {
             chainDepth++;
             drawCards(opp, cost, true);
             chainDepth--;
-            if (over()) return true;
+            if (over()) { p.graveyard.add(card); return true; }
         }
 
         // ---- 伏击反制窗口（统领效果免疫非统领反制）----
