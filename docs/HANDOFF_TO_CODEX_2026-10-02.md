@@ -369,3 +369,40 @@ owner 于 2026-09-11 决定「一轮限 1 张反制响应」。该规则在 C# �
 - 第一批最终 fresh .NET 全量 **925/925 通过、0 失败/0 跳过**，raw `build-output/checkpoint-20261005/full-dotnet/full-dotnet-20261005.trx`；相对 918 基线新增 7 条定向用例，未删除旧测试。此前 920/925 和夹具失败记录保留为过程证据，不再冒充当前门禁。F36 修前 918/918、修后含新增用例 925/925；Java 当前批 84/84，数据校验口径仍如上。
 - B2-A 预审纠正前置信息：Java `Balance.load` 实际缺文件/读取失败/缺 T1 字段仍通常从默认 0 出发，`Game` 没有隐藏的 1 兜底；磁盘显式 1 路径正常。后续须按 owner 已裁定的 CR-3 对齐 loader 回退，两端直接构造规则对象的默认保持不动；若解析途中失败，不返回部分修改对象。第一批没有混入此修复或 Alpha 免费 PULL。
 - 最终暂存清单共 336 个精确路径（314 个正常候选 + 22 个源码白名单），无清单外文件，冻结到暂存的 SHA256 未变。完整 staged diff-check 仍报告 9 个既有文件的空白格式问题：spatial-preview 的 index/menu/verify 末尾空行、官方 vendor/three.cjs 缩进、4 份历史 PL 报告末尾空行、Unity Ai.meta 空字段尾空格。保留第三方/素材指纹及历史文档，不做行为或批量格式改写；仅排除这 9 个已列明路径的检查 exit 0，**不声称完整 staged diff-check 无告警**。常见私钥/token 格式扫描无匹配，不等同全历史安全保证。
+- 归档提交：`81b62559c8e4cfe456d1628018541fb900d8430e`，信息为“checkpoint: 底层引擎 + 契约 + 文档同批归档”；提交包含 Java T1、机械地标、探针/共享驱动、F36 与新增 7 条回归的说明。首次 push exit 0，新远端分支 `origin/pl/ai-threat-estimator` 成功建立并设置 upstream，`ls-remote` 返回完全相同 SHA。未强推、改写历史、合并保护分支、删除远端或发布游戏。该 SHA 回执与提交后 mailbox 通知是提交后的文档改动，尚未另做 closeout commit，不声称它们已包含在自身提交中。
+
+## 十五、第二批配置与 Alpha 行为分离实施（2026-10-05）
+
+### B2-A：CR-3 已完成、独立提交
+
+- 提交 `36177b4610efed726eb6958125e9ffb7edb67709`：`fix(data): use T1=1 when balance configuration cannot be loaded`，仅含 `src/Data/BalanceTable.cs`、`src/Engine/Tests/BalanceTableTests.cs`、`src/main/java/com/dominionwars/data/Balance.java`、`src/test/java/com/dominionwars/test/T1PunishResponseWindowTests.java`。不含 F、卡值或规则文档改动。目前远端已核实的首次 checkpoint 仍为 `81b6255`；本项单独提交后尚未另推，不冒充远端已包含。
+- 两端 loader 在文件缺失/不可读/解析失败时 T1 回退 1；合法文件缺 T1 字段也取 1。其它规则默认不变，直接 `new MatchRules()` / `new Balance()` / Java `apply({})` 的默认 0 保留，文件明确配置的 0 或 1 均保留。Java 丢弃解析失败的候选对象，返回独立完整回退对象，避免部分 apply 状态。诊断明确只保证 T1 基准，不保证所有磁盘字段相等。
+- 定向最终 C# 15/15、0 失败/0 跳过，raw `build-output/b2a-cr3-csharp-final-r3-20261005/b2a-balance-table-final-r3-20261005.trx`。QA 独立 fresh 全量 .NET **927/927、0 失败/0 跳过、exit 0**，raw `build-output/b2a-full-20261005-r3/trx/dotnet-full-r3.trx`；四文件运行前后 SHA256 与冻结清单一致。
+- QA 独立 Java 重建 exit 0、TestMain **85/85、exit 0**，实际 stdout 为 `build-output/b2a-full-20261005-r3/java/testmain-stdout.txt`，stderr 同目录保留（配置失败探针的预期诊断，不等于用例失败）。首个实现方 transcript 只记录退出码，数量证据以独立 stdout 为准。
+- 对比第一批 925 个结果净新增 2 个用例（invalid path、missing T1 key）；一个非对象 JSON 旧用例仅改名为 `CorruptFileThatIsNotAnObjectUsesLoaderFallback`，原夹具及断言仍执行，不计作新增或删除行为。其它缺失/损坏用例原名保留，原断言按 owner 的 CR-3 同步加强，不删除或放宽。
+
+### 后续边界
+
+B2-B 免费 PULL 在本节 B2-A 提交时尚未实施；先隔离构建并冻结修前程序集、数据与策略指纹，再单独实现/提交 F。B2-C 的最终同种子实测另出报告，不能借用旧 DLL、混合中间结果或自行调整卡值/512/阈值。P0-3 逐段选择协议、当前 Unity 原生验证和新3D包仍不在本项完成声明内。
+
+### 10/8 接续：出牌源归属修复独立归档与修前冻结
+
+- 保留并复核另一对话的出牌源归属修复：通过合法性/目标校验的出牌源在惩罚响应前离开手牌，避免被响应弃掉后又进入战场或墓地；支付期间终局则只进入拥有者墓地一次。没有修改卡值、胜利条件、费用、AI 权重或规则文档。来源对话已确认停止共享源码写入。
+- 独立 fresh Release 回归 .NET **936/936、0 失败/0 跳过**，raw `build-output/checkpoint-20261008/b2c/preF/validation/trx/source-ownership-full-20261008.trx`；Java fresh build / TestMain 均 exit 0，**89/89**，raw `.../validation/java/testmain-stdout.txt`。C# 用例名称 multiset 与来源批次一致；六个归档文件冻结哈希无漂移。
+- 精确六路径独立提交 `b26a744e2ec1ae5c0c3bc0cdcc6932c84da9e7a9`：两端出牌实现、新增 C# 9 例及 Java 4 例、Java 注册和必要 Unity 测试 .meta。暂存空白检查通过，没有混入 F 或页面素材，没有 push。
+- 修前 shared-driver / growth 已在 `build-output/checkpoint-20261008/b2c/preF/` fresh 构建，两个 exit 0，149 个被编译 C# 源文件哈希核对无漂移；卡池、卡组、balance 与 RULES 的原字节副本及指纹用于隔离模拟，后续不读取 live data。已启动三组双牌组、每组 40 局的机械修前样本，最终统计仍待结果。
+- 已向实现子代理发出 F 编辑 GO；免费 PULL 尚未验收，必须独立提交。P0-3 逐段选择协议仍待跨层实施。页面/卡图/卡组候选均独立，不纳入本次底层提交，也不把插画生成或候选筛查等同于生产采用。
+
+## 十六、B2-B/F：活动机械 Alpha 令 PULL 免费（2026-10-08 收尾）
+
+- 规则边界：只有拥有者的真实 `machine_alpha` 随从统领实例仍在其统领/场上位置时，PULL 生命周期惩罚为 0；未登场或离场立即恢复栈顶牌印刷 `downloadCost`。不加sealed/血量等额外门槛。C# 广告、`PULL_DECLARED`、响应支付及 `CARD_PULLED` 共用一次有效费用快照；快照绑定来源与栈顶且不继承给嵌套 PULL。Java `Game.pullWith` 与 AI `askPull`/惩罚额度读数复用同一有效费用解析。
+- 精确 11 路径本机提交 `31c8f46c51d2875dabaff294011c65c3f8567850`：C# `src/Engine/Effects/EffectContext.cs`、`src/Engine/Effects/EffectRuntime.Mechanical.cs`、`src/Engine/LegalActionGenerator.cs`、`src/Engine/Turns/PullActionHandler.cs`，C# 测试 `src/Engine/Tests/ProductionFactionIntegrationTests.cs`、`src/Engine/Tests/PullAlphaFreeTests.cs` 及其 `.meta`，Java `src/main/java/com/dominionwars/engine/Game.java`、`src/main/java/com/dominionwars/ai/AiAgent.java`、`src/test/java/com/dominionwars/test/PullAlphaFreeTests.java`、`src/test/java/com/dominionwars/test/TestMain.java`。提交未 push。
+- 正式验证：fresh Release .NET **938/938，0 failed、0 skipped**；Java `TestMain` **93/93，exit 0**。原始 .NET TRX `build-output/checkpoint-20261008/b2b/postF/dotnet/postf-full-dotnet-r2.trx`，Java stdout `build-output/checkpoint-20261008/b2b/postF/java/test-main.txt`。目标 .NET 过滤 5/5 raw `build-output/b2b-20261008/lunar/targeted-dotnet-r4.txt`；Java 93/93 原始 stdout `build-output/b2b-20261008/lunar/java/test-main-r3.txt`。定向测试涵盖实际 landmark→Alpha 晋升后六次 PULL 收费 `[1,1,0,0,0,0]`、1→0→1 的源/顶牌收费快照、高费 Titan 免费、敌方/同名非统领拒绝、Java AI 费用输入及 Web 正费 pending/decline 对照与零费真实 PULL 无 pending。
+- 独立同输入 scratch trace（非正式测试源）以相同生产 `machine_golem`、`machine_drone`（成本 1）、4 张 ALWAYS PUNISH 响应牌及 decline policy，逐状态 notAlpha / activeAlpha / removed 比较：两端费用、实际惩罚抽牌、响应回调均 `[1,0,1]`，每步 pullCount +1 且栈顶入墓。两端 probe 源码均定义 `response_0..3` / `Response 0..3`，并使用相同 type、激活、punishCost=0 与 ALWAYS 条件；trace 本身不单独输出响应牌 ID。JSON raw：`build-output/b2b-20261008/lunar/crossfixture/csharp/trace.json`、`build-output/b2b-20261008/lunar/crossfixture/java-trace.json`；均 exit 0，hash 与 11 源路径清单记录在 ignored `build-output/b2b-20261008/lunar/freeze-manifest.txt`。此窄 probe 手动切换真实 Alpha 实例在场状态，**不冒充** landmark 晋升；生产晋升另由正式集成用例覆盖。
+- 不变项：仅 PULL 生命周期费用；未修改 COMMIT/PUSH、PULL 次数胜利门槛、目标选择/顺序、卡值、AI 权重或 RULES/UI。P0-3 逐段统领目标选择仍延期到跨层协议与 UI 可选目标工作；本提交不声称修复该项，也不声称完成 Unity/native 鼠标验收。
+- B2-C 的 post-F 机械/古木配对数值和设计解释由 QA 维护既有 `docs/CODEX_B2_FINAL_BALANCE_VERIFICATION_2026-10-08.md`；本节不重述胜率、不作采纳/平衡结论。历史修前 936/936 与 pre-F 模拟仍是不同基线，不替代本节 post-F 门禁。
+
+### 10/8 远端同步回执
+
+- 按 owner 已授权的归档/推送执行普通 `git push origin HEAD:refs/heads/pl/ai-threat-estimator`，exit 0；远端由 `81b6255` 前进至 `31c8f46c51d2875dabaff294011c65c3f8567850`，随后 `git ls-remote` 核对相同 SHA。因此 B2-A `36177b4`、出牌源归属 `b26a744`、B2-B/F `31c8f46` 已分别归档且远端包含。
+- 没有强推、改写历史、合并保护分支、删除远程分支或发布游戏。本节以前的“未 push”是各提交当时的状态，现以本回执为准。页面/美术另一对话的未跟踪产出仍留在本地，没有混入本次生产提交。

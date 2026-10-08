@@ -104,11 +104,22 @@ Write-Output "## C. Verified amplification arithmetic (engine events)"
 Write-Output ""
 $growth = 0; $growthOk = 0; $flat = 0; $flatOk = 0; $mismatch = @()
 $rootAdds = 0; $rampantAdds = 0; $rampantCapped = 0
-foreach ($group in ($events | Group-Object seed)) {
+$eventsByGameKey = @{}
+foreach ($e in $events) {
+    $eventKey = Get-EventGameKey $e
+    if (-not $gamesByEventKey.ContainsKey($eventKey)) { throw "event has no unique matching game: $eventKey" }
+    if (-not $eventsByGameKey.ContainsKey($eventKey)) {
+        $eventsByGameKey[$eventKey] = [System.Collections.Generic.List[object]]::new()
+    }
+    $eventsByGameKey[$eventKey].Add($e)
+}
+foreach ($g in $games) {
     $root = 0; $rampant = 0
-    $g = $games | Where-Object { $_.seed -eq [int]$group.Name } | Select-Object -First 1
+    $eventKey = Get-EventGameKey $g
     $woodSeat = $g.wood_seat
-    foreach ($e in ($group.Group | Sort-Object event_id)) {
+    $matchEvents = @()
+    if ($eventsByGameKey.ContainsKey($eventKey)) { $matchEvents = @($eventsByGameKey[$eventKey]) }
+    foreach ($e in ($matchEvents | Sort-Object event_id)) {
         switch ($e.type) {
             'ROOT_STACKS_ADDED' { if ($e.d_player -eq $woodSeat) { $root = [int]$e.d_total; $rootAdds++ } }
             'RAMPANT_STACKS_ADDED' {
@@ -125,11 +136,11 @@ foreach ($group in ($events | Group-Object seed)) {
                     $expected = ($base + $root) * [int][Math]::Pow(2, [Math]::Min(3, $rampant))
                     $sealOk = ($e.d_sealed -eq $true)
                     if ($expected -eq $amount -and $sealOk) { $growthOk++ }
-                    else { $mismatch += ("seed={0} ev={1} base={2} root={3} rampant={4} expected={5} actual={6} sealed={7}" -f $e.seed, $e.event_id, $base, $root, $rampant, $expected, $amount, $e.d_sealed) }
+                    else { $mismatch += ("game={0} ev={1} base={2} root={3} rampant={4} expected={5} actual={6} sealed={7}" -f $eventKey, $e.event_id, $base, $root, $rampant, $expected, $amount, $e.d_sealed) }
                 }
                 else {
                     $flat++
-                    if ($e.d_sealed -eq $false) { $flatOk++ } else { $mismatch += ("seed={0} ev={1} flat-but-sealed amount={2}" -f $e.seed, $e.event_id, $amount) }
+                    if ($e.d_sealed -eq $false) { $flatOk++ } else { $mismatch += ("game={0} ev={1} flat-but-sealed amount={2}" -f $eventKey, $e.event_id, $amount) }
                 }
             }
         }
