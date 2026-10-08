@@ -178,7 +178,10 @@ public sealed partial class EffectRuntime
             }
         }
 
-        var effectiveDownloadPunish = GetEffectiveDownloadPunish(carrier, card);
+        var effectiveDownloadPunish = context.PullCostSnapshot is { } snapshot
+            && snapshot.Matches(carrier, card)
+                ? snapshot.Amount
+                : GetEffectiveDownloadPunish(owner, card);
 
         // PULL removes the visible stack top before resolving its payload.
         // Besides matching the rulebook order, this prevents a nested PULL
@@ -224,12 +227,12 @@ public sealed partial class EffectRuntime
     /// downloaded card.
     /// </summary>
     internal static int GetEffectiveDownloadPunish(
-        CardInstance carrier,
+        PlayerState owner,
         CardInstance card)
     {
-        if (carrier is null)
+        if (owner is null)
         {
-            throw new ArgumentNullException(nameof(carrier));
+            throw new ArgumentNullException(nameof(owner));
         }
 
         if (card is null)
@@ -237,7 +240,15 @@ public sealed partial class EffectRuntime
             throw new ArgumentNullException(nameof(card));
         }
 
-        return card.Definition.DownloadCost;
+        var leader = owner.Leader;
+        var activeAlpha = leader is not null
+            && owner.Field.Contains(leader)
+            && leader.OwnerPlayerIndex == owner.PlayerIndex
+            && leader.IsLeaderEntity
+            && leader.Definition.IsLeader
+            && leader.Definition.IsMinion
+            && string.Equals(leader.Definition.Id, "machine_alpha", StringComparison.Ordinal);
+        return activeAlpha ? 0 : card.Definition.DownloadCost;
     }
 
     private void AdvanceLandmark(CardInstance carrier, EffectContext context)

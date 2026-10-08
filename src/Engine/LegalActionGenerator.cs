@@ -130,6 +130,7 @@ public sealed class LegalActionGenerator
                         foreach (var pullTarget in pullTargets)
                         {
                             actions.Add(CreatePullAction(
+                                player,
                                 source,
                                 top,
                                 pullTarget.InstanceId));
@@ -137,7 +138,7 @@ public sealed class LegalActionGenerator
                     }
                     else
                     {
-                        actions.Add(CreatePullAction(source, top));
+                        actions.Add(CreatePullAction(player, source, top));
                     }
                 }
             }
@@ -247,12 +248,13 @@ public sealed class LegalActionGenerator
     }
 
     private static LegalAction CreatePullAction(
+        PlayerState owner,
         CardInstance source,
         CardInstance top,
         long? selectedTargetId = null)
     {
         var payload = new Dictionary<string, object?>();
-        payload["punish"] = top.Definition.DownloadCost;
+        payload["punish"] = EffectRuntime.GetEffectiveDownloadPunish(owner, top);
         if (selectedTargetId.HasValue)
         {
             payload["selectedEntityIds"] = new[] { selectedTargetId.Value };

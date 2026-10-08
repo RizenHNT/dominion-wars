@@ -334,6 +334,13 @@ public sealed class ProductionFactionIntegrationTests
         EnterAction(state, flow, router, 0);
         foreach (var expectedTop in machine.CloudStack.Reverse().ToArray())
         {
+            var advertisedAlphaPull = flow.GetLegalActions(state, 0)
+                .Single(action => action.Type == LegalActionGenerator.Pull
+                    && action.SourceId == alpha.InstanceId
+                    && action.TargetId == expectedTop.InstanceId
+                    && SelectedTarget(action) == target.InstanceId);
+            Assert.That(advertisedAlphaPull.Payload["punish"], Is.EqualTo(0),
+                "the production Alpha's PULL is advertised free even for machine_titan");
             var pull = ExecutePull(state, flow, router, alpha, expectedTop, target);
             Assert.That(pull.Accepted, Is.True);
             if (state.WinnerPlayerIndex.HasValue)
@@ -387,18 +394,19 @@ public sealed class ProductionFactionIntegrationTests
             Assert.That(firstPush.Data["punish"], Is.EqualTo(0),
                 "ordinary production PUSH uses its approved zero default");
             Assert.That(pullDeclarations, Has.Length.EqualTo(6));
-            // 每次 PULL 的惩罚抽牌量 = 被下载卡的 downloadCost（M1 差异化后 titan=2，其余=1）
             var pullPunishes = pullDeclarations
                 .Select(item => Convert.ToInt32(item.Data["punish"]))
                 .ToArray();
-            Assert.That(pullPunishes.All(value => value is 1 or 2), Is.True,
-                "PULL punish comes from the pulled card's downloadCost");
-            Assert.That(pullPunishes.Sum(), Is.EqualTo(7),
-                "five PULLs at downloadCost 1 plus machine_titan at downloadCost 2");
+            Assert.That(pullPunishes.All(value => value is 0 or 1), Is.True,
+                "pre-Alpha PULLs cost 1; PULLs after Alpha costs 0");
+            Assert.That(pullPunishes.Sum(), Is.EqualTo(2),
+                "only the two pre-Alpha PULLs draw punishment cards");
+            Assert.That(pullPunishes, Is.EqualTo(new[] { 1, 1, 0, 0, 0, 0 }),
+                "the two pre-Alpha PULLs use printed costs; all four after production Alpha are free");
             // 惩罚抽牌每次结算只发一条事件，幅度写入事件的 count 载荷，
-            // 因此事件数 = 结算次数 = 2 次 COMMIT + 6 次 PULL = 8，而不是抽到的总张数（7 张）。
-            Assert.That(state.Events.Items.Count(item => item.EventType == "PUNISH_DRAW"), Is.EqualTo(8),
-                "two COMMIT punish draws plus six PULL punish draws");
+            // 因此本 fixture 有 2 次 COMMIT + 2 次 pre-Alpha PULL；Alpha 后四次零费不抽牌。
+            Assert.That(state.Events.Items.Count(item => item.EventType == "PUNISH_DRAW"), Is.EqualTo(4),
+                "two COMMIT punish draws plus two pre-Alpha PULL draws");
             Assert.That(projected.Select(item => item.Type), Does.Contain("CARD_COMMITTED"));
             Assert.That(projected.Select(item => item.Type), Does.Contain("CARD_PUSHED"));
             Assert.That(projected.Select(item => item.Type), Does.Contain("CARD_PULLED"));

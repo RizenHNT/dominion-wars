@@ -792,6 +792,21 @@ public class Game {
         return false;
     }
 
+    /** PULL punishment after the active machine Alpha has entered its owner's field. */
+    public int effectiveDownloadCost(PlayerState owner, CardInstance card) {
+        if (owner == null) throw new IllegalArgumentException("owner is required");
+        if (card == null) throw new IllegalArgumentException("card is required");
+        CardInstance leader = owner.leaderOnField;
+        boolean activeAlpha = leader != null
+                && owner.field.contains(leader)
+                && leader.ownerIdx == owner.idx
+                && leader.isLeaderEntity
+                && leader.def.leader
+                && leader.def.isMinion()
+                && "machine_alpha".equals(leader.def.id);
+        return activeAlpha ? 0 : card.def.downloadCost;
+    }
+
     private List<CardInstance> downloadCarriers(PlayerState owner) {
         List<CardInstance> r = new ArrayList<>();
         for (CardInstance c : owner.field) if (isDownloadCarrier(owner, c)) r.add(c);
@@ -925,6 +940,9 @@ public class Game {
             return false;
         }
         CardInstance card = p.cloudStack.get(p.cloudStack.size() - 1);
+        // Freeze the lifecycle fee before any target or punish-response prompt
+        // can change the active leader state during this same PULL.
+        int effectiveDownloadCost = effectiveDownloadCost(p, card);
         // 下载效果需要目标时，必须在实际下载时由当前玩家选择（RULES §12.4）
         CardInstance effectTarget = null;
         for (CardDef.EffectSpec e : card.def.pullEffects) {
@@ -943,7 +961,7 @@ public class Game {
             }
             break;
         }
-        payLifecyclePunish(p, card.def.downloadCost, p.name + " 下载【" + card.def.name + "】");
+        payLifecyclePunish(p, effectiveDownloadCost, p.name + " 下载【" + card.def.name + "】");
         if (over()) return true;
         // 先移除栈顶再结算下载效果：避免嵌套下载递归命中同一张卡
         p.cloudStack.remove(p.cloudStack.size() - 1);

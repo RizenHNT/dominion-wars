@@ -256,10 +256,11 @@ public class AiAgent implements PlayerAgent {
         if (carrierCard == null) return false;
         if (stepPullsThisTurn < 2 && !p.cloudStack.isEmpty()) {
             CardInstance top = p.cloudStack.get(p.cloudStack.size() - 1);
-            if (g.agentOf(me).askPull(g, me, top, carrierCard, top.def.downloadCost)
+            int pullCost = g.effectiveDownloadCost(p, top);
+            if (g.agentOf(me).askPull(g, me, top, carrierCard, pullCost)
                     && g.pullWith(carrierCard)) {
                 stepPullsThisTurn++;
-                stepPunishSpent += top.def.downloadCost;
+                stepPunishSpent += pullCost;
                 return true;
             }
         }

@@ -87,6 +87,13 @@ public sealed class EffectContext
         set => _window.DeferDeaths = value;
     }
 
+    /// <summary>
+    /// A top-level manual PULL's fee is fixed before lifecycle punishment can
+    /// change the board. It is intentionally not copied by <see cref="ForSource"/>
+    /// so nested PULL effects resolve against their own source and current state.
+    /// </summary>
+    internal PullCostSnapshot? PullCostSnapshot { get; set; }
+
     public EffectContext ForSource(int sourcePlayerIndex, CardInstance? sourceCard)
     {
         return new EffectContext(
@@ -109,5 +116,25 @@ internal sealed class EffectWindowState
     public bool Negated { get; set; }
     public bool NegationObserved { get; set; }
     public bool DeferDeaths { get; set; }
+}
+
+internal readonly struct PullCostSnapshot
+{
+    public PullCostSnapshot(long sourceInstanceId, long targetInstanceId, int amount)
+    {
+        SourceInstanceId = sourceInstanceId;
+        TargetInstanceId = targetInstanceId;
+        Amount = amount;
+    }
+
+    public long SourceInstanceId { get; }
+    public long TargetInstanceId { get; }
+    public int Amount { get; }
+
+    public bool Matches(CardInstance source, CardInstance target)
+    {
+        return SourceInstanceId == source.InstanceId
+            && TargetInstanceId == target.InstanceId;
+    }
 }
 }

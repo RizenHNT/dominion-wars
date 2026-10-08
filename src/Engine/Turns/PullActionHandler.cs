@@ -188,27 +188,33 @@ public sealed class PullActionHandler : ITurnActionHandler
             return GameActionResult.Reject("action.unknown_effect");
         }
 
+        var effectivePunish = EffectRuntime.GetEffectiveDownloadPunish(owner, top);
         var root = state.Events.Append("PULL_DECLARED", null, Data(
             "player", owner.PlayerIndex,
             "source", carrier.InstanceId,
             "target", top.InstanceId,
-            "punish", top.Definition.DownloadCost));
+            "punish", effectivePunish));
         if (!_punishResolver.ResolveLifecyclePunish(
                 state,
                 owner.PlayerIndex,
-                top.Definition.DownloadCost,
+                effectivePunish,
                 root.EventId))
         {
             return GameActionResult.Accept();
         }
 
+        var context = new EffectContext(
+            owner.PlayerIndex,
+            root.EventId,
+            sourceCard: carrier,
+            selectedTargetId: selectedTargetId ?? carrier.InstanceId);
+        context.PullCostSnapshot = new PullCostSnapshot(
+            carrier.InstanceId,
+            top.InstanceId,
+            effectivePunish);
         dispatcher.Apply(
             new EffectSpec(EffectNames.Pull),
-            new EffectContext(
-                owner.PlayerIndex,
-                root.EventId,
-                sourceCard: carrier,
-                selectedTargetId: selectedTargetId ?? carrier.InstanceId));
+            context);
         return GameActionResult.Accept();
     }
 
